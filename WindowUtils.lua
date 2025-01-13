@@ -102,12 +102,12 @@ end
 
 -- Animate a window to its target position and size
 -- @param windowName - The name of the window
--- @param animationTime - The duration of the animation in seconds
-function WindowUtils.Animate(windowName, animationTime)
+-- @param animationDuration - The duration of the animation in seconds
+function WindowUtils.Animate(windowName, animationDuration)
     local animationState = getWindowAnimationState(windowName)
     
     local elapsedTime = os.clock() - animationState.animationStartTime
-    local t = math.min(elapsedTime / animationTime, 1)
+    local t = math.min(elapsedTime / animationDuration, 1)
     t = WindowUtils.EaseInOut(t)
 
     local newPosX = WindowUtils.Lerp(animationState.startPosX, animationState.targetPosX, t)
@@ -127,8 +127,8 @@ end
 -- @param windowName - The name of the window
 -- @param gridEnabled - Whether grid snapping is enabled
 -- @param animationEnabled - Whether animation is enabled
--- @param animationTime - The duration of the animation in seconds
-function WindowUtils.UpdateWindow(windowName, gridEnabled, animationEnabled, animationTime)
+-- @param animationDuration - The duration of the animation in seconds
+function WindowUtils.UpdateWindow(windowName, gridEnabled, animationEnabled, animationDuration)
     local currentPosX, currentPosY = ImGui.GetWindowPos()
     local currentSizeX, currentSizeY = ImGui.GetWindowSize()
 
@@ -154,7 +154,7 @@ function WindowUtils.UpdateWindow(windowName, gridEnabled, animationEnabled, ani
     if animationEnabled then
         local animationState = getWindowAnimationState(windowName)
         if animationState.animating then
-            WindowUtils.Animate(windowName, animationTime)
+            WindowUtils.Animate(windowName, animationDuration)
         end
     end
 end
