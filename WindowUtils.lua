@@ -12,7 +12,7 @@
 local WindowUtils = {}
 
 -- Hardcoded settings
-local gridSize = 60  -- Size of the grid for snapping (60 is best for 4K resolution)
+local gridSize = 20  -- Size of the grid for snapping (60 is best for 4K resolution)
 
 -- Tables to store the state of window animations and dragging
 local animatingWindows = {}
