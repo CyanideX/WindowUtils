@@ -29,10 +29,42 @@ local function findEasingIndex(name)
 end
 
 --------------------------------------------------------------------------------
+-- Grid Visualization
+--------------------------------------------------------------------------------
+
+local function drawGridVisualization()
+    if not settings.master.gridVisualizationEnabled then return end
+
+    local gridSize = settings.master.gridUnits * settings.GRID_UNIT_SIZE
+    local drawList = ImGui.GetForegroundDrawList()
+    local displayWidth, displayHeight = GetDisplayResolution()
+
+    -- White with low alpha for visibility without obstruction
+    local gridColor = ImGui.GetColorU32(1.0, 1.0, 1.0, 0.15)
+
+    -- Draw vertical lines
+    local x = 0
+    while x <= displayWidth do
+        ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, gridColor, 1.0)
+        x = x + gridSize
+    end
+
+    -- Draw horizontal lines
+    local y = 0
+    while y <= displayHeight do
+        ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, gridColor, 1.0)
+        y = y + gridSize
+    end
+end
+
+--------------------------------------------------------------------------------
 -- Settings Window
 --------------------------------------------------------------------------------
 
 function ui.drawSettingsWindow()
+    -- Draw grid visualization (independent of window visibility)
+    drawGridVisualization()
+
     if not ui.state.showWindow then return end
 
     ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
@@ -58,6 +90,9 @@ function ui.drawSettingsWindow()
         -- General settings
         controls.SectionHeader("General", 10, 0)
         settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
+        if changed then settings.save() end
+
+        settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Grid Visualization", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Show Grid Overlay", true)
         if changed then settings.save() end
 
         -- Grid settings
