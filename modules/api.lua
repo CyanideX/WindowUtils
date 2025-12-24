@@ -100,6 +100,35 @@ function api.ToggleAnimation()
 end
 
 --------------------------------------------------------------------------------
+-- Tooltips Control
+--------------------------------------------------------------------------------
+
+function api.IsTooltipsEnabled()
+    return settings.master.tooltipsEnabled
+end
+
+function api.EnableTooltips()
+    settings.master.tooltipsEnabled = true
+    settings.save()
+end
+
+function api.DisableTooltips()
+    settings.master.tooltipsEnabled = false
+    settings.save()
+end
+
+function api.SetTooltipsEnabled(enabled)
+    settings.master.tooltipsEnabled = enabled
+    settings.save()
+end
+
+function api.ToggleTooltips()
+    settings.master.tooltipsEnabled = not settings.master.tooltipsEnabled
+    settings.save()
+    return settings.master.tooltipsEnabled
+end
+
+--------------------------------------------------------------------------------
 -- Settings Access
 --------------------------------------------------------------------------------
 

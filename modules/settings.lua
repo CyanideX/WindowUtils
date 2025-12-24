@@ -8,23 +8,28 @@ local settings = {}
 -- Settings file path
 local settingsPath = "data/settings.json"
 
+-- Grid unit size in pixels (hardcoded base unit)
+settings.GRID_UNIT_SIZE = 20
+
 -- Global defaults (can be changed via SetGlobalDefaults)
 settings.defaults = {
-    gridSize = 20,
+    gridUnits = 1,
     gridEnabled = true,
     animationEnabled = true,
     animationDuration = 0.2,
-    easeFunction = "easeInOut"
+    easeFunction = "easeInOut",
+    tooltipsEnabled = true
 }
 
 -- Master settings (highest priority when enabled, persisted to JSON)
 settings.master = {
     enabled = false,
-    gridSize = 20,
+    gridUnits = 1,
     gridEnabled = true,
     animationEnabled = true,
     animationDuration = 0.2,
-    easeFunction = "easeInOut"
+    easeFunction = "easeInOut",
+    tooltipsEnabled = true
 }
 
 -- Per-window configuration overrides
@@ -35,11 +40,12 @@ settings.external = nil
 
 -- Map from internal keys to external setting keys
 settings.KEY_MAP = {
-    gridSize = "windowGridSize",
+    gridUnits = "windowGridUnits",
     gridEnabled = "windowGridEnabled",
     animationEnabled = "windowAnimationEnabled",
     animationDuration = "windowAnimationDuration",
-    easeFunction = "windowInterpolation"
+    easeFunction = "windowInterpolation",
+    tooltipsEnabled = "tooltipsEnabled"
 }
 
 -- Easing function names (ordered for dropdown)

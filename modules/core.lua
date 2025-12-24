@@ -46,7 +46,8 @@ local easeFunctions = {
 
 --- Snap a position to the nearest grid point.
 function core.snapToGrid(position, windowName)
-    local gridSize = settings.getConfig(windowName, "gridSize")
+    local gridUnits = settings.getConfig(windowName, "gridUnits")
+    local gridSize = gridUnits * settings.GRID_UNIT_SIZE
     return math.floor(position / gridSize + 0.5) * gridSize
 end
 

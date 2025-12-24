@@ -17,6 +17,9 @@ local settings = require("modules/settings")
 local core = require("modules/core")
 local ui = require("modules/ui")
 local api = require("modules/api")
+local styles = require("modules/styles")
+local controls = require("modules/controls")
+local tooltips = require("modules/tooltips")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -75,6 +78,11 @@ end
 
 -- External Mod API
 WindowUtils.API = api
+
+-- Styles, Controls, and Tooltips modules
+WindowUtils.Styles = styles
+WindowUtils.Controls = controls
+WindowUtils.Tooltips = tooltips
 
 --------------------------------------------------------------------------------
 -- CET Event Registration
