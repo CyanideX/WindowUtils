@@ -35,9 +35,15 @@ end
 local function drawGridVisualization()
     if not settings.master.gridVisualizationEnabled then return end
 
+    -- If "show on drag only" is enabled, only show when a window is being dragged
+    if settings.master.gridShowOnDragOnly and not core.isAnyWindowDragging() then
+        return
+    end
+
     local gridSize = settings.master.gridUnits * settings.GRID_UNIT_SIZE
-    local drawList = ImGui.GetForegroundDrawList()
+    local drawList = ImGui.GetBackgroundDrawList()
     local displayWidth, displayHeight = GetDisplayResolution()
+    local thickness = settings.master.gridLineThickness
 
     -- White with low alpha for visibility without obstruction
     local gridColor = ImGui.GetColorU32(1.0, 1.0, 1.0, 0.15)
@@ -45,14 +51,14 @@ local function drawGridVisualization()
     -- Draw vertical lines
     local x = 0
     while x <= displayWidth do
-        ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, gridColor, 1.0)
+        ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, gridColor, thickness)
         x = x + gridSize
     end
 
     -- Draw horizontal lines
     local y = 0
     while y <= displayHeight do
-        ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, gridColor, 1.0)
+        ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, gridColor, thickness)
         y = y + gridSize
     end
 end
@@ -94,6 +100,20 @@ function ui.drawSettingsWindow()
 
         settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Grid Visualization", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Show Grid Overlay", true)
         if changed then settings.save() end
+
+        -- Grid visualization sub-options (indented, only when visualization enabled)
+        if settings.master.gridVisualizationEnabled then
+            ImGui.SameLine()
+            settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows", true)
+            if changed then settings.save() end
+
+            local thickness = settings.master.gridLineThickness
+            thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
+            if changed then
+                settings.master.gridLineThickness = thickness
+                settings.save()
+            end
+        end
 
         -- Grid settings
         controls.SectionHeader("Grid", 10, 0)

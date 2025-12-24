@@ -247,6 +247,20 @@ function core.resetWindow(windowName)
     windowStates[windowName] = nil
 end
 
+function core.isWindowDragging(windowName)
+    local state = windowStates[windowName]
+    return state and state.isDragging or false
+end
+
+function core.isAnyWindowDragging()
+    for _, state in pairs(windowStates) do
+        if state.isDragging then
+            return true
+        end
+    end
+    return false
+end
+
 function core.cleanupUnusedWindows(activeWindowNames)
     local activeSet = {}
     for _, name in ipairs(activeWindowNames) do
