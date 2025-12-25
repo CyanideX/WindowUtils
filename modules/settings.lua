@@ -23,7 +23,11 @@ settings.defaults = {
     animationDuration = 0.2,
     easeFunction = "easeInOut",
     tooltipsEnabled = true,
-    overrideAllWindows = false
+    overrideAllWindows = false,
+    gridFeatherEnabled = false,
+    gridFeatherRadius = 400,
+    gridFeatherPadding = 20,
+    gridFeatherCurve = 2.0
 }
 
 -- Master settings (highest priority when enabled, persisted to JSON)
@@ -39,7 +43,11 @@ settings.master = {
     animationDuration = 0.2,
     easeFunction = "easeInOut",
     tooltipsEnabled = true,
-    overrideAllWindows = false
+    overrideAllWindows = false,
+    gridFeatherEnabled = false,
+    gridFeatherRadius = 400,
+    gridFeatherPadding = 20,
+    gridFeatherCurve = 2.0
 }
 
 -- Per-window configuration overrides

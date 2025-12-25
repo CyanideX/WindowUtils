@@ -20,6 +20,9 @@ local externalWindowStates = {}
 -- Deferred snap operations (executed at end of draw)
 local deferredSnapOperations = {}
 
+-- Currently dragging window bounds (updated every frame during drag)
+local draggingWindowBounds = nil
+
 --------------------------------------------------------------------------------
 -- Easing Functions
 --------------------------------------------------------------------------------
@@ -195,6 +198,13 @@ function core.update(windowName, options)
 
         if isFocused and isDragging then
             state.isDragging = true
+            -- Update live bounds for grid feathering
+            draggingWindowBounds = {
+                x = currentPosX,
+                y = currentPosY,
+                width = currentSizeX,
+                height = currentSizeY
+            }
         elseif state.isDragging and isReleased then
             state.isDragging = false
             local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
@@ -266,6 +276,17 @@ function core.isAnyWindowDragging()
         end
     end
     return false
+end
+
+--- Get the bounds of the currently dragging window.
+-- @return table|nil: {x, y, width, height} or nil if no window is dragging
+function core.getDraggingWindowBounds()
+    return draggingWindowBounds
+end
+
+--- Clear dragging window bounds (call when no window is dragging).
+function core.clearDraggingWindowBounds()
+    draggingWindowBounds = nil
 end
 
 function core.cleanupUnusedWindows(activeWindowNames)
@@ -445,6 +466,13 @@ function core.updateExternalWindows()
                 -- Track drag state
                 if isFocused and isDragging then
                     state.isDragging = true
+                    -- Update live bounds for grid feathering
+                    draggingWindowBounds = {
+                        x = currentPosX,
+                        y = currentPosY,
+                        width = currentSizeX,
+                        height = currentSizeY
+                    }
                 elseif state.isDragging and isReleased then
                     state.isDragging = false
 

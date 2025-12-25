@@ -15,6 +15,17 @@ ui.state = {
     showWindow = false
 }
 
+-- Grid fade state
+local gridFade = {
+    opacity = 0,           -- Current opacity multiplier (0 to 1)
+    wasDragging = false,   -- Was dragging last frame
+    fadeStartTime = 0      -- When fade started
+}
+
+-- Hardcoded fade durations (in seconds)
+local GRID_FADE_IN_DURATION = 0.15
+local GRID_FADE_OUT_DURATION = 0.25
+
 --------------------------------------------------------------------------------
 -- Helper Functions
 --------------------------------------------------------------------------------
@@ -32,15 +43,89 @@ end
 -- Grid Visualization
 --------------------------------------------------------------------------------
 
-local function drawGridVisualization()
-    if not settings.master.gridVisualizationEnabled then return end
+--- Calculate distance from a point to a rectangle (0 if inside, positive if outside).
+-- @param px, py: Point coordinates
+-- @param rx, ry: Rectangle top-left corner
+-- @param rw, rh: Rectangle width and height
+-- @param padding: Extra padding around rectangle (points within padding have distance 0)
+-- @return number: Distance to rectangle edge (0 if inside or within padding)
+local function distanceToRect(px, py, rx, ry, rw, rh, padding)
+    padding = padding or 0
+    local left = rx - padding
+    local right = rx + rw + padding
+    local top = ry - padding
+    local bottom = ry + rh + padding
 
-    -- If "show on drag only" is enabled, only show when a window is being dragged
+    -- Check if point is inside padded rectangle
+    if px >= left and px <= right and py >= top and py <= bottom then
+        return 0
+    end
+
+    -- Calculate distance to nearest edge
+    local dx = 0
+    local dy = 0
+
+    if px < left then
+        dx = left - px
+    elseif px > right then
+        dx = px - right
+    end
+
+    if py < top then
+        dy = top - py
+    elseif py > bottom then
+        dy = py - bottom
+    end
+
+    return math.sqrt(dx * dx + dy * dy)
+end
+
+local function drawGridVisualization()
+    if not settings.master.gridVisualizationEnabled then
+        gridFade.opacity = 0
+        gridFade.wasDragging = false
+        core.clearDraggingWindowBounds()
+        return
+    end
+
+    local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    local now = os.clock()
+
+    -- Clear bounds when not dragging
+    if not anyDragging then
+        core.clearDraggingWindowBounds()
+    end
+
+    -- Handle fade transitions for "show on drag only" mode
     if settings.master.gridShowOnDragOnly then
-        local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
-        if not anyDragging then
+        -- Detect drag state changes
+        if anyDragging and not gridFade.wasDragging then
+            -- Started dragging - begin fade in
+            gridFade.fadeStartTime = now
+        elseif not anyDragging and gridFade.wasDragging then
+            -- Stopped dragging - begin fade out
+            gridFade.fadeStartTime = now
+        end
+        gridFade.wasDragging = anyDragging
+
+        -- Calculate current opacity based on fade state
+        local elapsed = now - gridFade.fadeStartTime
+        if anyDragging then
+            -- Fading in or fully visible
+            gridFade.opacity = math.min(1, elapsed / GRID_FADE_IN_DURATION)
+        else
+            -- Fading out or fully hidden
+            gridFade.opacity = math.max(0, 1 - (elapsed / GRID_FADE_OUT_DURATION))
+        end
+
+        -- Skip drawing if fully faded out
+        if gridFade.opacity <= 0 then
             return
         end
+    else
+        -- Not in "show on drag only" mode - always fully visible
+        gridFade.opacity = 1
+        gridFade.wasDragging = false
     end
 
     local gridSize = settings.master.gridUnits * settings.GRID_UNIT_SIZE
@@ -48,20 +133,85 @@ local function drawGridVisualization()
     local displayWidth, displayHeight = GetDisplayResolution()
     local thickness = settings.master.gridLineThickness
     local color = settings.master.gridLineColor
+    local baseAlpha = color[4] * gridFade.opacity
 
-    local gridColor = ImGui.GetColorU32(color[1], color[2], color[3], color[4])
+    -- Get feather settings
+    local featherEnabled = settings.master.gridFeatherEnabled
+    local featherRadius = settings.master.gridFeatherRadius
+    local featherPadding = settings.master.gridFeatherPadding
+    local featherCurve = settings.master.gridFeatherCurve
 
-    -- Draw vertical lines
-    local x = 0
-    while x <= displayWidth do
-        ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, gridColor, thickness)
+    -- Get window bounds for feathered effect (only when dragging and feather enabled)
+    local useFeather = settings.master.gridShowOnDragOnly and anyDragging and featherEnabled
+    local windowBounds = nil
+    if useFeather then
+        windowBounds = core.getDraggingWindowBounds()
+    end
+
+    -- If no bounds available but feathering requested, fall back to mouse position
+    if useFeather and not windowBounds then
+        local mx, my = ImGui.GetMousePos()
+        windowBounds = { x = mx - 100, y = my - 50, width = 200, height = 100 }
+    end
+
+    -- Segment size for feathered drawing (use grid size for efficiency)
+    local segmentSize = gridSize
+
+    -- Draw vertical lines (skip x=0 and x=displayWidth edges)
+    local x = gridSize
+    while x < displayWidth do
+        if useFeather and windowBounds then
+            -- Draw line in segments with varying opacity
+            local y1 = 0
+            while y1 < displayHeight do
+                local y2 = math.min(y1 + segmentSize, displayHeight)
+                -- Use whichever segment endpoint is CLOSEST to the window
+                local dist1 = distanceToRect(x, y1, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
+                local dist2 = distanceToRect(x, y2, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
+                local dist = math.min(dist1, dist2)
+                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
+                local featherAlpha = math.pow(linearAlpha, featherCurve)
+                local lineAlpha = baseAlpha * featherAlpha
+
+                if lineAlpha > 0.001 then
+                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
+                    ImGui.ImDrawListAddLine(drawList, x, y1, x, y2, lineColor, thickness)
+                end
+                y1 = y2
+            end
+        else
+            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
+            ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, lineColor, thickness)
+        end
         x = x + gridSize
     end
 
-    -- Draw horizontal lines
-    local y = 0
-    while y <= displayHeight do
-        ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, gridColor, thickness)
+    -- Draw horizontal lines (skip y=0 and y=displayHeight edges)
+    local y = gridSize
+    while y < displayHeight do
+        if useFeather and windowBounds then
+            -- Draw line in segments with varying opacity
+            local x1 = 0
+            while x1 < displayWidth do
+                local x2 = math.min(x1 + segmentSize, displayWidth)
+                -- Use whichever segment endpoint is CLOSEST to the window
+                local dist1 = distanceToRect(x1, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
+                local dist2 = distanceToRect(x2, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
+                local dist = math.min(dist1, dist2)
+                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
+                local featherAlpha = math.pow(linearAlpha, featherCurve)
+                local lineAlpha = baseAlpha * featherAlpha
+
+                if lineAlpha > 0.001 then
+                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
+                    ImGui.ImDrawListAddLine(drawList, x1, y, x2, y, lineColor, thickness)
+                end
+                x1 = x2
+            end
+        else
+            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
+            ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, lineColor, thickness)
+        end
         y = y + gridSize
     end
 end
@@ -182,6 +332,35 @@ function ui.drawSettingsWindow()
 
         if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
             controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
+        end
+
+        -- Grid feathering (only available when Show on Drag Only is enabled)
+        if settings.master.gridVisualizationEnabled and settings.master.gridShowOnDragOnly then
+            settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window", true)
+            if changed then settings.save() end
+
+            if settings.master.gridFeatherEnabled then
+                local radius = settings.master.gridFeatherRadius
+                radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 100, 800, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
+                if changed then
+                    settings.master.gridFeatherRadius = radius
+                    settings.save()
+                end
+
+                local padding = settings.master.gridFeatherPadding
+                padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 100, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
+                if changed then
+                    settings.master.gridFeatherPadding = padding
+                    settings.save()
+                end
+
+                local curve = settings.master.gridFeatherCurve
+                curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 5.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
+                if changed then
+                    settings.master.gridFeatherCurve = curve
+                    settings.save()
+                end
+            end
         end
 
         if not settings.master.enabled then
