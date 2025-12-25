@@ -23,6 +23,9 @@ local deferredSnapOperations = {}
 -- Currently dragging window bounds (updated every frame during drag)
 local draggingWindowBounds = nil
 
+-- Currently dragging window name (for dynamic grid visualization)
+local draggingWindowName = nil
+
 --------------------------------------------------------------------------------
 -- Easing Functions
 --------------------------------------------------------------------------------
@@ -198,13 +201,14 @@ function core.update(windowName, options)
 
         if isFocused and isDragging then
             state.isDragging = true
-            -- Update live bounds for grid feathering
+            -- Update live bounds and window name for grid feathering
             draggingWindowBounds = {
                 x = currentPosX,
                 y = currentPosY,
                 width = currentSizeX,
                 height = currentSizeY
             }
+            draggingWindowName = windowName
         elseif state.isDragging and isReleased then
             state.isDragging = false
             local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
@@ -287,6 +291,25 @@ end
 --- Clear dragging window bounds (call when no window is dragging).
 function core.clearDraggingWindowBounds()
     draggingWindowBounds = nil
+    draggingWindowName = nil
+end
+
+--- Get the name of the currently dragging window.
+-- @return string|nil: Window name or nil if no window is dragging
+function core.getDraggingWindowName()
+    return draggingWindowName
+end
+
+--- Get the effective grid size for the currently dragging window.
+-- Returns the window's configured grid size, or master settings if no window is dragging.
+-- @return number: Grid size in pixels
+function core.getDraggingWindowGridSize()
+    if draggingWindowName then
+        local gridUnits = settings.getConfig(draggingWindowName, "gridUnits")
+        return gridUnits * settings.GRID_UNIT_SIZE
+    end
+    -- Fallback to master settings
+    return settings.master.gridUnits * settings.GRID_UNIT_SIZE
 end
 
 function core.cleanupUnusedWindows(activeWindowNames)
@@ -437,7 +460,8 @@ end
 
 --- Update all external windows (called every frame when override is enabled).
 function core.updateExternalWindows()
-    if not settings.master.overrideAllWindows then
+    -- Only process when master override is enabled
+    if not settings.master.enabled or not settings.master.overrideAllWindows then
         return
     end
 
@@ -467,13 +491,14 @@ function core.updateExternalWindows()
                 -- Track drag state
                 if isFocused and isDragging then
                     state.isDragging = true
-                    -- Update live bounds for grid feathering
+                    -- Update live bounds and window name for grid feathering
                     draggingWindowBounds = {
                         x = currentPosX,
                         y = currentPosY,
                         width = currentSizeX,
                         height = currentSizeY
                     }
+                    draggingWindowName = windowName
                 elseif state.isDragging and isReleased then
                     state.isDragging = false
 

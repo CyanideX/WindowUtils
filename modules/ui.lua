@@ -21,7 +21,8 @@ local gridFade = {
     wasDragging = false,   -- Was dragging last frame
     fadeStartTime = 0,     -- When fade started
     wasFeathering = false, -- Was feathering active when drag ended
-    lastBounds = nil       -- Last window bounds (preserved for fade-out)
+    lastBounds = nil,      -- Last window bounds (preserved for fade-out)
+    lastGridSize = nil     -- Last grid size (preserved for fade-out)
 }
 
 -- Hardcoded fade durations (in seconds)
@@ -83,11 +84,13 @@ local function distanceToRect(px, py, rx, ry, rw, rh, padding)
 end
 
 local function drawGridVisualization()
+    -- Grid visualization works independently of master override
     if not settings.master.gridVisualizationEnabled then
         gridFade.opacity = 0
         gridFade.wasDragging = false
         gridFade.wasFeathering = false
         gridFade.lastBounds = nil
+        gridFade.lastGridSize = nil
         core.clearDraggingWindowBounds()
         return
     end
@@ -106,7 +109,8 @@ local function drawGridVisualization()
         elseif not anyDragging and gridFade.wasDragging then
             -- Stopped dragging - begin fade out
             gridFade.fadeStartTime = now
-            -- Preserve bounds for fade-out if feathering was active
+            -- Preserve bounds and grid size for fade-out
+            gridFade.lastGridSize = core.getDraggingWindowGridSize()
             if featherEnabled then
                 gridFade.lastBounds = core.getDraggingWindowBounds()
                 gridFade.wasFeathering = true
@@ -126,8 +130,9 @@ local function drawGridVisualization()
 
         -- Skip drawing if fully faded out
         if gridFade.opacity <= 0 then
-            -- Clear preserved bounds after fade-out completes
+            -- Clear preserved state after fade-out completes
             gridFade.lastBounds = nil
+            gridFade.lastGridSize = nil
             gridFade.wasFeathering = false
             core.clearDraggingWindowBounds()
             return
@@ -138,6 +143,7 @@ local function drawGridVisualization()
         gridFade.wasDragging = false
         gridFade.wasFeathering = false
         gridFade.lastBounds = nil
+        gridFade.lastGridSize = nil
     end
 
     -- Clear live bounds when not dragging (but preserve lastBounds for fade-out)
@@ -145,7 +151,8 @@ local function drawGridVisualization()
         core.clearDraggingWindowBounds()
     end
 
-    local gridSize = settings.master.gridUnits * settings.GRID_UNIT_SIZE
+    -- Use dragging window's grid size, preserved size during fade-out, or master settings
+    local gridSize = anyDragging and core.getDraggingWindowGridSize() or gridFade.lastGridSize or (settings.master.gridUnits * settings.GRID_UNIT_SIZE)
     local drawList = ImGui.GetBackgroundDrawList()
     local displayWidth, displayHeight = GetDisplayResolution()
     local thickness = settings.master.gridLineThickness
@@ -258,7 +265,61 @@ function ui.drawSettingsWindow()
             controls.TextMuted("Master settings disabled - mods use their own")
         end
 
-        -- Settings (always editable, but only apply when enabled)
+        -- Grid Visualization section (always enabled, independent of master override)
+        controls.SectionHeader("Grid Visualization", 10, 0)
+        settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Show Grid Overlay", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
+        if changed then settings.save() end
+
+        -- Grid visualization sub-options (only when visualization enabled)
+        if settings.master.gridVisualizationEnabled then
+            ImGui.SameLine()
+            settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
+            if changed then settings.save() end
+
+            local thickness = settings.master.gridLineThickness
+            thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
+            if changed then
+                settings.master.gridLineThickness = thickness
+                settings.save()
+            end
+
+            -- RGBA color picker
+            settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
+            if changed then
+                settings.save()
+            end
+
+            -- Grid feathering (only available when Show on Drag Only is enabled)
+            if settings.master.gridShowOnDragOnly then
+                settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
+                if changed then settings.save() end
+
+                if settings.master.gridFeatherEnabled then
+                    local radius = settings.master.gridFeatherRadius
+                    radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 100, 800, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
+                    if changed then
+                        settings.master.gridFeatherRadius = radius
+                        settings.save()
+                    end
+
+                    local padding = settings.master.gridFeatherPadding
+                    padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 100, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
+                    if changed then
+                        settings.master.gridFeatherPadding = padding
+                        settings.save()
+                    end
+
+                    local curve = settings.master.gridFeatherCurve
+                    curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 5.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
+                    if changed then
+                        settings.master.gridFeatherCurve = curve
+                        settings.save()
+                    end
+                end
+            end
+        end
+
+        -- Master override dependent settings
         if not settings.master.enabled then
             ImGui.BeginDisabled()
         end
@@ -269,8 +330,8 @@ function ui.drawSettingsWindow()
         if changed then settings.save() end
 
         -- Grid settings
-        controls.SectionHeader("Grid", 10, 0)
-        settings.master.gridEnabled, changed = controls.Checkbox("Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
+        controls.SectionHeader("Grid Snapping", 10, 0)
+        settings.master.gridEnabled, changed = controls.Checkbox("Enable Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
         if changed then settings.save() end
 
         -- Get valid grid units and map to scale 1-N
@@ -296,58 +357,6 @@ function ui.drawSettingsWindow()
         if changed then
             settings.master.gridUnits = validUnits[newScale]
             settings.save()
-        end
-
-                settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Grid Visualization", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Show Grid Overlay")
-        if changed then settings.save() end
-
-        -- Grid visualization sub-options (indented, only when visualization enabled)
-        if settings.master.gridVisualizationEnabled then
-            ImGui.SameLine()
-            settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
-            if changed then settings.save() end
-
-            local thickness = settings.master.gridLineThickness
-            thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
-            if changed then
-                settings.master.gridLineThickness = thickness
-                settings.save()
-            end
-
-            -- RGBA color picker
-            settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
-            if changed then
-                settings.save()
-            end
-        end
-
-        -- Grid feathering (only available when Show on Drag Only is enabled)
-        if settings.master.gridVisualizationEnabled and settings.master.gridShowOnDragOnly then
-            settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
-            if changed then settings.save() end
-
-            if settings.master.gridFeatherEnabled then
-                local radius = settings.master.gridFeatherRadius
-                radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 100, 800, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
-                if changed then
-                    settings.master.gridFeatherRadius = radius
-                    settings.save()
-                end
-
-                local padding = settings.master.gridFeatherPadding
-                padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 100, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
-                if changed then
-                    settings.master.gridFeatherPadding = padding
-                    settings.save()
-                end
-
-                local curve = settings.master.gridFeatherCurve
-                curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 5.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
-                if changed then
-                    settings.master.gridFeatherCurve = curve
-                    settings.save()
-                end
-            end
         end
 
         -- Animation settings
