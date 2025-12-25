@@ -2,6 +2,7 @@
 -- WindowUtils - External API Module
 -- Clean interface for other mods to control WindowUtils
 -- Usage: local wu = GetMod("WindowUtils"); if wu then wu.API.Toggle() end
+-- print(GetMod("WindowUtils").api.IsEnabled())
 ------------------------------------------------------
 
 local settings = require("modules/settings")
