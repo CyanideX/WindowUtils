@@ -22,7 +22,8 @@ local gridFade = {
     fadeStartTime = 0,     -- When fade started
     wasFeathering = false, -- Was feathering active when drag ended
     lastBounds = nil,      -- Last window bounds (preserved for fade-out)
-    lastGridSize = nil     -- Last grid size (preserved for fade-out)
+    lastGridSize = nil,    -- Last grid size (preserved for fade-out)
+    lastWindowName = nil   -- Last window name (preserved for fade-out guides)
 }
 
 -- Hardcoded fade durations (in seconds)
@@ -109,8 +110,9 @@ local function drawGridVisualization()
         elseif not anyDragging and gridFade.wasDragging then
             -- Stopped dragging - begin fade out
             gridFade.fadeStartTime = now
-            -- Preserve bounds and grid size for fade-out
+            -- Preserve bounds, grid size, and window name for fade-out
             gridFade.lastGridSize = core.getDraggingWindowGridSize()
+            gridFade.lastWindowName = core.getDraggingWindowName()
             -- Preserve bounds if feathering OR guides enabled (both need window position)
             if featherEnabled or (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) then
                 gridFade.lastBounds = core.getDraggingWindowBounds()
@@ -134,6 +136,7 @@ local function drawGridVisualization()
             -- Clear preserved state after fade-out completes
             gridFade.lastBounds = nil
             gridFade.lastGridSize = nil
+            gridFade.lastWindowName = nil
             gridFade.wasFeathering = false
             core.clearDraggingWindowBounds()
             return
@@ -145,6 +148,7 @@ local function drawGridVisualization()
         gridFade.wasFeathering = false
         gridFade.lastBounds = nil
         gridFade.lastGridSize = nil
+        gridFade.lastWindowName = nil
     end
 
     -- Clear live bounds when not dragging (but preserve lastBounds for fade-out)
@@ -257,11 +261,12 @@ local function drawGridVisualization()
     if guidesActive and windowBounds then
         local guideColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
 
-        -- Snap window bounds to grid for guide positions
-        local leftEdge = core.snapToGrid(windowBounds.x, nil)
-        local rightEdge = core.snapToGrid(windowBounds.x + windowBounds.width, nil)
-        local topEdge = core.snapToGrid(windowBounds.y, nil)
-        local bottomEdge = core.snapToGrid(windowBounds.y + windowBounds.height, nil)
+        -- Snap window bounds to grid for guide positions (use dragging window's grid size, or preserved during fade-out)
+        local windowName = anyDragging and core.getDraggingWindowName() or gridFade.lastWindowName
+        local leftEdge = core.snapToGrid(windowBounds.x, windowName)
+        local rightEdge = core.snapToGrid(windowBounds.x + windowBounds.width, windowName)
+        local topEdge = core.snapToGrid(windowBounds.y, windowName)
+        local bottomEdge = core.snapToGrid(windowBounds.y + windowBounds.height, windowName)
 
         -- Vertical guides (left and right edges) - full height
         ImGui.ImDrawListAddLine(drawList, leftEdge, 0, leftEdge, displayHeight, guideColor, thickness)
@@ -290,7 +295,10 @@ function ui.drawSettingsWindow()
         -- Master override toggle
         local changed
         settings.master.enabled, changed = controls.Checkbox("Enable Master Override", settings.master.enabled)
-        if changed then settings.save() end
+        if changed then
+            settings.save()
+            core.invalidateGridCache()  -- Clear cached grid sizes when override changes
+        end
 
         if settings.master.enabled then
             controls.TextSuccess("Master settings active - overriding all mods")
@@ -435,7 +443,10 @@ function ui.drawSettingsWindow()
         -- Experimental settings
         controls.SectionHeader("Experimental", 10, 0)
         settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nWARNING: Currently has issue with windows not hidden by Window Manager!", true)
-        if changed then settings.save() end
+        if changed then
+            settings.save()
+            core.invalidateGridCache()  -- Clear cached grid sizes when override changes
+        end
 
         if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
             controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
