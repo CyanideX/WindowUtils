@@ -19,6 +19,8 @@
 ---@field gridFeatherRadius number Feather radius in pixels
 ---@field gridFeatherPadding number Feather padding in pixels
 ---@field gridFeatherCurve number Feather curve exponent
+---@field gridGuidesEnabled boolean Show alignment guide lines at window edges
+---@field gridGuidesDimming number Grid opacity multiplier when guides active (0-1)
 
 ---@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
 ---@field enabled boolean Master override enabled
@@ -70,7 +72,9 @@ local function createDefaultSettings()
         gridFeatherEnabled = false,
         gridFeatherRadius = 400,
         gridFeatherPadding = 0,
-        gridFeatherCurve = 5.0
+        gridFeatherCurve = 5.0,
+        gridGuidesEnabled = false,
+        gridGuidesDimming = 0.2
     }
 end
 

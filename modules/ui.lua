@@ -111,9 +111,10 @@ local function drawGridVisualization()
             gridFade.fadeStartTime = now
             -- Preserve bounds and grid size for fade-out
             gridFade.lastGridSize = core.getDraggingWindowGridSize()
-            if featherEnabled then
+            -- Preserve bounds if feathering OR guides enabled (both need window position)
+            if featherEnabled or (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) then
                 gridFade.lastBounds = core.getDraggingWindowBounds()
-                gridFade.wasFeathering = true
+                gridFade.wasFeathering = featherEnabled
             end
         end
         gridFade.wasDragging = anyDragging
@@ -166,14 +167,20 @@ local function drawGridVisualization()
 
     -- Use feathering if currently dragging with feather enabled, OR fading out with preserved bounds
     local useFeather = settings.master.gridShowOnDragOnly and featherEnabled and (anyDragging or gridFade.wasFeathering)
+
+    -- Guides only work when Show on Drag Only is enabled
+    local guidesActive = settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled
+
+    -- Get window bounds (needed for feathering AND guides)
+    local needBounds = useFeather or guidesActive
     local windowBounds = nil
-    if useFeather then
+    if needBounds then
         -- Use live bounds if dragging, otherwise use preserved bounds from fade-out
         windowBounds = anyDragging and core.getDraggingWindowBounds() or gridFade.lastBounds
     end
 
-    -- If no bounds available but feathering requested, fall back to mouse position
-    if useFeather and not windowBounds then
+    -- If no bounds available but needed, fall back to mouse position
+    if needBounds and not windowBounds then
         local mx, my = ImGui.GetMousePos()
         windowBounds = { x = mx - 100, y = my - 50, width = 200, height = 100 }
     end
@@ -181,6 +188,13 @@ local function drawGridVisualization()
     -- Segment size for feathered drawing (use grid size for efficiency)
     local segmentSize = gridSize
 
+    -- Apply grid dimming when guides are enabled
+    local gridAlpha = baseAlpha
+    if guidesActive then
+        gridAlpha = baseAlpha * settings.master.gridGuidesDimming
+    end
+
+    -- Draw full grid lines (dimmed if guides enabled)
     -- Draw vertical lines (skip x=0 and x=displayWidth edges)
     local x = gridSize
     while x < displayWidth do
@@ -195,7 +209,7 @@ local function drawGridVisualization()
                 local dist = math.min(dist1, dist2)
                 local linearAlpha = math.max(0, 1 - (dist / featherRadius))
                 local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = baseAlpha * featherAlpha
+                local lineAlpha = gridAlpha * featherAlpha
 
                 if lineAlpha > 0.001 then
                     local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
@@ -204,7 +218,7 @@ local function drawGridVisualization()
                 y1 = y2
             end
         else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
+            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
             ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, lineColor, thickness)
         end
         x = x + gridSize
@@ -224,7 +238,7 @@ local function drawGridVisualization()
                 local dist = math.min(dist1, dist2)
                 local linearAlpha = math.max(0, 1 - (dist / featherRadius))
                 local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = baseAlpha * featherAlpha
+                local lineAlpha = gridAlpha * featherAlpha
 
                 if lineAlpha > 0.001 then
                     local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
@@ -233,10 +247,29 @@ local function drawGridVisualization()
                 x1 = x2
             end
         else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
+            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
             ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, lineColor, thickness)
         end
         y = y + gridSize
+    end
+
+    -- Draw alignment guides at window edges (full-width/height lines)
+    if guidesActive and windowBounds then
+        local guideColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
+
+        -- Snap window bounds to grid for guide positions
+        local leftEdge = core.snapToGrid(windowBounds.x, nil)
+        local rightEdge = core.snapToGrid(windowBounds.x + windowBounds.width, nil)
+        local topEdge = core.snapToGrid(windowBounds.y, nil)
+        local bottomEdge = core.snapToGrid(windowBounds.y + windowBounds.height, nil)
+
+        -- Vertical guides (left and right edges) - full height
+        ImGui.ImDrawListAddLine(drawList, leftEdge, 0, leftEdge, displayHeight, guideColor, thickness)
+        ImGui.ImDrawListAddLine(drawList, rightEdge, 0, rightEdge, displayHeight, guideColor, thickness)
+
+        -- Horizontal guides (top and bottom edges) - full width
+        ImGui.ImDrawListAddLine(drawList, 0, topEdge, displayWidth, topEdge, guideColor, thickness)
+        ImGui.ImDrawListAddLine(drawList, 0, bottomEdge, displayWidth, bottomEdge, guideColor, thickness)
     end
 end
 
@@ -275,6 +308,24 @@ function ui.drawSettingsWindow()
             ImGui.SameLine()
             settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
             if changed then settings.save() end
+
+            if settings.master.gridShowOnDragOnly then
+                ImGui.SameLine()
+                settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid")
+                if changed then settings.save() end
+            end
+
+            -- Grid dimming slider (only when guides enabled)
+            if settings.master.gridGuidesEnabled then
+                -- Display as 0-100%, store as 0-1
+                local dimmingPercent = settings.master.gridGuidesDimming * 100
+                local newDimmingPercent
+                newDimmingPercent, changed = controls.SliderFloat(IconGlyphs.Brightness5, "gridDimming", dimmingPercent, 0, 100, "%.0f%%", nil, settings.defaults.gridGuidesDimming * 100, "Grid Dimming (opacity of grid lines when guides active)")
+                if changed then
+                    settings.master.gridGuidesDimming = newDimmingPercent / 100
+                    settings.save()
+                end
+            end
 
             local thickness = settings.master.gridLineThickness
             thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
