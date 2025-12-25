@@ -22,7 +22,8 @@ settings.defaults = {
     animationEnabled = true,
     animationDuration = 0.2,
     easeFunction = "easeInOut",
-    tooltipsEnabled = true
+    tooltipsEnabled = true,
+    overrideAllWindows = false
 }
 
 -- Master settings (highest priority when enabled, persisted to JSON)
@@ -37,7 +38,8 @@ settings.master = {
     animationEnabled = true,
     animationDuration = 0.2,
     easeFunction = "easeInOut",
-    tooltipsEnabled = true
+    tooltipsEnabled = true,
+    overrideAllWindows = false
 }
 
 -- Per-window configuration overrides

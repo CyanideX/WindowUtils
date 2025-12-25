@@ -96,6 +96,12 @@ end)
 registerForEvent("onDraw", function()
     if WindowUtils.runtimeData.cetOpen then
         ui.drawSettingsWindow()
+
+        -- Process external windows if override is enabled
+        core.updateExternalWindows()
+
+        -- Execute deferred snap operations
+        core.processDeferred()
     end
 end)
 

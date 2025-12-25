@@ -36,8 +36,11 @@ local function drawGridVisualization()
     if not settings.master.gridVisualizationEnabled then return end
 
     -- If "show on drag only" is enabled, only show when a window is being dragged
-    if settings.master.gridShowOnDragOnly and not core.isAnyWindowDragging() then
-        return
+    if settings.master.gridShowOnDragOnly then
+        local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+        if not anyDragging then
+            return
+        end
     end
 
     local gridSize = settings.master.gridUnits * settings.GRID_UNIT_SIZE
@@ -170,6 +173,15 @@ function ui.drawSettingsWindow()
         if changed then
             settings.master.easeFunction = settings.easingNames[newIndex + 1]
             settings.save()
+        end
+
+        -- Experimental settings
+        controls.SectionHeader("Experimental", 10, 0)
+        settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows (Requires Window Manager's RedCetWM plugin)", true)
+        if changed then settings.save() end
+
+        if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
+            controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
         end
 
         if not settings.master.enabled then

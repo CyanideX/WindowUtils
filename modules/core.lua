@@ -4,6 +4,7 @@
 ------------------------------------------------------
 
 local settings = require("modules/settings")
+local discovery = require("modules/discovery")
 
 local core = {}
 
@@ -12,6 +13,12 @@ local windowStates = {}
 
 -- Constraint animations
 local constraintAnimations = {}
+
+-- External window state tracking (for Override All Windows feature)
+local externalWindowStates = {}
+
+-- Deferred snap operations (executed at end of draw)
+local deferredSnapOperations = {}
 
 --------------------------------------------------------------------------------
 -- Easing Functions
@@ -343,6 +350,196 @@ end
 function core.isAnyConstraintAnimating()
     for _, anim in pairs(constraintAnimations) do
         if anim.active then
+            return true
+        end
+    end
+    return false
+end
+
+--------------------------------------------------------------------------------
+-- External Window Management (Override All Windows)
+--------------------------------------------------------------------------------
+
+-- Windows to skip (managed internally or system windows)
+local skipWindows = {
+    ["WindowUtils Settings"] = true,
+    ["Dear ImGui Demo"] = true,
+    ["Dear ImGui Metrics/Debugger"] = true,
+    ["About Dear ImGui"] = true,
+    ["Dear ImGui Style Editor"] = true,
+    ["Dear ImGui Debug Log"] = true,
+    ["Dear ImGui ID Stack Tool"] = true,
+    ["##TOAST0"] = true,
+    ["##TOAST1"] = true,
+    ["##popup"] = true,
+    ["##Control Panel"] = true,
+    ["Settings"] = true,
+    ["TweakDB Editor"] = true,
+    ["Bindings"] = true,
+    ["Game Log"] = true,
+    ["Console"] = true
+}
+
+--- Get or create external window state.
+local function getExternalWindowState(windowName)
+    if not externalWindowStates[windowName] then
+        externalWindowStates[windowName] = {
+            isDragging = false,
+            animating = false,
+            animationStartTime = 0,
+            startPosX = 0,
+            startPosY = 0,
+            targetPosX = 0,
+            targetPosY = 0,
+            startSizeX = 0,
+            startSizeY = 0,
+            targetSizeX = 0,
+            targetSizeY = 0
+        }
+    end
+    return externalWindowStates[windowName]
+end
+
+--- Check if a window should be managed externally.
+local function shouldManageWindow(windowName)
+    -- Skip our own windows and system windows
+    if skipWindows[windowName] then
+        return false
+    end
+    -- Skip windows already managed internally
+    if windowStates[windowName] then
+        return false
+    end
+    return true
+end
+
+--- Update all external windows (called every frame when override is enabled).
+function core.updateExternalWindows()
+    if not settings.master.overrideAllWindows then
+        return
+    end
+
+    -- Check if discovery is available
+    if not discovery.isAvailable() then
+        return
+    end
+
+    -- Get all active windows
+    local windows = discovery.getActiveWindows()
+
+    for _, windowInfo in ipairs(windows) do
+        local windowName = windowInfo.name
+
+        -- Skip collapsed windows (they can't be dragged) and windows we shouldn't manage
+        if not windowInfo.collapsed and shouldManageWindow(windowName) then
+            local state = getExternalWindowState(windowName)
+
+            -- Access the window to check its state
+            if ImGui.Begin(windowName, true) then
+                local currentPosX, currentPosY = ImGui.GetWindowPos()
+                local currentSizeX, currentSizeY = ImGui.GetWindowSize()
+                local isFocused = ImGui.IsWindowFocused()
+                local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
+                local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+
+                -- Track drag state
+                if isFocused and isDragging then
+                    state.isDragging = true
+                elseif state.isDragging and isReleased then
+                    state.isDragging = false
+
+                    -- Queue snap operation for position and size
+                    local targetX = core.snapToGrid(currentPosX, windowName)
+                    local targetY = core.snapToGrid(currentPosY, windowName)
+                    local targetSizeX = core.snapToGrid(currentSizeX, windowName)
+                    local targetSizeY = core.snapToGrid(currentSizeY, windowName)
+
+                    -- Check if position or size changed
+                    local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
+                    local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
+
+                    if posChanged or sizeChanged then
+                        if settings.master.animationEnabled then
+                            state.animating = true
+                            state.animationStartTime = os.clock()
+                            state.startPosX = currentPosX
+                            state.startPosY = currentPosY
+                            state.targetPosX = targetX
+                            state.targetPosY = targetY
+                            state.startSizeX = currentSizeX
+                            state.startSizeY = currentSizeY
+                            state.targetSizeX = targetSizeX
+                            state.targetSizeY = targetSizeY
+                        else
+                            -- Immediate snap
+                            table.insert(deferredSnapOperations, {
+                                windowName = windowName,
+                                targetPosX = targetX,
+                                targetPosY = targetY,
+                                targetSizeX = targetSizeX,
+                                targetSizeY = targetSizeY
+                            })
+                        end
+                    end
+                end
+
+                ImGui.End()
+            end
+
+            -- Handle animation for this window
+            if state.animating then
+                local duration = settings.master.animationDuration
+                local elapsedTime = os.clock() - state.animationStartTime
+                local t = math.min(elapsedTime / duration, 1)
+                t = core.applyEasing(t, windowName)
+
+                local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
+                local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
+                local newSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
+                local newSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
+
+                -- Queue position and size update
+                table.insert(deferredSnapOperations, {
+                    windowName = windowName,
+                    targetPosX = newPosX,
+                    targetPosY = newPosY,
+                    targetSizeX = newSizeX,
+                    targetSizeY = newSizeY
+                })
+
+                if t >= 1 then
+                    state.animating = false
+                end
+            end
+        end
+    end
+end
+
+--- Process deferred snap operations (called at end of draw loop).
+function core.processDeferred()
+    for _, op in ipairs(deferredSnapOperations) do
+        if ImGui.Begin(op.windowName, true) then
+            ImGui.SetWindowPos(op.targetPosX, op.targetPosY)
+            if op.targetSizeX and op.targetSizeY then
+                ImGui.SetWindowSize(op.targetSizeX, op.targetSizeY)
+            end
+            ImGui.End()
+        end
+    end
+
+    -- Clear the queue
+    deferredSnapOperations = {}
+end
+
+--- Check if discovery plugin is available.
+function core.isDiscoveryAvailable()
+    return discovery.isAvailable()
+end
+
+--- Check if any external window is being dragged.
+function core.isAnyExternalWindowDragging()
+    for _, state in pairs(externalWindowStates) do
+        if state.isDragging then
             return true
         end
     end
