@@ -343,6 +343,43 @@ function controls.ProgressBar(fraction, width, height, overlay, styleName)
 end
 
 --------------------------------------------------------------------------------
+-- Color Picker
+--------------------------------------------------------------------------------
+
+--- Create a color picker with icon on left
+-- @param icon string: IconGlyph to display on left (optional, pass nil for no icon)
+-- @param id string: Unique ID for the color picker
+-- @param color table: Current color as {r, g, b, a} (values 0-1)
+-- @param label string: Label text (optional)
+-- @param defaultColor table: Default color for right-click reset (optional)
+-- @param tooltip string: Tooltip text (optional, always shows on icon)
+-- @return table, boolean: New color and whether changed
+function controls.ColorEdit4(icon, id, color, label, defaultColor, tooltip)
+    local hasIcon = icon ~= nil
+
+    if hasIcon then
+        controls.IconButton(icon, false)
+
+        if tooltip then
+            tooltips.ShowAlways(tooltip)
+        end
+
+        ImGui.SameLine()
+    end
+
+    ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
+    local newColor, changed = ImGui.ColorEdit4(label or ("##" .. id), color, ImGuiColorEditFlags.NoOptions)
+
+    -- Right-click to reset to default
+    if defaultColor and ImGui.IsItemClicked(1) then
+        newColor = {defaultColor[1], defaultColor[2], defaultColor[3], defaultColor[4]}
+        changed = true
+    end
+
+    return newColor, changed
+end
+
+--------------------------------------------------------------------------------
 -- Text Display
 --------------------------------------------------------------------------------
 

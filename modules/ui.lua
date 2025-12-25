@@ -44,9 +44,9 @@ local function drawGridVisualization()
     local drawList = ImGui.GetBackgroundDrawList()
     local displayWidth, displayHeight = GetDisplayResolution()
     local thickness = settings.master.gridLineThickness
+    local color = settings.master.gridLineColor
 
-    -- White with low alpha for visibility without obstruction
-    local gridColor = ImGui.GetColorU32(1.0, 1.0, 1.0, 0.15)
+    local gridColor = ImGui.GetColorU32(color[1], color[2], color[3], color[4])
 
     -- Draw vertical lines
     local x = 0
@@ -111,6 +111,12 @@ function ui.drawSettingsWindow()
             thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
             if changed then
                 settings.master.gridLineThickness = thickness
+                settings.save()
+            end
+
+            -- RGBA color picker
+            settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
+            if changed then
                 settings.save()
             end
         end
