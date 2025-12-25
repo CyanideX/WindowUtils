@@ -238,6 +238,7 @@ function core.update(windowName, options)
 
         if isFocused and isDragging then
             state.isDragging = true
+            state.animating = false  -- Cancel any running animation
             -- Update live bounds in place for grid feathering
             draggingWindowBounds.x = currentPosX
             draggingWindowBounds.y = currentPosY
@@ -525,6 +526,7 @@ function core.updateExternalWindows()
                 -- Track drag state
                 if isFocused and isDragging then
                     state.isDragging = true
+                    state.animating = false  -- Cancel any running animation
                     -- Update live bounds in place for grid feathering
                     draggingWindowBounds.x = currentPosX
                     draggingWindowBounds.y = currentPosY
