@@ -398,7 +398,8 @@ local skipWindows = {
     ["TweakDB Editor"] = true,
     ["Bindings"] = true,
     ["Game Log"] = true,
-    ["Console"] = true
+    ["Console"] = true,
+    ["Crosshair"] = true
 }
 
 --- Get or create external window state.

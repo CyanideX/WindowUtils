@@ -19,7 +19,9 @@ ui.state = {
 local gridFade = {
     opacity = 0,           -- Current opacity multiplier (0 to 1)
     wasDragging = false,   -- Was dragging last frame
-    fadeStartTime = 0      -- When fade started
+    fadeStartTime = 0,     -- When fade started
+    wasFeathering = false, -- Was feathering active when drag ended
+    lastBounds = nil       -- Last window bounds (preserved for fade-out)
 }
 
 -- Hardcoded fade durations (in seconds)
@@ -84,17 +86,15 @@ local function drawGridVisualization()
     if not settings.master.gridVisualizationEnabled then
         gridFade.opacity = 0
         gridFade.wasDragging = false
+        gridFade.wasFeathering = false
+        gridFade.lastBounds = nil
         core.clearDraggingWindowBounds()
         return
     end
 
     local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
     local now = os.clock()
-
-    -- Clear bounds when not dragging
-    if not anyDragging then
-        core.clearDraggingWindowBounds()
-    end
+    local featherEnabled = settings.master.gridFeatherEnabled
 
     -- Handle fade transitions for "show on drag only" mode
     if settings.master.gridShowOnDragOnly then
@@ -102,9 +102,15 @@ local function drawGridVisualization()
         if anyDragging and not gridFade.wasDragging then
             -- Started dragging - begin fade in
             gridFade.fadeStartTime = now
+            gridFade.wasFeathering = featherEnabled
         elseif not anyDragging and gridFade.wasDragging then
             -- Stopped dragging - begin fade out
             gridFade.fadeStartTime = now
+            -- Preserve bounds for fade-out if feathering was active
+            if featherEnabled then
+                gridFade.lastBounds = core.getDraggingWindowBounds()
+                gridFade.wasFeathering = true
+            end
         end
         gridFade.wasDragging = anyDragging
 
@@ -120,12 +126,23 @@ local function drawGridVisualization()
 
         -- Skip drawing if fully faded out
         if gridFade.opacity <= 0 then
+            -- Clear preserved bounds after fade-out completes
+            gridFade.lastBounds = nil
+            gridFade.wasFeathering = false
+            core.clearDraggingWindowBounds()
             return
         end
     else
         -- Not in "show on drag only" mode - always fully visible
         gridFade.opacity = 1
         gridFade.wasDragging = false
+        gridFade.wasFeathering = false
+        gridFade.lastBounds = nil
+    end
+
+    -- Clear live bounds when not dragging (but preserve lastBounds for fade-out)
+    if not anyDragging then
+        core.clearDraggingWindowBounds()
     end
 
     local gridSize = settings.master.gridUnits * settings.GRID_UNIT_SIZE
@@ -136,16 +153,16 @@ local function drawGridVisualization()
     local baseAlpha = color[4] * gridFade.opacity
 
     -- Get feather settings
-    local featherEnabled = settings.master.gridFeatherEnabled
     local featherRadius = settings.master.gridFeatherRadius
     local featherPadding = settings.master.gridFeatherPadding
     local featherCurve = settings.master.gridFeatherCurve
 
-    -- Get window bounds for feathered effect (only when dragging and feather enabled)
-    local useFeather = settings.master.gridShowOnDragOnly and anyDragging and featherEnabled
+    -- Use feathering if currently dragging with feather enabled, OR fading out with preserved bounds
+    local useFeather = settings.master.gridShowOnDragOnly and featherEnabled and (anyDragging or gridFade.wasFeathering)
     local windowBounds = nil
     if useFeather then
-        windowBounds = core.getDraggingWindowBounds()
+        -- Use live bounds if dragging, otherwise use preserved bounds from fade-out
+        windowBounds = anyDragging and core.getDraggingWindowBounds() or gridFade.lastBounds
     end
 
     -- If no bounds available but feathering requested, fall back to mouse position
