@@ -20,8 +20,9 @@ local externalWindowStates = {}
 -- Deferred snap operations (executed at end of draw)
 local deferredSnapOperations = {}
 
--- Currently dragging window bounds (updated every frame during drag)
-local draggingWindowBounds = nil
+-- Currently dragging window bounds (reused table, updated in place)
+local draggingWindowBounds = { x = 0, y = 0, width = 0, height = 0 }
+local draggingWindowBoundsValid = false
 
 -- Currently dragging window name (for dynamic grid visualization)
 local draggingWindowName = nil
@@ -237,13 +238,12 @@ function core.update(windowName, options)
 
         if isFocused and isDragging then
             state.isDragging = true
-            -- Update live bounds and window name for grid feathering
-            draggingWindowBounds = {
-                x = currentPosX,
-                y = currentPosY,
-                width = currentSizeX,
-                height = currentSizeY
-            }
+            -- Update live bounds in place for grid feathering
+            draggingWindowBounds.x = currentPosX
+            draggingWindowBounds.y = currentPosY
+            draggingWindowBounds.width = currentSizeX
+            draggingWindowBounds.height = currentSizeY
+            draggingWindowBoundsValid = true
             draggingWindowName = windowName
         elseif state.isDragging and isReleased then
             state.isDragging = false
@@ -321,12 +321,15 @@ end
 --- Get the bounds of the currently dragging window.
 -- @return table|nil: {x, y, width, height} or nil if no window is dragging
 function core.getDraggingWindowBounds()
-    return draggingWindowBounds
+    if draggingWindowBoundsValid then
+        return draggingWindowBounds
+    end
+    return nil
 end
 
 --- Clear dragging window bounds (call when no window is dragging).
 function core.clearDraggingWindowBounds()
-    draggingWindowBounds = nil
+    draggingWindowBoundsValid = false
     draggingWindowName = nil
 end
 
@@ -522,13 +525,12 @@ function core.updateExternalWindows()
                 -- Track drag state
                 if isFocused and isDragging then
                     state.isDragging = true
-                    -- Update live bounds and window name for grid feathering
-                    draggingWindowBounds = {
-                        x = currentPosX,
-                        y = currentPosY,
-                        width = currentSizeX,
-                        height = currentSizeY
-                    }
+                    -- Update live bounds in place for grid feathering
+                    draggingWindowBounds.x = currentPosX
+                    draggingWindowBounds.y = currentPosY
+                    draggingWindowBounds.width = currentSizeX
+                    draggingWindowBounds.height = currentSizeY
+                    draggingWindowBoundsValid = true
                     draggingWindowName = windowName
                 elseif state.isDragging and isReleased then
                     state.isDragging = false
