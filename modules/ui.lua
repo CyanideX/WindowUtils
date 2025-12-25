@@ -268,29 +268,6 @@ function ui.drawSettingsWindow()
         settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
         if changed then settings.save() end
 
-        settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Grid Visualization", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Show Grid Overlay", true)
-        if changed then settings.save() end
-
-        -- Grid visualization sub-options (indented, only when visualization enabled)
-        if settings.master.gridVisualizationEnabled then
-            ImGui.SameLine()
-            settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows", true)
-            if changed then settings.save() end
-
-            local thickness = settings.master.gridLineThickness
-            thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
-            if changed then
-                settings.master.gridLineThickness = thickness
-                settings.save()
-            end
-
-            -- RGBA color picker
-            settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
-            if changed then
-                settings.save()
-            end
-        end
-
         -- Grid settings
         controls.SectionHeader("Grid", 10, 0)
         settings.master.gridEnabled, changed = controls.Checkbox("Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
@@ -321,39 +298,32 @@ function ui.drawSettingsWindow()
             settings.save()
         end
 
-        -- Animation settings
-        controls.SectionHeader("Animation", 10, 0)
-        settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
+                settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Grid Visualization", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Show Grid Overlay")
         if changed then settings.save() end
 
-        local duration = settings.master.animationDuration
-        duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 0.5, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
-        if changed then
-            settings.master.animationDuration = duration
-            settings.save()
-        end
+        -- Grid visualization sub-options (indented, only when visualization enabled)
+        if settings.master.gridVisualizationEnabled then
+            ImGui.SameLine()
+            settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
+            if changed then settings.save() end
 
-        local currentIndex = findEasingIndex(settings.master.easeFunction)
-        local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
-        local newIndex
-        newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
-        if changed then
-            settings.master.easeFunction = settings.easingNames[newIndex + 1]
-            settings.save()
-        end
+            local thickness = settings.master.gridLineThickness
+            thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
+            if changed then
+                settings.master.gridLineThickness = thickness
+                settings.save()
+            end
 
-        -- Experimental settings
-        controls.SectionHeader("Experimental", 10, 0)
-        settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows (Requires Window Manager's RedCetWM plugin)", true)
-        if changed then settings.save() end
-
-        if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
-            controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
+            -- RGBA color picker
+            settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
+            if changed then
+                settings.save()
+            end
         end
 
         -- Grid feathering (only available when Show on Drag Only is enabled)
         if settings.master.gridVisualizationEnabled and settings.master.gridShowOnDragOnly then
-            settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window", true)
+            settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
             if changed then settings.save() end
 
             if settings.master.gridFeatherEnabled then
@@ -378,6 +348,36 @@ function ui.drawSettingsWindow()
                     settings.save()
                 end
             end
+        end
+
+        -- Animation settings
+        controls.SectionHeader("Animation", 10, 0)
+        settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
+        if changed then settings.save() end
+
+        local duration = settings.master.animationDuration
+        duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 1.0, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
+        if changed then
+            settings.master.animationDuration = duration
+            settings.save()
+        end
+
+        local currentIndex = findEasingIndex(settings.master.easeFunction)
+        local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
+        local newIndex
+        newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
+        if changed then
+            settings.master.easeFunction = settings.easingNames[newIndex + 1]
+            settings.save()
+        end
+
+        -- Experimental settings
+        controls.SectionHeader("Experimental", 10, 0)
+        settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nWARNING: Currently has issue with windows not hidden by Window Manager!", true)
+        if changed then settings.save() end
+
+        if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
+            controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
         end
 
         if not settings.master.enabled then
