@@ -390,10 +390,6 @@ local skipWindows = {
     ["Dear ImGui Style Editor"] = true,
     ["Dear ImGui Debug Log"] = true,
     ["Dear ImGui ID Stack Tool"] = true,
-    ["##TOAST0"] = true,
-    ["##TOAST1"] = true,
-    ["##popup"] = true,
-    ["##Control Panel"] = true,
     ["Settings"] = true,
     ["TweakDB Editor"] = true,
     ["Bindings"] = true,
@@ -424,6 +420,10 @@ end
 
 --- Check if a window should be managed externally.
 local function shouldManageWindow(windowName)
+    -- Skip windows with ## (ImGui hidden/ID windows)
+    if windowName:find("##", 1, true) then
+        return false
+    end
     -- Skip our own windows and system windows
     if skipWindows[windowName] then
         return false
