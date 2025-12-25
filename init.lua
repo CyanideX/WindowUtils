@@ -54,6 +54,7 @@ WindowUtils.GetExpandedSize = core.getExpandedSize
 WindowUtils.CompleteAnimation = core.completeAnimation
 WindowUtils.ResetWindow = core.resetWindow
 WindowUtils.CleanupUnusedWindows = core.cleanupUnusedWindows
+WindowUtils.InvalidateGridCache = core.invalidateGridCache
 
 -- Constraint animations
 WindowUtils.StartConstraintAnimation = core.startConstraintAnimation

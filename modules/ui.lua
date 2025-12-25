@@ -296,21 +296,21 @@ function ui.drawSettingsWindow()
 
                 if settings.master.gridFeatherEnabled then
                     local radius = settings.master.gridFeatherRadius
-                    radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 100, 800, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
+                    radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 200, 1200, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
                     if changed then
                         settings.master.gridFeatherRadius = radius
                         settings.save()
                     end
 
                     local padding = settings.master.gridFeatherPadding
-                    padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 100, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
+                    padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 120, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
                     if changed then
                         settings.master.gridFeatherPadding = padding
                         settings.save()
                     end
 
                     local curve = settings.master.gridFeatherCurve
-                    curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 5.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
+                    curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 12.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
                     if changed then
                         settings.master.gridFeatherCurve = curve
                         settings.save()
@@ -357,6 +357,7 @@ function ui.drawSettingsWindow()
         if changed then
             settings.master.gridUnits = validUnits[newScale]
             settings.save()
+            core.invalidateGridCache()  -- Clear cached grid sizes
         end
 
         -- Animation settings

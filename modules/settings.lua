@@ -33,8 +33,8 @@ local function createDefaultSettings()
         overrideAllWindows = false,
         gridFeatherEnabled = false,
         gridFeatherRadius = 400,
-        gridFeatherPadding = 20,
-        gridFeatherCurve = 2.0
+        gridFeatherPadding = 0,
+        gridFeatherCurve = 5.0
     }
 end
 

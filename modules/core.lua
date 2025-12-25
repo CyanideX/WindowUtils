@@ -26,6 +26,43 @@ local draggingWindowBounds = nil
 -- Currently dragging window name (for dynamic grid visualization)
 local draggingWindowName = nil
 
+-- Grid size cache (avoids recalculating every frame)
+local gridSizeCache = {}
+
+--------------------------------------------------------------------------------
+-- Grid Size Caching
+--------------------------------------------------------------------------------
+
+--- Get the effective grid size for a window (cached).
+-- @param windowName string|nil: Window name (nil uses master settings)
+-- @return number: Grid size in pixels
+local function getGridSize(windowName)
+    -- Use special key for nil/master
+    local cacheKey = windowName or "__master__"
+
+    if not gridSizeCache[cacheKey] then
+        local gridUnits
+        if windowName then
+            gridUnits = settings.getConfig(windowName, "gridUnits")
+        else
+            gridUnits = settings.master.gridUnits
+        end
+        gridSizeCache[cacheKey] = gridUnits * settings.GRID_UNIT_SIZE
+    end
+
+    return gridSizeCache[cacheKey]
+end
+
+--- Invalidate grid size cache (call when settings change).
+-- @param windowName string|nil: Window to invalidate, or nil to clear all
+function core.invalidateGridCache(windowName)
+    if windowName then
+        gridSizeCache[windowName] = nil
+    else
+        gridSizeCache = {}
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Easing Functions
 --------------------------------------------------------------------------------
@@ -59,8 +96,7 @@ local easeFunctions = {
 
 --- Snap a position to the nearest grid point.
 function core.snapToGrid(position, windowName)
-    local gridUnits = settings.getConfig(windowName, "gridUnits")
-    local gridSize = gridUnits * settings.GRID_UNIT_SIZE
+    local gridSize = getGridSize(windowName)
     return math.floor(position / gridSize + 0.5) * gridSize
 end
 
@@ -304,12 +340,7 @@ end
 -- Returns the window's configured grid size, or master settings if no window is dragging.
 -- @return number: Grid size in pixels
 function core.getDraggingWindowGridSize()
-    if draggingWindowName then
-        local gridUnits = settings.getConfig(draggingWindowName, "gridUnits")
-        return gridUnits * settings.GRID_UNIT_SIZE
-    end
-    -- Fallback to master settings
-    return settings.master.gridUnits * settings.GRID_UNIT_SIZE
+    return getGridSize(draggingWindowName)
 end
 
 function core.cleanupUnusedWindows(activeWindowNames)
