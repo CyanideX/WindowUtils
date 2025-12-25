@@ -126,11 +126,28 @@ function ui.drawSettingsWindow()
         settings.master.gridEnabled, changed = controls.Checkbox("Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
         if changed then settings.save() end
 
-        local gridUnits = settings.master.gridUnits
-        local unitFormat = gridUnits == 1 and "%d Unit" or "%d Units"
-        gridUnits, changed = controls.SliderInt(IconGlyphs.Grid, "gridUnits", gridUnits, 1, 10, unitFormat, nil, settings.defaults.gridUnits, "Grid Units (1 Unit = 20px).")
+        -- Get valid grid units and map to scale 1-N
+        local validUnits = settings.getValidGridUnits(10)
+        local maxScale = math.min(#validUnits, 5)  -- Cap at 5 scales
+        local currentScale = 1
+        local defaultScale = 1
+
+        for i, units in ipairs(validUnits) do
+            if i <= maxScale then
+                if units == settings.master.gridUnits then
+                    currentScale = i
+                end
+                if units == settings.defaults.gridUnits then
+                    defaultScale = i
+                end
+            end
+        end
+
+        local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
+        local newScale
+        newScale, changed = controls.SliderInt(IconGlyphs.Grid, "gridScale", currentScale, 1, maxScale, "Scale %d (" .. gridSize .. "px)", nil, defaultScale, "Grid Scale (maps to valid grid sizes for your resolution)")
         if changed then
-            settings.master.gridUnits = gridUnits
+            settings.master.gridUnits = validUnits[newScale]
             settings.save()
         end
 

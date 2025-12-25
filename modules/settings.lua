@@ -125,6 +125,23 @@ function settings.clearWindowConfig(windowName)
     settings.windowConfigs[windowName] = nil
 end
 
+--- Get valid grid unit values for current display resolution.
+-- Returns units where (units * GRID_UNIT_SIZE) evenly divides both width and height.
+function settings.getValidGridUnits(maxUnits)
+    maxUnits = maxUnits or 10
+    local validUnits = {}
+    local width, height = GetDisplayResolution()
+
+    for units = 1, maxUnits do
+        local gridSize = units * settings.GRID_UNIT_SIZE
+        if width % gridSize == 0 and height % gridSize == 0 then
+            table.insert(validUnits, units)
+        end
+    end
+
+    return validUnits
+end
+
 --- Get effective configuration value for a window.
 -- Priority: master settings (if enabled) > per-window override > external settings > global defaults
 function settings.getConfig(windowName, key)
