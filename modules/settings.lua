@@ -11,44 +11,40 @@ local settingsPath = "data/settings.json"
 -- Grid unit size in pixels (hardcoded base unit)
 settings.GRID_UNIT_SIZE = 20
 
+--------------------------------------------------------------------------------
+-- Default Settings Factory
+--------------------------------------------------------------------------------
+
+--- Create a fresh settings table with all default values.
+-- Used to initialize both defaults and master settings.
+-- @return table: New settings table with default values
+local function createDefaultSettings()
+    return {
+        gridUnits = 1,
+        gridEnabled = true,
+        gridVisualizationEnabled = false,
+        gridLineThickness = 3.0,
+        gridLineColor = {1.0, 1.0, 1.0, 0.196},
+        gridShowOnDragOnly = false,
+        animationEnabled = true,
+        animationDuration = 0.2,
+        easeFunction = "easeInOut",
+        tooltipsEnabled = true,
+        overrideAllWindows = false,
+        gridFeatherEnabled = false,
+        gridFeatherRadius = 400,
+        gridFeatherPadding = 20,
+        gridFeatherCurve = 2.0
+    }
+end
+
 -- Global defaults (can be changed via SetGlobalDefaults)
-settings.defaults = {
-    gridUnits = 1,
-    gridEnabled = true,
-    gridVisualizationEnabled = false,
-    gridLineThickness = 3.0,
-    gridLineColor = {1.0, 1.0, 1.0, 0.196},
-    gridShowOnDragOnly = false,
-    animationEnabled = true,
-    animationDuration = 0.2,
-    easeFunction = "easeInOut",
-    tooltipsEnabled = true,
-    overrideAllWindows = false,
-    gridFeatherEnabled = false,
-    gridFeatherRadius = 400,
-    gridFeatherPadding = 20,
-    gridFeatherCurve = 2.0
-}
+settings.defaults = createDefaultSettings()
 
 -- Master settings (highest priority when enabled, persisted to JSON)
-settings.master = {
-    enabled = false,
-    gridUnits = 1,
-    gridEnabled = true,
-    gridVisualizationEnabled = false,
-    gridLineThickness = 3.0,
-    gridLineColor = {1.0, 1.0, 1.0, 0.196},
-    gridShowOnDragOnly = false,
-    animationEnabled = true,
-    animationDuration = 0.2,
-    easeFunction = "easeInOut",
-    tooltipsEnabled = true,
-    overrideAllWindows = false,
-    gridFeatherEnabled = false,
-    gridFeatherRadius = 400,
-    gridFeatherPadding = 20,
-    gridFeatherCurve = 2.0
-}
+-- Note: 'enabled' is a master-only control flag, not a setting value
+settings.master = createDefaultSettings()
+settings.master.enabled = false
 
 -- Per-window configuration overrides
 settings.windowConfigs = {}
