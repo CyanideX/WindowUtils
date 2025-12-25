@@ -6,6 +6,18 @@
 local settings = require("modules/settings")
 local discovery = require("modules/discovery")
 
+---@class WindowUtilsUpdateOptions
+---@field gridEnabled? boolean Override grid snapping
+---@field animationEnabled? boolean Override animations
+---@field animationDuration? number Override animation duration
+
+---@class WindowUtilsWindowBounds
+---@field x number X position
+---@field y number Y position
+---@field width number Width
+---@field height number Height
+
+---@class WindowUtilsCore
 local core = {}
 
 -- Window state tracking
@@ -95,18 +107,28 @@ local easeFunctions = {
 -- Utility Functions
 --------------------------------------------------------------------------------
 
---- Snap a position to the nearest grid point.
+---Snap a position to the nearest grid point.
+---@param position number Position to snap
+---@param windowName? string Window name for config lookup
+---@return number snappedPosition
 function core.snapToGrid(position, windowName)
     local gridSize = getGridSize(windowName)
     return math.floor(position / gridSize + 0.5) * gridSize
 end
 
---- Linear interpolation between two values.
+---Linear interpolation between two values.
+---@param a number Start value
+---@param b number End value
+---@param t number Interpolation factor (0-1)
+---@return number interpolatedValue
 function core.lerp(a, b, t)
     return a + (b - a) * t
 end
 
---- Apply easing function to interpolation factor.
+---Apply easing function to interpolation factor.
+---@param t number Interpolation factor (0-1)
+---@param windowName? string Window name for config lookup
+---@return number easedValue
 function core.applyEasing(t, windowName)
     local funcName = settings.getConfig(windowName, "easeFunction")
     local func = easeFunctions[funcName] or easeFunctions.easeInOut
@@ -195,7 +217,9 @@ end
 -- Main API
 --------------------------------------------------------------------------------
 
---- Update window state (call once per frame inside window).
+---Update window state (call once per frame inside window).
+---@param windowName string Window title
+---@param options? WindowUtilsUpdateOptions Override options
 function core.update(windowName, options)
     options = options or {}
 
@@ -277,11 +301,17 @@ end
 -- State Query API
 --------------------------------------------------------------------------------
 
+---Check if a window is currently animating.
+---@param windowName string Window title
+---@return boolean isAnimating
 function core.isAnimating(windowName)
     local state = windowStates[windowName]
     return state and state.animating or false
 end
 
+---Get the expanded (non-collapsed) size of a window.
+---@param windowName string Window title
+---@return number|nil width, number|nil height
 function core.getExpandedSize(windowName)
     local state = windowStates[windowName]
     if state and state.expandedSizeX and state.expandedSizeY then
@@ -290,6 +320,8 @@ function core.getExpandedSize(windowName)
     return nil, nil
 end
 
+---Immediately complete a window's animation.
+---@param windowName string Window title
 function core.completeAnimation(windowName)
     local state = windowStates[windowName]
     if state and state.animating then
@@ -301,15 +333,22 @@ function core.completeAnimation(windowName)
     end
 end
 
+---Reset window state (clears tracking data).
+---@param windowName string Window title
 function core.resetWindow(windowName)
     windowStates[windowName] = nil
 end
 
+---Check if a specific window is being dragged.
+---@param windowName string Window title
+---@return boolean isDragging
 function core.isWindowDragging(windowName)
     local state = windowStates[windowName]
     return state and state.isDragging or false
 end
 
+---Check if any tracked window is being dragged.
+---@return boolean anyDragging
 function core.isAnyWindowDragging()
     for _, state in pairs(windowStates) do
         if state.isDragging then
@@ -319,8 +358,8 @@ function core.isAnyWindowDragging()
     return false
 end
 
---- Get the bounds of the currently dragging window.
--- @return table|nil: {x, y, width, height} or nil if no window is dragging
+---Get the bounds of the currently dragging window.
+---@return WindowUtilsWindowBounds|nil bounds
 function core.getDraggingWindowBounds()
     if draggingWindowBoundsValid then
         return draggingWindowBounds
@@ -328,25 +367,26 @@ function core.getDraggingWindowBounds()
     return nil
 end
 
---- Clear dragging window bounds (call when no window is dragging).
+---Clear dragging window bounds (call when no window is dragging).
 function core.clearDraggingWindowBounds()
     draggingWindowBoundsValid = false
     draggingWindowName = nil
 end
 
---- Get the name of the currently dragging window.
--- @return string|nil: Window name or nil if no window is dragging
+---Get the name of the currently dragging window.
+---@return string|nil windowName
 function core.getDraggingWindowName()
     return draggingWindowName
 end
 
---- Get the effective grid size for the currently dragging window.
--- Returns the window's configured grid size, or master settings if no window is dragging.
--- @return number: Grid size in pixels
+---Get the effective grid size for the currently dragging window.
+---@return number gridSize Grid size in pixels
 function core.getDraggingWindowGridSize()
     return getGridSize(draggingWindowName)
 end
 
+---Remove tracking for windows not in the active list.
+---@param activeWindowNames string[] List of active window names
 function core.cleanupUnusedWindows(activeWindowNames)
     local activeSet = {}
     for _, name in ipairs(activeWindowNames) do

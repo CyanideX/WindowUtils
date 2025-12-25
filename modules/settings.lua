@@ -3,7 +3,43 @@
 -- Handles persistence and configuration management
 ------------------------------------------------------
 
-local settings = {}
+---@class WindowUtilsSettingsValues
+---@field gridUnits number Grid size multiplier (gridUnits * GRID_UNIT_SIZE = pixels)
+---@field gridEnabled boolean Enable grid snapping
+---@field gridVisualizationEnabled boolean Show grid overlay
+---@field gridLineThickness number Grid line thickness in pixels
+---@field gridLineColor number[] RGBA color {r, g, b, a} values 0-1
+---@field gridShowOnDragOnly boolean Only show grid while dragging
+---@field animationEnabled boolean Enable snap animations
+---@field animationDuration number Animation duration in seconds
+---@field easeFunction string Easing function name
+---@field tooltipsEnabled boolean Show tooltips
+---@field overrideAllWindows boolean Apply to all CET windows
+---@field gridFeatherEnabled boolean Enable grid feathering
+---@field gridFeatherRadius number Feather radius in pixels
+---@field gridFeatherPadding number Feather padding in pixels
+---@field gridFeatherCurve number Feather curve exponent
+
+---@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
+---@field enabled boolean Master override enabled
+
+---@class WindowUtilsSettings
+---@field GRID_UNIT_SIZE number Base grid unit in pixels
+---@field defaults WindowUtilsSettingsValues Global default settings
+---@field master WindowUtilsMasterSettings Master override settings
+---@field windowConfigs table<string, table> Per-window configuration overrides
+---@field external table|nil External settings reference
+---@field KEY_MAP table<string, string> Internal to external key mapping
+---@field easingNames string[] Available easing function names
+---@field load fun() Load settings from file
+---@field save fun() Save settings to file
+---@field setDefaults fun(config: table) Set global defaults
+---@field configure fun(settingsObj: table) Configure with external settings
+---@field setWindowConfig fun(windowName: string, config: table) Set per-window config
+---@field clearWindowConfig fun(windowName: string) Clear per-window config
+---@field getValidGridUnits fun(maxUnits?: number): number[] Get valid grid units
+---@field getConfig fun(windowName: string|nil, key: string): any Get effective config value
+local settings = {} ---@type WindowUtilsSettings
 
 -- Settings file path
 local settingsPath = "data/settings.json"
