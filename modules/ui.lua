@@ -286,188 +286,187 @@ function ui.drawSettingsWindow()
     -- Draw grid visualization (independent of window visibility)
     drawGridVisualization()
 
-      -- Force window to stay open (user closed it before, can't reopen without hotkey)
-  if not ui.state.showWindow then
-      ui.state.showWindow = true
-  end
-
     if not ui.state.showWindow then return end
 
     ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
-    ui.state.showWindow = ImGui.Begin("WindowUtils Settings", ui.state.showWindow, ImGuiWindowFlags.NoCollapse)
+    -- No close button (use toggle/hotkey to hide), allow collapse
+    if not ImGui.Begin("WindowUtils Settings") then
+        ImGui.End()
+        return
+    end
 
-    if ui.state.showWindow then
-        -- Master override toggle
-        local changed
-        settings.master.enabled, changed = controls.Checkbox("Enable Master Override", settings.master.enabled)
-        if changed then
-            settings.save()
-            core.invalidateGridCache()  -- Clear cached grid sizes when override changes
-        end
+    -- Master override toggle
+    local changed
+    settings.master.enabled, changed = controls.Checkbox("Enable Master Override", settings.master.enabled)
+    if changed then
+        settings.save()
+        core.invalidateGridCache()  -- Clear cached grid sizes when override changes
+    end
 
-        if settings.master.enabled then
-            controls.TextSuccess("Master settings active - overriding all mods")
-        else
-            controls.TextMuted("Master settings disabled - mods use their own")
-        end
+    if settings.master.enabled then
+        controls.TextSuccess("Master settings active - overriding all mods")
+    else
+        controls.TextMuted("Master settings disabled - mods use their own")
+    end
 
-        -- Grid Visualization section (always enabled, independent of master override)
-        controls.SectionHeader("Grid Visualization", 10, 0)
-        settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Show Grid Overlay", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
+    -- Grid Visualization section (always enabled, independent of master override)
+    controls.SectionHeader("Grid Visualization", 10, 0)
+    settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Show Grid Overlay", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
+    if changed then settings.save() end
+
+    -- Grid visualization sub-options (only when visualization enabled)
+    if settings.master.gridVisualizationEnabled then
+        ImGui.SameLine()
+        settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
         if changed then settings.save() end
 
-        -- Grid visualization sub-options (only when visualization enabled)
-        if settings.master.gridVisualizationEnabled then
+        if settings.master.gridShowOnDragOnly then
             ImGui.SameLine()
-            settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
+            settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid")
+            if changed then settings.save() end
+        end
+
+        -- Grid dimming slider (only when guides enabled)
+        if settings.master.gridGuidesEnabled then
+            -- Display as 0-100%, store as 0-1
+            local dimmingPercent = settings.master.gridGuidesDimming * 100
+            local newDimmingPercent
+            newDimmingPercent, changed = controls.SliderFloat(IconGlyphs.Brightness5, "gridDimming", dimmingPercent, 0, 100, "%.0f%%", nil, settings.defaults.gridGuidesDimming * 100, "Grid Dimming (opacity of grid lines when guides active)")
+            if changed then
+                settings.master.gridGuidesDimming = newDimmingPercent / 100
+                settings.save()
+            end
+        end
+
+        local thickness = settings.master.gridLineThickness
+        thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
+        if changed then
+            settings.master.gridLineThickness = thickness
+            settings.save()
+        end
+
+        -- RGBA color picker
+        settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
+        if changed then
+            settings.save()
+        end
+
+        -- Grid feathering (only available when Show on Drag Only is enabled)
+        if settings.master.gridShowOnDragOnly then
+            settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
             if changed then settings.save() end
 
-            if settings.master.gridShowOnDragOnly then
-                ImGui.SameLine()
-                settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid")
-                if changed then settings.save() end
-            end
-
-            -- Grid dimming slider (only when guides enabled)
-            if settings.master.gridGuidesEnabled then
-                -- Display as 0-100%, store as 0-1
-                local dimmingPercent = settings.master.gridGuidesDimming * 100
-                local newDimmingPercent
-                newDimmingPercent, changed = controls.SliderFloat(IconGlyphs.Brightness5, "gridDimming", dimmingPercent, 0, 100, "%.0f%%", nil, settings.defaults.gridGuidesDimming * 100, "Grid Dimming (opacity of grid lines when guides active)")
+            if settings.master.gridFeatherEnabled then
+                local radius = settings.master.gridFeatherRadius
+                radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 200, 1200, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
                 if changed then
-                    settings.master.gridGuidesDimming = newDimmingPercent / 100
+                    settings.master.gridFeatherRadius = radius
+                    settings.save()
+                end
+
+                local padding = settings.master.gridFeatherPadding
+                padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 120, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
+                if changed then
+                    settings.master.gridFeatherPadding = padding
+                    settings.save()
+                end
+
+                local curve = settings.master.gridFeatherCurve
+                curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 12.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
+                if changed then
+                    settings.master.gridFeatherCurve = curve
                     settings.save()
                 end
             end
-
-            local thickness = settings.master.gridLineThickness
-            thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
-            if changed then
-                settings.master.gridLineThickness = thickness
-                settings.save()
-            end
-
-            -- RGBA color picker
-            settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
-            if changed then
-                settings.save()
-            end
-
-            -- Grid feathering (only available when Show on Drag Only is enabled)
-            if settings.master.gridShowOnDragOnly then
-                settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
-                if changed then settings.save() end
-
-                if settings.master.gridFeatherEnabled then
-                    local radius = settings.master.gridFeatherRadius
-                    radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 200, 1200, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
-                    if changed then
-                        settings.master.gridFeatherRadius = radius
-                        settings.save()
-                    end
-
-                    local padding = settings.master.gridFeatherPadding
-                    padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 120, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
-                    if changed then
-                        settings.master.gridFeatherPadding = padding
-                        settings.save()
-                    end
-
-                    local curve = settings.master.gridFeatherCurve
-                    curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 12.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
-                    if changed then
-                        settings.master.gridFeatherCurve = curve
-                        settings.save()
-                    end
-                end
-            end
         end
-
-        -- Master override dependent settings
-        if not settings.master.enabled then
-            ImGui.BeginDisabled()
-        end
-
-        -- General settings
-        controls.SectionHeader("General", 10, 0)
-        settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
-        if changed then settings.save() end
-
-        -- Grid settings
-        controls.SectionHeader("Grid Snapping", 10, 0)
-        settings.master.gridEnabled, changed = controls.Checkbox("Enable Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
-        if changed then settings.save() end
-
-        -- Get valid grid units and map to scale 1-N
-        local validUnits = settings.getValidGridUnits(10)
-        local maxScale = math.min(#validUnits, 5)  -- Cap at 5 scales
-        local currentScale = 1
-        local defaultScale = 1
-
-        for i, units in ipairs(validUnits) do
-            if i <= maxScale then
-                if units == settings.master.gridUnits then
-                    currentScale = i
-                end
-                if units == settings.defaults.gridUnits then
-                    defaultScale = i
-                end
-            end
-        end
-
-        local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
-        local newScale
-        newScale, changed = controls.SliderInt(IconGlyphs.Grid, "gridScale", currentScale, 1, maxScale, "Scale %d (" .. gridSize .. "px)", nil, defaultScale, "Grid Scale (maps to valid grid sizes for your resolution)")
-        if changed then
-            settings.master.gridUnits = validUnits[newScale]
-            settings.save()
-            core.invalidateGridCache()  -- Clear cached grid sizes
-        end
-
-        -- Animation settings
-        controls.SectionHeader("Animation", 10, 0)
-        settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
-        if changed then settings.save() end
-
-        local duration = settings.master.animationDuration
-        duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 1.0, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
-        if changed then
-            settings.master.animationDuration = duration
-            settings.save()
-        end
-
-        local currentIndex = findEasingIndex(settings.master.easeFunction)
-        local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
-        local newIndex
-        newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
-        if changed then
-            settings.master.easeFunction = settings.easingNames[newIndex + 1]
-            settings.save()
-        end
-
-        -- Experimental settings
-        controls.SectionHeader("Experimental", 10, 0)
-        settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nWARNING: Currently has issue with windows not hidden by Window Manager!", true)
-        if changed then
-            settings.save()
-            core.invalidateGridCache()  -- Clear cached grid sizes when override changes
-        end
-
-        if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
-            controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
-        end
-
-        if not settings.master.enabled then
-            ImGui.EndDisabled()
-        end
-
-        -- Update with WindowUtils (for this window)
-        core.update("WindowUtils Settings", {
-            gridEnabled = settings.master.gridEnabled,
-            animationEnabled = settings.master.animationEnabled,
-            animationDuration = settings.master.animationDuration
-        })
     end
+
+    -- Master override dependent settings
+    if not settings.master.enabled then
+        ImGui.BeginDisabled()
+    end
+
+    -- General settings
+    controls.SectionHeader("General", 10, 0)
+    settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
+    if changed then settings.save() end
+
+    -- Grid settings
+    controls.SectionHeader("Grid Snapping", 10, 0)
+    settings.master.gridEnabled, changed = controls.Checkbox("Enable Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
+    if changed then settings.save() end
+
+    -- Get valid grid units and map to scale 1-N
+    local validUnits = settings.getValidGridUnits(10)
+    local maxScale = math.min(#validUnits, 5)  -- Cap at 5 scales
+    local currentScale = 1
+    local defaultScale = 1
+
+    for i, units in ipairs(validUnits) do
+        if i <= maxScale then
+            if units == settings.master.gridUnits then
+                currentScale = i
+            end
+            if units == settings.defaults.gridUnits then
+                defaultScale = i
+            end
+        end
+    end
+
+    local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
+    local newScale
+    newScale, changed = controls.SliderInt(IconGlyphs.Grid, "gridScale", currentScale, 1, maxScale, "Scale %d (" .. gridSize .. "px)", nil, defaultScale, "Grid Scale (maps to valid grid sizes for your resolution)")
+    if changed then
+        settings.master.gridUnits = validUnits[newScale]
+        settings.save()
+        core.invalidateGridCache()  -- Clear cached grid sizes
+    end
+
+    -- Animation settings
+    controls.SectionHeader("Animation", 10, 0)
+    settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
+    if changed then settings.save() end
+
+    local duration = settings.master.animationDuration
+    duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 1.0, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
+    if changed then
+        settings.master.animationDuration = duration
+        settings.save()
+    end
+
+    local currentIndex = findEasingIndex(settings.master.easeFunction)
+    local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
+    local newIndex
+    newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
+    if changed then
+        settings.master.easeFunction = settings.easingNames[newIndex + 1]
+        settings.save()
+    end
+
+    -- Experimental settings
+    controls.SectionHeader("Experimental", 10, 0)
+    settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nWARNING: Currently has issue with windows not hidden by Window Manager!", true)
+    if changed then
+        settings.save()
+        core.invalidateGridCache()  -- Clear cached grid sizes when override changes
+    end
+
+    if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
+        controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
+    end
+
+    if not settings.master.enabled then
+        ImGui.EndDisabled()
+    end
+
+    -- Update with WindowUtils (for this window)
+    -- treatAllDragsAsWindowDrag enables live grid preview when adjusting sliders
+    core.update("WindowUtils Settings", {
+        gridEnabled = settings.master.gridEnabled,
+        animationEnabled = settings.master.animationEnabled,
+        animationDuration = settings.master.animationDuration,
+        treatAllDragsAsWindowDrag = true
+    })
 
     ImGui.End()
 end

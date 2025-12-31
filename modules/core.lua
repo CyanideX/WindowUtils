@@ -10,6 +10,7 @@ local discovery = require("modules/discovery")
 ---@field gridEnabled? boolean Override grid snapping
 ---@field animationEnabled? boolean Override animations
 ---@field animationDuration? number Override animation duration
+---@field treatAllDragsAsWindowDrag? boolean Treat all drags as window drags (for settings windows with live preview)
 
 ---@class WindowUtilsWindowBounds
 ---@field x number X position
@@ -258,6 +259,7 @@ function core.update(windowName, options)
     end
 
     local duration = options.animationDuration or settings.getConfig(windowName, "animationDuration")
+    local treatAllDragsAsWindowDrag = options.treatAllDragsAsWindowDrag or false
 
     local state = getWindowState(windowName)
     local isCollapsed = ImGui.IsWindowCollapsed()
@@ -300,10 +302,11 @@ function core.update(windowName, options)
             end
 
             -- Check if window is actually moving/resizing (not a child element drag)
+            -- treatAllDragsAsWindowDrag bypasses this check (for settings windows with live grid preview)
             local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
             local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
 
-            if posChanged or sizeChanged then
+            if treatAllDragsAsWindowDrag or posChanged or sizeChanged then
                 state.isDragging = true
                 state.animating = false  -- Cancel any running animation
 
