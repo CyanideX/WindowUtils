@@ -6,6 +6,7 @@
 ---@class WindowUtilsSettingsValues
 ---@field gridUnits number Grid size multiplier (gridUnits * GRID_UNIT_SIZE = pixels)
 ---@field gridEnabled boolean Enable grid snapping
+---@field snapCollapsed boolean Snap collapsed windows when dragged
 ---@field gridVisualizationEnabled boolean Show grid overlay
 ---@field gridLineThickness number Grid line thickness in pixels
 ---@field gridLineColor number[] RGBA color {r, g, b, a} values 0-1
@@ -60,6 +61,7 @@ local function createDefaultSettings()
     return {
         gridUnits = 1,
         gridEnabled = true,
+        snapCollapsed = true,
         gridVisualizationEnabled = false,
         gridLineThickness = 3.0,
         gridLineColor = {1.0, 1.0, 1.0, 0.196},

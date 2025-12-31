@@ -202,10 +202,14 @@ local function handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowN
         state.targetSizeX = core.snapToGrid(sizeX, windowName)
         state.targetSizeY = core.snapToGrid(sizeY, windowName)
     else
+        -- Collapsed window: snap the remembered expanded size for when it's restored
         state.startSizeX = state.expandedSizeX or sizeX
         state.startSizeY = state.expandedSizeY or sizeY
-        state.targetSizeX = state.startSizeX
-        state.targetSizeY = state.startSizeY
+        state.targetSizeX = core.snapToGrid(state.startSizeX, windowName)
+        state.targetSizeY = core.snapToGrid(state.startSizeY, windowName)
+        -- Update expanded size to snapped values so restore uses grid-aligned size
+        state.expandedSizeX = state.targetSizeX
+        state.expandedSizeY = state.targetSizeY
     end
 
     -- Immediate snap if animation is disabled
@@ -280,6 +284,14 @@ function core.update(windowName, options)
         end
     end
     state.wasCollapsed = isCollapsed
+
+    -- Check if collapsed window snapping is enabled
+    local snapCollapsed = settings.getConfig(windowName, "snapCollapsed")
+
+    -- Skip grid snapping for collapsed windows if snapCollapsed is disabled
+    if isCollapsed and not snapCollapsed then
+        useGrid = false
+    end
 
     if useGrid then
         -- Use RootAndChildWindows flag to detect focus even when child windows were last interacted with

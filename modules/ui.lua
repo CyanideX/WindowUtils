@@ -291,6 +291,13 @@ function ui.drawSettingsWindow()
     ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
     -- No close button (use toggle/hotkey to hide), allow collapse
     if not ImGui.Begin("WindowUtils Settings") then
+        -- Window is collapsed - still update for grid snapping when dragging collapsed window
+        core.update("WindowUtils Settings", {
+            gridEnabled = settings.master.gridEnabled,
+            animationEnabled = settings.master.animationEnabled,
+            animationDuration = settings.master.animationDuration,
+            treatAllDragsAsWindowDrag = true
+        })
         ImGui.End()
         return
     end
@@ -394,6 +401,10 @@ function ui.drawSettingsWindow()
     -- Grid settings
     controls.SectionHeader("Grid Snapping", 10, 0)
     settings.master.gridEnabled, changed = controls.Checkbox("Enable Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
+    if changed then settings.save() end
+
+    ImGui.SameLine()
+    settings.master.snapCollapsed, changed = controls.Checkbox("Snap Collapsed", settings.master.snapCollapsed, settings.defaults.snapCollapsed, "Snap Collapsed Windows When Dragged")
     if changed then settings.save() end
 
     -- Get valid grid units and map to scale 1-N
