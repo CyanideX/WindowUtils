@@ -39,6 +39,19 @@ local draggingWindowBoundsValid = false
 -- Currently dragging window name (for dynamic grid visualization)
 local draggingWindowName = nil
 
+-- Axis lock state (for Shift+drag constraint)
+local axisLock = {
+    active = false,      -- Whether axis locking is currently active
+    axis = nil,          -- "x" or "y" - which axis is locked (movement constrained to this axis)
+    threshold = 10       -- Minimum movement before locking to an axis
+}
+
+-- Drag start position (recorded when drag begins, used for axis locking)
+local dragStartPos = {
+    x = 0,
+    y = 0
+}
+
 -- Grid size cache (avoids recalculating every frame)
 local gridSizeCache = {}
 
@@ -103,6 +116,11 @@ local easeFunctions = {
     end
 }
 
+--- Check if Shift key is held.
+local function isShiftHeld()
+    return ImGui.IsKeyDown(ImGuiKey.LeftShift) or ImGui.IsKeyDown(ImGuiKey.RightShift)
+end
+
 --------------------------------------------------------------------------------
 -- Utility Functions
 --------------------------------------------------------------------------------
@@ -160,7 +178,13 @@ local function getWindowState(windowName)
             isDragging = false,
             expandedSizeX = nil,
             expandedSizeY = nil,
-            wasCollapsed = false
+            wasCollapsed = false,
+            -- Pending drag check (detects child element drags vs window drags)
+            pendingDragCheck = false,
+            dragCheckPosX = 0,
+            dragCheckPosY = 0,
+            dragCheckSizeX = 0,
+            dragCheckSizeY = 0
         }
     end
     return windowStates[windowName]
@@ -256,30 +280,91 @@ function core.update(windowName, options)
     state.wasCollapsed = isCollapsed
 
     if useGrid then
-        local isFocused = ImGui.IsWindowFocused()
+        -- Use RootAndChildWindows flag to detect focus even when child windows were last interacted with
+        -- This ensures grid snapping works after interacting with child elements (splitters, panels, etc.)
+        local isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)
         local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
         local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+        local shiftHeld = isShiftHeld()
 
         if isFocused and isDragging then
-            state.isDragging = true
-            state.animating = false  -- Cancel any running animation
-            -- Update live bounds in place for grid feathering
-            draggingWindowBounds.x = currentPosX
-            draggingWindowBounds.y = currentPosY
-            draggingWindowBounds.width = currentSizeX
-            draggingWindowBounds.height = currentSizeY
-            draggingWindowBoundsValid = true
-            draggingWindowName = windowName
-        elseif state.isDragging and isReleased then
-            state.isDragging = false
-            local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
-            local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
-            handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
-
-            if useAnimation then
-                state.animating = true
-                state.animationStartTime = os.clock()
+            -- Record baseline position/size when any drag starts in focused window
+            if not state.pendingDragCheck then
+                state.pendingDragCheck = true
+                state.dragCheckPosX = currentPosX
+                state.dragCheckPosY = currentPosY
+                state.dragCheckSizeX = currentSizeX
+                state.dragCheckSizeY = currentSizeY
+                dragStartPos.x = currentPosX
+                dragStartPos.y = currentPosY
             end
+
+            -- Check if window is actually moving/resizing (not a child element drag)
+            local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
+            local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
+
+            if posChanged or sizeChanged then
+                state.isDragging = true
+                state.animating = false  -- Cancel any running animation
+
+                -- Handle Shift+drag axis locking (uses original drag start position)
+                if shiftHeld then
+                    axisLock.active = true
+
+                    -- Dynamically determine axis based on which direction has more movement
+                    local deltaX = math.abs(currentPosX - dragStartPos.x)
+                    local deltaY = math.abs(currentPosY - dragStartPos.y)
+                    if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
+                        -- Continuously update axis based on dominant movement direction
+                        axisLock.axis = deltaX > deltaY and "x" or "y"
+                    end
+
+                    -- Apply axis constraint (use explicit window name for reliability)
+                    if axisLock.axis == "x" then
+                        -- Lock Y to drag start position (allow only horizontal movement)
+                        ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
+                        currentPosY = dragStartPos.y
+                    elseif axisLock.axis == "y" then
+                        -- Lock X to drag start position (allow only vertical movement)
+                        ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
+                        currentPosX = dragStartPos.x
+                    end
+                else
+                    -- Shift released - clear axis lock
+                    axisLock.active = false
+                    axisLock.axis = nil
+                end
+
+                -- Update live bounds in place for grid feathering
+                draggingWindowBounds.x = currentPosX
+                draggingWindowBounds.y = currentPosY
+                draggingWindowBounds.width = currentSizeX
+                draggingWindowBounds.height = currentSizeY
+                draggingWindowBoundsValid = true
+                draggingWindowName = windowName
+            end
+        elseif state.pendingDragCheck and isReleased then
+            -- Mouse released - check if window position/size changed from baseline
+            local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
+            local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
+
+            state.pendingDragCheck = false
+            state.isDragging = false
+            axisLock.active = false
+            axisLock.axis = nil
+
+            if posChanged or sizeChanged then
+                -- Was a window drag - trigger snap
+                local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
+                local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+                handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
+
+                if useAnimation then
+                    state.animating = true
+                    state.animationStartTime = os.clock()
+                end
+            end
+            -- else: was a child element drag (splitter, etc.) - do nothing
         end
     end
 
@@ -562,11 +647,45 @@ function core.updateExternalWindows()
                 local isFocused = ImGui.IsWindowFocused()
                 local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
                 local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+                local shiftHeld = isShiftHeld()
 
                 -- Track drag state
                 if isFocused and isDragging then
+                    -- Record drag start position when drag begins
+                    if not state.isDragging then
+                        dragStartPos.x = currentPosX
+                        dragStartPos.y = currentPosY
+                    end
+
                     state.isDragging = true
                     state.animating = false  -- Cancel any running animation
+
+                    -- Handle Shift+drag axis locking (uses original drag start position)
+                    if shiftHeld then
+                        axisLock.active = true
+
+                        -- Dynamically determine axis based on which direction has more movement
+                        local deltaX = math.abs(currentPosX - dragStartPos.x)
+                        local deltaY = math.abs(currentPosY - dragStartPos.y)
+                        if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
+                            -- Continuously update axis based on dominant movement direction
+                            axisLock.axis = deltaX > deltaY and "x" or "y"
+                        end
+
+                        -- Apply axis constraint (use explicit window name for reliability)
+                        if axisLock.axis == "x" then
+                            ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
+                            currentPosY = dragStartPos.y
+                        elseif axisLock.axis == "y" then
+                            ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
+                            currentPosX = dragStartPos.x
+                        end
+                    else
+                        -- Shift released - clear axis lock
+                        axisLock.active = false
+                        axisLock.axis = nil
+                    end
+
                     -- Update live bounds in place for grid feathering
                     draggingWindowBounds.x = currentPosX
                     draggingWindowBounds.y = currentPosY
@@ -576,6 +695,9 @@ function core.updateExternalWindows()
                     draggingWindowName = windowName
                 elseif state.isDragging and isReleased then
                     state.isDragging = false
+                    -- Clear axis lock on drag end
+                    axisLock.active = false
+                    axisLock.axis = nil
 
                     -- Queue snap operation for position and size
                     local targetX = core.snapToGrid(currentPosX, windowName)

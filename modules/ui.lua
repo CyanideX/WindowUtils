@@ -286,6 +286,11 @@ function ui.drawSettingsWindow()
     -- Draw grid visualization (independent of window visibility)
     drawGridVisualization()
 
+      -- Force window to stay open (user closed it before, can't reopen without hotkey)
+  if not ui.state.showWindow then
+      ui.state.showWindow = true
+  end
+
     if not ui.state.showWindow then return end
 
     ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
