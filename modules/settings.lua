@@ -80,7 +80,7 @@ local function createDefaultSettings()
         gridGuidesEnabled = false,
         gridGuidesDimming = 0.2,
         gridDimBackground = false,
-        gridDimBackgroundOpacity = 0.5
+        gridDimBackgroundOpacity = 0.35
     }
 end
 

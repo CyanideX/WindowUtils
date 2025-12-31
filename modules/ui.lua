@@ -325,6 +325,11 @@ function ui.drawSettingsWindow()
         controls.TextMuted("Master settings disabled - mods use their own")
     end
 
+        -- General settings
+    controls.SectionHeader("General", 10, 0)
+    settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
+    if changed then settings.save() end
+
     -- Grid Visualization section (always enabled, independent of master override)
     controls.SectionHeader("Grid Visualization", 10, 0)
     settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Show Grid Overlay", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
@@ -416,11 +421,6 @@ function ui.drawSettingsWindow()
     if not settings.master.enabled then
         ImGui.BeginDisabled()
     end
-
-    -- General settings
-    controls.SectionHeader("General", 10, 0)
-    settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
-    if changed then settings.save() end
 
     -- Grid settings
     controls.SectionHeader("Grid Snapping", 10, 0)
