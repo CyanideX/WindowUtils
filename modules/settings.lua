@@ -22,6 +22,8 @@
 ---@field gridFeatherCurve number Feather curve exponent
 ---@field gridGuidesEnabled boolean Show alignment guide lines at window edges
 ---@field gridGuidesDimming number Grid opacity multiplier when guides active (0-1)
+---@field gridDimBackground boolean Dim background behind grid and windows
+---@field gridDimBackgroundOpacity number Background dimming opacity (0-1)
 
 ---@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
 ---@field enabled boolean Master override enabled
@@ -76,7 +78,9 @@ local function createDefaultSettings()
         gridFeatherPadding = 0,
         gridFeatherCurve = 5.0,
         gridGuidesEnabled = false,
-        gridGuidesDimming = 0.2
+        gridGuidesDimming = 0.2,
+        gridDimBackground = false,
+        gridDimBackgroundOpacity = 0.5
     }
 end
 

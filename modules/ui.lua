@@ -164,6 +164,15 @@ local function drawGridVisualization()
     local color = settings.master.gridLineColor
     local baseAlpha = color[4] * gridFade.opacity
 
+    -- Draw dimmed background if enabled (behind grid lines)
+    if settings.master.gridDimBackground then
+        local bgOpacity = settings.master.gridDimBackgroundOpacity * gridFade.opacity
+        if bgOpacity > 0.001 then
+            local bgColor = ImGui.GetColorU32(0, 0, 0, bgOpacity)
+            ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
+        end
+    end
+
     -- Get feather settings
     local featherRadius = settings.master.gridFeatherRadius
     local featherPadding = settings.master.gridFeatherPadding
@@ -384,6 +393,21 @@ function ui.drawSettingsWindow()
                     settings.master.gridFeatherCurve = curve
                     settings.save()
                 end
+            end
+        end
+
+        -- Dim Background option
+        settings.master.gridDimBackground, changed = controls.Checkbox("Dim Background", settings.master.gridDimBackground, settings.defaults.gridDimBackground, "Darken Screen Behind Grid\n(Makes grid easier to see in bright scenes)")
+        if changed then settings.save() end
+
+        if settings.master.gridDimBackground then
+            -- Display as 0-100%, store as 0-1
+            local opacityPercent = settings.master.gridDimBackgroundOpacity * 100
+            local newOpacityPercent
+            newOpacityPercent, changed = controls.SliderFloat(IconGlyphs.Brightness4, "dimOpacity", opacityPercent, 10, 90, "%.0f%%", nil, settings.defaults.gridDimBackgroundOpacity * 100, "Background Dimming Opacity")
+            if changed then
+                settings.master.gridDimBackgroundOpacity = newOpacityPercent / 100
+                settings.save()
             end
         end
     end
