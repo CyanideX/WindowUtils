@@ -15,6 +15,11 @@ ui.state = {
     showWindow = false
 }
 
+--- Initialize UI state from saved settings
+function ui.init()
+    ui.state.showWindow = settings.master.showSettingsWindow or false
+end
+
 -- Grid fade state
 local gridFade = {
     opacity = 0,           -- Current opacity multiplier (0 to 1)
@@ -512,14 +517,20 @@ end
 
 function ui.show()
     ui.state.showWindow = true
+    settings.master.showSettingsWindow = true
+    settings.save()
 end
 
 function ui.hide()
     ui.state.showWindow = false
+    settings.master.showSettingsWindow = false
+    settings.save()
 end
 
 function ui.toggle()
     ui.state.showWindow = not ui.state.showWindow
+    settings.master.showSettingsWindow = ui.state.showWindow
+    settings.save()
 end
 
 function ui.isVisible()

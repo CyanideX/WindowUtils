@@ -24,6 +24,7 @@
 ---@field gridGuidesDimming number Grid opacity multiplier when guides active (0-1)
 ---@field gridDimBackground boolean Dim background behind grid and windows
 ---@field gridDimBackgroundOpacity number Background dimming opacity (0-1)
+---@field showSettingsWindow boolean Show the settings window
 
 ---@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
 ---@field enabled boolean Master override enabled
@@ -80,7 +81,8 @@ local function createDefaultSettings()
         gridGuidesEnabled = false,
         gridGuidesDimming = 0.2,
         gridDimBackground = false,
-        gridDimBackgroundOpacity = 0.35
+        gridDimBackgroundOpacity = 0.35,
+        showSettingsWindow = false
     }
 end
 

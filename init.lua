@@ -91,6 +91,7 @@ WindowUtils.Tooltips = tooltips
 
 registerForEvent("onInit", function()
     settings.load()
+    ui.init()  -- Initialize UI state from saved settings
     print(IconGlyphs.WindowMaximize .. " WindowUtils: Initialized!")
 end)
 
@@ -108,7 +109,7 @@ end)
 
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
-    ui.state.showWindow = true
+    -- Respect saved visibility state (don't force show on overlay open)
 end)
 
 registerForEvent("onOverlayClose", function()
