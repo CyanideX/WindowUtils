@@ -20,6 +20,7 @@ local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")
 local tooltips = require("modules/tooltips")
+local hotkeys = require("modules/hotkeys")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -84,6 +85,8 @@ WindowUtils.API = api
 WindowUtils.Styles = styles
 WindowUtils.Controls = controls
 WindowUtils.Tooltips = tooltips
+
+hotkeys.register()
 
 --------------------------------------------------------------------------------
 -- CET Event Registration
