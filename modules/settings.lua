@@ -23,6 +23,7 @@
 ---@field gridGuidesEnabled boolean Show alignment guide lines at window edges
 ---@field gridGuidesDimming number Grid opacity multiplier when guides active (0-1)
 ---@field gridDimBackground boolean Dim background behind grid and windows
+---@field gridDimBackgroundOnDragOnly boolean Only dim background while dragging windows
 ---@field gridDimBackgroundOpacity number Background dimming opacity (0-1)
 ---@field showSettingsWindow boolean Show the settings window
 ---@field blurOnOverlayOpen boolean Blur background when CET overlay opens
@@ -86,11 +87,12 @@ local function createDefaultSettings()
         gridGuidesEnabled = false,
         gridGuidesDimming = 0.2,
         gridDimBackground = true,
+        gridDimBackgroundOnDragOnly = true,
         gridDimBackgroundOpacity = 0.10,
         showSettingsWindow = false,
         blurOnOverlayOpen = false,
         blurOnDragOnly = true,
-        blurIntensity = 0.005,
+        blurIntensity = 0.0028,
         blurFadeInDuration = 0.25,
         blurFadeOutDuration = 0.05
     }

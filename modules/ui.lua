@@ -31,6 +31,13 @@ ui.blur = {
     wasDragging = false
 }
 
+-- Dim background fade state (shares fade durations with blur)
+local dimFade = {
+    opacity = 0,
+    startTime = 0,
+    wasActive = false  -- tracks previous "should dim" state
+}
+
 --- Get the BlurUtils service
 local function getBlurService()
     if ui.blur.service then return ui.blur.service end
@@ -159,7 +166,6 @@ end
 
 --- Update blur based on drag state (for "blur on drag only" mode)
 function ui.updateBlurDragState()
-    if not settings.master.gridVisualizationEnabled then return end
     if not settings.master.blurOnOverlayOpen then return end
     if not settings.master.blurOnDragOnly then return end
     if not ui.state.isOverlayOpen then return end
@@ -181,6 +187,13 @@ end
 --- Initialize UI state from saved settings
 function ui.init()
     ui.state.showWindow = settings.master.showSettingsWindow or false
+end
+
+--- Reset dim background fade state (called on overlay close)
+function ui.resetDimFade()
+    dimFade.opacity = 0
+    dimFade.wasActive = false
+    dimFade.startTime = 0
 end
 
 -- Grid fade state
@@ -253,6 +266,50 @@ local function distanceToRect(px, py, rx, ry, rw, rh, padding)
 end
 
 local function drawGridVisualization()
+    local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    local now = os.clock()
+
+    -- Draw dim background independently of grid visualization (with fade animation)
+    if settings.master.gridDimBackground then
+        local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
+
+        -- Detect state changes for fade animation (including overlay open)
+        if shouldDim and not dimFade.wasActive then
+            -- Start fade in (overlay just opened, or drag started in drag-only mode)
+            dimFade.startTime = now
+        elseif not shouldDim and dimFade.wasActive then
+            -- Start fade out (drag ended in drag-only mode)
+            dimFade.startTime = now
+        end
+        dimFade.wasActive = shouldDim
+
+        -- Calculate current opacity with fade (using blur fade durations)
+        local elapsed = now - dimFade.startTime
+        if shouldDim then
+            -- Fading in
+            local fadeIn = settings.master.blurFadeInDuration
+            local t = math.min(1, elapsed / fadeIn)
+            dimFade.opacity = t * settings.master.gridDimBackgroundOpacity
+        else
+            -- Fading out
+            local fadeOut = settings.master.blurFadeOutDuration
+            local t = math.min(1, elapsed / fadeOut)
+            dimFade.opacity = (1 - t) * settings.master.gridDimBackgroundOpacity
+        end
+
+        -- Draw if visible
+        if dimFade.opacity > 0.001 then
+            local drawList = ImGui.GetBackgroundDrawList()
+            local displayWidth, displayHeight = GetDisplayResolution()
+            local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
+            ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
+        end
+    else
+        -- Reset fade state when dim background is disabled
+        dimFade.opacity = 0
+        dimFade.wasActive = false
+    end
+
     -- Grid visualization works independently of master override
     if not settings.master.gridVisualizationEnabled then
         gridFade.opacity = 0
@@ -263,9 +320,6 @@ local function drawGridVisualization()
         core.clearDraggingWindowBounds()
         return
     end
-
-    local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
-    local now = os.clock()
     local featherEnabled = settings.master.gridFeatherEnabled
 
     -- Handle fade transitions for "show on drag only" mode
@@ -299,7 +353,7 @@ local function drawGridVisualization()
             gridFade.opacity = math.max(0, 1 - (elapsed / GRID_FADE_OUT_DURATION))
         end
 
-        -- Skip drawing if fully faded out
+        -- Skip drawing grid if fully faded out
         if gridFade.opacity <= 0 then
             -- Clear preserved state after fade-out completes
             gridFade.lastBounds = nil
@@ -331,15 +385,6 @@ local function drawGridVisualization()
     local thickness = settings.master.gridLineThickness
     local color = settings.master.gridLineColor
     local baseAlpha = color[4] * gridFade.opacity
-
-    -- Draw dimmed background if enabled (behind grid lines)
-    if settings.master.gridDimBackground then
-        local bgOpacity = settings.master.gridDimBackgroundOpacity * gridFade.opacity
-        if bgOpacity > 0.001 then
-            local bgColor = ImGui.GetColorU32(0, 0, 0, bgOpacity)
-            ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
-        end
-    end
 
     -- Get feather settings
     local featherRadius = settings.master.gridFeatherRadius
@@ -501,18 +546,7 @@ function ui.drawSettingsWindow()
     -- Grid Visualization section (always enabled, independent of master override)
     controls.SectionHeader("Grid Visualization", 10, 0)
     settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Enable", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
-    if changed then
-        if not settings.master.gridVisualizationEnabled then
-            -- Turn off active effects but keep user preferences for restore
-            if ui.blur.isActive then ui.disableBlur() end
-        else
-            -- If re-enabled and blur was previously on, reapply when overlay is open
-            if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
-                ui.enableBlur()
-            end
-        end
-        settings.save()
-    end
+    if changed then settings.save() end
 
     -- Grid visualization sub-options (only when visualization enabled)
     if settings.master.gridVisualizationEnabled then
@@ -579,74 +613,75 @@ function ui.drawSettingsWindow()
 
     end
 
-    -- Background section (only shown when grid visualization is enabled)
-    if settings.master.gridVisualizationEnabled then
-        controls.SectionHeader("Background", 10, 0)
+    -- Background section (independent of grid visualization)
+    controls.SectionHeader("Background", 10, 0)
 
-        -- Dim Background option (applies to grid overlay backdrop)
-        settings.master.gridDimBackground, changed = controls.Checkbox("Dim Background", settings.master.gridDimBackground, settings.defaults.gridDimBackground, "Darken Screen Behind Grid\n(Makes grid easier to see in bright scenes)")
+    -- Dim Background option (shown with grid overlay)
+    settings.master.gridDimBackground, changed = controls.Checkbox("Dim Background", settings.master.gridDimBackground, settings.defaults.gridDimBackground, "Darken Screen When Grid Overlay Visible")
+    if changed then settings.save() end
+
+    if settings.master.gridDimBackground then
+        ImGui.SameLine()
+        settings.master.gridDimBackgroundOnDragOnly, changed = controls.Checkbox("On Drag Only##dimBg", settings.master.gridDimBackgroundOnDragOnly, settings.defaults.gridDimBackgroundOnDragOnly, "Only Dim Background While Dragging Windows")
         if changed then settings.save() end
+        -- Display as 0-100%, store as 0-1
+        local opacityPercent = settings.master.gridDimBackgroundOpacity * 100
+        local newOpacityPercent
+        newOpacityPercent, changed = controls.SliderFloat(IconGlyphs.Brightness4, "dimOpacity", opacityPercent, 10, 90, "%.0f%%", nil, settings.defaults.gridDimBackgroundOpacity * 100, "Background Dimming Opacity")
+        if changed then
+            settings.master.gridDimBackgroundOpacity = newOpacityPercent / 100
+            settings.save()
+        end
+    end
 
-        if settings.master.gridDimBackground then
-            -- Display as 0-100%, store as 0-1
-            local opacityPercent = settings.master.gridDimBackgroundOpacity * 100
-            local newOpacityPercent
-            newOpacityPercent, changed = controls.SliderFloat(IconGlyphs.Brightness4, "dimOpacity", opacityPercent, 10, 90, "%.0f%%", nil, settings.defaults.gridDimBackgroundOpacity * 100, "Background Dimming Opacity")
-            if changed then
-                settings.master.gridDimBackgroundOpacity = newOpacityPercent / 100
-                settings.save()
+    -- Blur settings
+    if not ui.isBlurAvailable() then
+        controls.TextWarning("BlurUtils Not Installed")
+    else
+        settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens")
+        if changed then
+            settings.save()
+            -- Apply or remove blur immediately based on new setting
+            if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
+                ui.enableBlur()
+            elseif not settings.master.blurOnOverlayOpen then
+                ui.disableBlur()
             end
         end
 
-        -- Blur settings (only shown when background is available)
-        if not ui.isBlurAvailable() then
-            controls.TextWarning("BlurUtils Not Installed")
-        else
-            settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens")
+        if settings.master.blurOnOverlayOpen then
+            ImGui.SameLine()
+            settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
             if changed then
                 settings.save()
-                -- Apply or remove blur immediately based on new setting
-                if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
+                -- If turning off drag-only while overlay is open, enable blur now
+                if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
                     ui.enableBlur()
-                elseif not settings.master.blurOnOverlayOpen then
+                elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
                     ui.disableBlur()
                 end
             end
 
-            if settings.master.blurOnOverlayOpen then
-                ImGui.SameLine()
-                settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
-                if changed then
-                    settings.save()
-                    -- If turning off drag-only while overlay is open, enable blur now
-                    if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
-                        ui.enableBlur()
-                    elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
-                        ui.disableBlur()
-                    end
-                end
+            local intensity = settings.master.blurIntensity
+            intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
+            if changed then
+                settings.master.blurIntensity = intensity
+                settings.save()
+                ui.updateBlurIntensity(intensity)
+            end
 
-                local intensity = settings.master.blurIntensity
-                intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
-                if changed then
-                    settings.master.blurIntensity = intensity
-                    settings.save()
-                    ui.updateBlurIntensity(intensity)
-                end
+            local fadeIn = settings.master.blurFadeInDuration
+            fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
+            if changed then
+                settings.master.blurFadeInDuration = fadeIn
+                settings.save()
+            end
 
-                local fadeIn = settings.master.blurFadeInDuration
-                fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
-                if changed then
-                    settings.master.blurFadeInDuration = fadeIn
-                    settings.save()
-                end
-
-                local fadeOut = settings.master.blurFadeOutDuration
-                fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
-                if changed then
-                    settings.master.blurFadeOutDuration = fadeOut
-                    settings.save()
-                end
+            local fadeOut = settings.master.blurFadeOutDuration
+            fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
+            if changed then
+                settings.master.blurFadeOutDuration = fadeOut
+                settings.save()
             end
         end
     end

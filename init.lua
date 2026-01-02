@@ -119,8 +119,8 @@ end)
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
     ui.state.isOverlayOpen = true
-    -- Enable blur if setting is enabled (unless drag-only mode or visualization disabled)
-    if settings.master.gridVisualizationEnabled and settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
+    -- Enable blur if setting is enabled (unless drag-only mode)
+    if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
         ui.enableBlur()
     end
 end)
@@ -128,8 +128,9 @@ end)
 registerForEvent("onOverlayClose", function()
     WindowUtils.runtimeData.cetOpen = false
     ui.state.isOverlayOpen = false
-    -- Disable blur when overlay closes
+    -- Disable blur and reset dim fade when overlay closes
     ui.disableBlur()
+    ui.resetDimFade()
 end)
 
 return WindowUtils
