@@ -666,7 +666,7 @@ function core.updateExternalWindows()
                 local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
                 local shiftHeld = isShiftHeld()
 
-                -- For override-all: never snap collapsed external windows
+                -- Skip collapsed external windows entirely to avoid grid/animation issues
                 if isCollapsed then
                     -- Clean up state only if needed
                     if state.isDragging then
@@ -679,94 +679,94 @@ function core.updateExternalWindows()
                 else
                     -- Track drag state
                     if isFocused and isDragging then
-                    -- Record drag start position when drag begins
-                    if not state.isDragging then
-                        dragStartPos.x = currentPosX
-                        dragStartPos.y = currentPosY
-                    end
-
-                    state.isDragging = true
-                    state.animating = false  -- Cancel any running animation
-
-                    -- Handle Shift+drag axis locking (uses original drag start position)
-                    if shiftHeld then
-                        axisLock.active = true
-
-                        -- Dynamically determine axis based on which direction has more movement
-                        local deltaX = math.abs(currentPosX - dragStartPos.x)
-                        local deltaY = math.abs(currentPosY - dragStartPos.y)
-                        if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
-                            -- Continuously update axis based on dominant movement direction
-                            axisLock.axis = deltaX > deltaY and "x" or "y"
+                        -- Record drag start position when drag begins
+                        if not state.isDragging then
+                            dragStartPos.x = currentPosX
+                            dragStartPos.y = currentPosY
                         end
 
-                        -- Apply axis constraint (use explicit window name for reliability)
-                        if axisLock.axis == "x" then
-                            ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
-                            currentPosY = dragStartPos.y
-                        elseif axisLock.axis == "y" then
-                            ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
-                            currentPosX = dragStartPos.x
+                        state.isDragging = true
+                        state.animating = false -- Cancel any running animation
+
+                        -- Handle Shift+drag axis locking (uses original drag start position)
+                        if shiftHeld then
+                            axisLock.active = true
+
+                            -- Dynamically determine axis based on which direction has more movement
+                            local deltaX = math.abs(currentPosX - dragStartPos.x)
+                            local deltaY = math.abs(currentPosY - dragStartPos.y)
+                            if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
+                                -- Continuously update axis based on dominant movement direction
+                                axisLock.axis = deltaX > deltaY and "x" or "y"
+                            end
+
+                            -- Apply axis constraint (use explicit window name for reliability)
+                            if axisLock.axis == "x" then
+                                ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
+                                currentPosY = dragStartPos.y
+                            elseif axisLock.axis == "y" then
+                                ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
+                                currentPosX = dragStartPos.x
+                            end
+                        else
+                            -- Shift released - clear axis lock
+                            axisLock.active = false
+                            axisLock.axis = nil
                         end
-                    else
-                        -- Shift released - clear axis lock
+
+                        -- Update live bounds in place for grid feathering
+                        draggingWindowBounds.x = currentPosX
+                        draggingWindowBounds.y = currentPosY
+                        draggingWindowBounds.width = currentSizeX
+                        draggingWindowBounds.height = currentSizeY
+                        draggingWindowBoundsValid = true
+                        draggingWindowName = windowName
+                    elseif state.isDragging and isReleased then
+                        state.isDragging = false
+                        -- Clear axis lock on drag end
                         axisLock.active = false
                         axisLock.axis = nil
-                    end
 
-                    -- Update live bounds in place for grid feathering
-                    draggingWindowBounds.x = currentPosX
-                    draggingWindowBounds.y = currentPosY
-                    draggingWindowBounds.width = currentSizeX
-                    draggingWindowBounds.height = currentSizeY
-                    draggingWindowBoundsValid = true
-                    draggingWindowName = windowName
-                elseif state.isDragging and isReleased then
-                    state.isDragging = false
-                    -- Clear axis lock on drag end
-                    axisLock.active = false
-                    axisLock.axis = nil
+                        local gridEnabled = settings.master.gridEnabled
 
-                    local gridEnabled = settings.master.gridEnabled
+                        -- Skip snapping entirely if grid is disabled, or if collapsed and snap-collapsed is off
+                        if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
+                            draggingWindowBoundsValid = false
+                            draggingWindowName = nil
+                        else
+                            local targetX = core.snapToGrid(currentPosX, windowName)
+                            local targetY = core.snapToGrid(currentPosY, windowName)
+                            local targetSizeX = core.snapToGrid(currentSizeX, windowName)
+                            local targetSizeY = core.snapToGrid(currentSizeY, windowName)
 
-                    -- Skip snapping entirely if grid is disabled, or if collapsed and snap-collapsed is off
-                    if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
-                        draggingWindowBoundsValid = false
-                        draggingWindowName = nil
-                    else
-                        local targetX = core.snapToGrid(currentPosX, windowName)
-                        local targetY = core.snapToGrid(currentPosY, windowName)
-                        local targetSizeX = core.snapToGrid(currentSizeX, windowName)
-                        local targetSizeY = core.snapToGrid(currentSizeY, windowName)
+                            local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
+                            local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
 
-                        local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
-                        local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
-
-                        if posChanged or sizeChanged then
-                            if settings.master.animationEnabled then
-                                state.animating = true
-                                state.animationStartTime = os.clock()
-                                state.startPosX = currentPosX
-                                state.startPosY = currentPosY
-                                state.targetPosX = targetX
-                                state.targetPosY = targetY
-                                state.startSizeX = currentSizeX
-                                state.startSizeY = currentSizeY
-                                state.targetSizeX = targetSizeX
-                                state.targetSizeY = targetSizeY
-                            else
-                                -- Immediate snap
-                                table.insert(deferredSnapOperations, {
-                                    windowName = windowName,
-                                    targetPosX = targetX,
-                                    targetPosY = targetY,
-                                    targetSizeX = targetSizeX,
-                                    targetSizeY = targetSizeY
-                                })
+                            if posChanged or sizeChanged then
+                                if settings.master.animationEnabled then
+                                    state.animating = true
+                                    state.animationStartTime = os.clock()
+                                    state.startPosX = currentPosX
+                                    state.startPosY = currentPosY
+                                    state.targetPosX = targetX
+                                    state.targetPosY = targetY
+                                    state.startSizeX = currentSizeX
+                                    state.startSizeY = currentSizeY
+                                    state.targetSizeX = targetSizeX
+                                    state.targetSizeY = targetSizeY
+                                else
+                                    -- Immediate snap
+                                    table.insert(deferredSnapOperations, {
+                                        windowName = windowName,
+                                        targetPosX = targetX,
+                                        targetPosY = targetY,
+                                        targetSizeX = targetSizeX,
+                                        targetSizeY = targetSizeY
+                                    })
+                                end
                             end
                         end
                     end
-                end
 
                     ImGui.End()
                 end
@@ -779,11 +779,10 @@ function core.updateExternalWindows()
                     -- Cancel animation if settings changed mid-animation
                     state.animating = false
                 else
-                    -- Use master settings only for override-all (pass nil to force master easing)
                     local duration = settings.master.animationDuration
                     local elapsedTime = os.clock() - state.animationStartTime
                     local t = math.min(elapsedTime / duration, 1)
-                    t = core.applyEasing(t, nil)
+                    t = core.applyEasing(t, windowName)
 
                     local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
                     local newPosY = core.lerp(state.startPosY, state.targetPosY, t)

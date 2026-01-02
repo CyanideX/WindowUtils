@@ -1,8 +1,28 @@
 ------------------------------------------------------
 -- WindowUtils - External API Module
 -- Clean interface for other mods to control WindowUtils
--- Usage: local wu = GetMod("WindowUtils"); if wu then wu.API.Toggle() end
--- print(GetMod("WindowUtils").api.IsEnabled())
+--
+-- Usage:
+--   local wu = GetMod("WindowUtils")
+--   if wu then
+--       wu.API.Toggle()                    -- Toggle settings window
+--       wu.API.EnableGrid()                -- Enable grid snapping
+--       print(wu.API.IsEnabled())          -- Check master override status
+--   end
+--
+-- For advanced settings not exposed as functions, use GetSettings():
+--   local s = wu.API.GetSettings()
+--   s.snapCollapsed = true                 -- Snap collapsed windows
+--   s.blurOnOverlayOpen = true             -- Enable background blur
+--   s.blurOnDragOnly = false               -- Blur always when overlay open
+--   s.blurIntensity = 0.005                -- Blur strength (0.001-0.02)
+--   s.gridVisualizationEnabled = true      -- Show grid overlay
+--   s.gridDimBackground = true             -- Dim background behind grid
+--   s.gridDimBackgroundOpacity = 0.10      -- Dimming opacity (0-1)
+--   s.overrideAllWindows = false           -- Apply to all CET windows (experimental)
+--
+-- Note: After modifying settings via GetSettings(), call settings.save()
+-- if you need persistence, or the changes will only last until restart.
 ------------------------------------------------------
 
 local settings = require("modules/settings")
