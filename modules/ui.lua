@@ -15,6 +15,168 @@ ui.state = {
     showWindow = false
 }
 
+-- Blur state management
+ui.blur = {
+    isActive = false,
+    service = nil,
+    originalEnabled = nil,
+    originalRadius = 0.0,
+    -- Animation state
+    isAnimating = false,
+    animationType = "none", -- "fade_in" or "fade_out"
+    startTime = 0,
+    currentRadius = 0.0,
+    targetRadius = 0.0,
+    -- Drag tracking
+    wasDragging = false
+}
+
+--- Get the BlurUtils service
+local function getBlurService()
+    if ui.blur.service then return ui.blur.service end
+
+    local success, result = pcall(function()
+        local container = Game.GetScriptableServiceContainer()
+        if container then
+            return container:GetService("CyanideX.BlurUtils.BlurUtils")
+        end
+        return nil
+    end)
+
+    if success and result then
+        ui.blur.service = result
+        return result
+    end
+    return nil
+end
+
+--- Smooth easing function (ease in-out)
+local function smoothEase(t)
+    return t * t * (3 - 2 * t)
+end
+
+--- Enable blur effect with fade-in animation
+function ui.enableBlur()
+    if ui.blur.isActive and not ui.blur.isAnimating then return end
+
+    local service = getBlurService()
+    if not service then return end
+
+    -- Store original settings (only if not already active)
+    if not ui.blur.isActive then
+        ui.blur.originalEnabled = service:GetEnable()
+        ui.blur.originalRadius = service:GetBlurAreaCircularBlurRadius()
+    end
+
+    -- Enable service
+    service:SetEnable(true)
+
+    -- Start fade-in animation
+    ui.blur.isAnimating = true
+    ui.blur.animationType = "fade_in"
+    ui.blur.startTime = os.clock()
+    ui.blur.targetRadius = settings.master.blurIntensity
+    -- Start from current radius (allows smooth transition if already animating)
+    if not ui.blur.isActive then
+        ui.blur.currentRadius = 0.0
+    end
+
+    ui.blur.isActive = true
+end
+
+--- Disable blur effect with fade-out animation
+function ui.disableBlur()
+    if not ui.blur.isActive then return end
+
+    -- Start fade-out animation
+    ui.blur.isAnimating = true
+    ui.blur.animationType = "fade_out"
+    ui.blur.startTime = os.clock()
+    -- targetRadius stays the same, we fade from currentRadius to 0
+end
+
+--- Update blur animation (call every frame)
+function ui.updateBlurAnimation()
+    if not ui.blur.isAnimating then return end
+
+    local service = getBlurService()
+    if not service then return end
+
+    -- Use appropriate duration based on animation type
+    local duration = ui.blur.animationType == "fade_in"
+        and settings.master.blurFadeInDuration
+        or settings.master.blurFadeOutDuration
+
+    local elapsed = os.clock() - ui.blur.startTime
+    local progress = math.min(elapsed / duration, 1.0)
+    local easedProgress = smoothEase(progress)
+
+    if ui.blur.animationType == "fade_in" then
+        ui.blur.currentRadius = easedProgress * ui.blur.targetRadius
+    else -- fade_out
+        ui.blur.currentRadius = ui.blur.targetRadius * (1.0 - easedProgress)
+    end
+
+    -- Apply current blur radius
+    service:SetBlurAreaCircularBlurRadius(ui.blur.currentRadius)
+
+    -- Handle animation completion
+    if progress >= 1.0 then
+        ui.blur.isAnimating = false
+
+        if ui.blur.animationType == "fade_out" then
+            -- Cleanup after fade-out
+            ui.blur.currentRadius = 0.0
+            ui.blur.animationType = "none"
+            service:SetBlurAreaCircularBlurRadius(0.0)
+            service:SetEnable(false)
+            ui.blur.isActive = false
+            ui.blur.service = nil
+        end
+    end
+end
+
+--- Update blur intensity (when slider changes)
+function ui.updateBlurIntensity(intensity)
+    if not ui.blur.isActive then return end
+
+    ui.blur.targetRadius = intensity
+
+    -- If not animating, apply immediately
+    if not ui.blur.isAnimating then
+        ui.blur.currentRadius = intensity
+        local service = getBlurService()
+        if service then
+            service:SetBlurAreaCircularBlurRadius(intensity)
+        end
+    end
+end
+
+--- Check if BlurUtils service is available
+function ui.isBlurAvailable()
+    return getBlurService() ~= nil
+end
+
+--- Update blur based on drag state (for "blur on drag only" mode)
+function ui.updateBlurDragState()
+    if not settings.master.blurOnOverlayOpen then return end
+    if not settings.master.blurOnDragOnly then return end
+    if not ui.state.isOverlayOpen then return end
+
+    local isDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+
+    -- Detect drag state changes
+    if isDragging and not ui.blur.wasDragging then
+        -- Started dragging - enable blur
+        ui.enableBlur()
+    elseif not isDragging and ui.blur.wasDragging then
+        -- Stopped dragging - disable blur
+        ui.disableBlur()
+    end
+
+    ui.blur.wasDragging = isDragging
+end
+
 --- Initialize UI state from saved settings
 function ui.init()
     ui.state.showWindow = settings.master.showSettingsWindow or false
@@ -419,6 +581,66 @@ function ui.drawSettingsWindow()
                 settings.master.gridDimBackgroundOpacity = newOpacityPercent / 100
                 settings.save()
             end
+        end
+    end
+
+    -- Background Blur section
+    controls.SectionHeader("Background Blur", 10, 0)
+    settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens\n(Requires BlurUtils redscript)")
+    if changed then
+        settings.save()
+        -- Apply or remove blur immediately based on new setting
+        if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
+            ui.enableBlur()
+        elseif not settings.master.blurOnOverlayOpen then
+            ui.disableBlur()
+        end
+    end
+
+    if settings.master.blurOnOverlayOpen then
+        ImGui.SameLine()
+        settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
+        if changed then
+            settings.save()
+            -- If turning off drag-only while overlay is open, enable blur now
+            if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
+                ui.enableBlur()
+            elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
+                -- If turning on drag-only and not currently dragging, disable blur
+                ui.disableBlur()
+            end
+        end
+    end
+
+    if settings.master.blurOnOverlayOpen then
+        local intensity = settings.master.blurIntensity
+        intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
+        if changed then
+            settings.master.blurIntensity = intensity
+            settings.save()
+            -- Update blur in real-time if active
+            ui.updateBlurIntensity(intensity)
+        end
+
+        local fadeIn = settings.master.blurFadeInDuration
+        fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
+        if changed then
+            settings.master.blurFadeInDuration = fadeIn
+            settings.save()
+        end
+
+        local fadeOut = settings.master.blurFadeOutDuration
+        fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
+        if changed then
+            settings.master.blurFadeOutDuration = fadeOut
+            settings.save()
+        end
+
+        -- Show blur status
+        if ui.blur.isActive then
+            controls.TextSuccess("Blur active")
+        elseif not ui.isBlurAvailable() then
+            controls.TextWarning("BlurUtils not found - Install BlurUtils redscript")
         end
     end
 

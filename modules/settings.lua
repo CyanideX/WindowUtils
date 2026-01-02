@@ -25,6 +25,11 @@
 ---@field gridDimBackground boolean Dim background behind grid and windows
 ---@field gridDimBackgroundOpacity number Background dimming opacity (0-1)
 ---@field showSettingsWindow boolean Show the settings window
+---@field blurOnOverlayOpen boolean Blur background when CET overlay opens
+---@field blurOnDragOnly boolean Only blur while dragging windows
+---@field blurIntensity number Blur intensity (0.0-0.02)
+---@field blurFadeInDuration number Blur fade-in duration in seconds
+---@field blurFadeOutDuration number Blur fade-out duration in seconds
 
 ---@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
 ---@field enabled boolean Master override enabled
@@ -82,7 +87,12 @@ local function createDefaultSettings()
         gridGuidesDimming = 0.2,
         gridDimBackground = false,
         gridDimBackgroundOpacity = 0.35,
-        showSettingsWindow = false
+        showSettingsWindow = false,
+        blurOnOverlayOpen = false,
+        blurOnDragOnly = false,
+        blurIntensity = 0.005,
+        blurFadeInDuration = 0.3,
+        blurFadeOutDuration = 0.2
     }
 end
 

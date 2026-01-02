@@ -99,7 +99,13 @@ registerForEvent("onInit", function()
 end)
 
 registerForEvent("onDraw", function()
+    -- Update blur animation (runs even when overlay might be closing)
+    ui.updateBlurAnimation()
+
     if WindowUtils.runtimeData.cetOpen then
+        -- Update blur based on drag state (for "blur on drag only" mode)
+        ui.updateBlurDragState()
+
         ui.drawSettingsWindow()
 
         -- Process external windows if override is enabled
@@ -112,11 +118,18 @@ end)
 
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
-    -- Respect saved visibility state (don't force show on overlay open)
+    ui.state.isOverlayOpen = true
+    -- Enable blur if setting is enabled (unless drag-only mode)
+    if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
+        ui.enableBlur()
+    end
 end)
 
 registerForEvent("onOverlayClose", function()
     WindowUtils.runtimeData.cetOpen = false
+    ui.state.isOverlayOpen = false
+    -- Disable blur when overlay closes
+    ui.disableBlur()
 end)
 
 return WindowUtils
