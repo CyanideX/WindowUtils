@@ -128,9 +128,9 @@ end)
 registerForEvent("onOverlayClose", function()
     WindowUtils.runtimeData.cetOpen = false
     ui.state.isOverlayOpen = false
-    -- Disable blur and reset dim fade when overlay closes
+    -- Disable blur and dim when overlay closes
     ui.disableBlur()
-    ui.resetDimFade()
+    ui.disableDim()
 end)
 
 return WindowUtils

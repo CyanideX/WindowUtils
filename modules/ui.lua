@@ -35,7 +35,7 @@ ui.blur = {
 local dimFade = {
     opacity = 0,
     startTime = 0,
-    wasActive = false  -- tracks previous "should dim" state
+    wasDragging = false  -- tracks previous "should dim" state
 }
 
 --- Get the BlurUtils service
@@ -189,10 +189,10 @@ function ui.init()
     ui.state.showWindow = settings.master.showSettingsWindow or false
 end
 
---- Reset dim background fade state (called on overlay close)
-function ui.resetDimFade()
+--- Disable dim background effect (called on overlay close)
+function ui.disableDim()
     dimFade.opacity = 0
-    dimFade.wasActive = false
+    dimFade.wasDragging = false
     dimFade.startTime = 0
 end
 
@@ -274,14 +274,14 @@ local function drawGridVisualization()
         local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
 
         -- Detect state changes for fade animation (including overlay open)
-        if shouldDim and not dimFade.wasActive then
+        if shouldDim and not dimFade.wasDragging then
             -- Start fade in (overlay just opened, or drag started in drag-only mode)
             dimFade.startTime = now
-        elseif not shouldDim and dimFade.wasActive then
+        elseif not shouldDim and dimFade.wasDragging then
             -- Start fade out (drag ended in drag-only mode)
             dimFade.startTime = now
         end
-        dimFade.wasActive = shouldDim
+        dimFade.wasDragging = shouldDim
 
         -- Calculate current opacity with fade (using blur fade durations)
         local elapsed = now - dimFade.startTime
@@ -307,7 +307,7 @@ local function drawGridVisualization()
     else
         -- Reset fade state when dim background is disabled
         dimFade.opacity = 0
-        dimFade.wasActive = false
+        dimFade.wasDragging = false
     end
 
     -- Grid visualization works independently of master override
@@ -551,7 +551,7 @@ function ui.drawSettingsWindow()
     -- Grid visualization sub-options (only when visualization enabled)
     if settings.master.gridVisualizationEnabled then
         ImGui.SameLine()
-        settings.master.gridShowOnDragOnly, changed = controls.Checkbox("On Drag", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
+        settings.master.gridShowOnDragOnly, changed = controls.Checkbox("On Drag Only ##grid", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
         if changed then settings.save() end
 
         if settings.master.gridShowOnDragOnly then
