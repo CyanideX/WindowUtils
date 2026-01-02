@@ -159,6 +159,7 @@ end
 
 --- Update blur based on drag state (for "blur on drag only" mode)
 function ui.updateBlurDragState()
+    if not settings.master.gridVisualizationEnabled then return end
     if not settings.master.blurOnOverlayOpen then return end
     if not settings.master.blurOnDragOnly then return end
     if not ui.state.isOverlayOpen then return end
