@@ -657,12 +657,24 @@ function core.updateExternalWindows()
 
             -- Access the window to check its state
             if ImGui.Begin(windowName, true) then
+                local isCollapsed = ImGui.IsWindowCollapsed()
+                local allowSnapCollapsed = settings.master.snapCollapsed
                 local currentPosX, currentPosY = ImGui.GetWindowPos()
                 local currentSizeX, currentSizeY = ImGui.GetWindowSize()
                 local isFocused = ImGui.IsWindowFocused()
                 local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
                 local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
                 local shiftHeld = isShiftHeld()
+
+                -- For override-all: never snap collapsed external windows
+                if isCollapsed then
+                    state.isDragging = false
+                    state.animating = false
+                    draggingWindowBoundsValid = false
+                    draggingWindowName = nil
+                    ImGui.End()
+                    goto continue
+                end
 
                 -- Track drag state
                 if isFocused and isDragging then
@@ -714,37 +726,43 @@ function core.updateExternalWindows()
                     axisLock.active = false
                     axisLock.axis = nil
 
-                    -- Queue snap operation for position and size
-                    local targetX = core.snapToGrid(currentPosX, windowName)
-                    local targetY = core.snapToGrid(currentPosY, windowName)
-                    local targetSizeX = core.snapToGrid(currentSizeX, windowName)
-                    local targetSizeY = core.snapToGrid(currentSizeY, windowName)
+                    local gridEnabled = settings.master.gridEnabled
 
-                    -- Check if position or size changed
-                    local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
-                    local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
+                    -- Skip snapping entirely if grid is disabled, or if collapsed and snap-collapsed is off
+                    if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
+                        draggingWindowBoundsValid = false
+                        draggingWindowName = nil
+                    else
+                        local targetX = core.snapToGrid(currentPosX, windowName)
+                        local targetY = core.snapToGrid(currentPosY, windowName)
+                        local targetSizeX = core.snapToGrid(currentSizeX, windowName)
+                        local targetSizeY = core.snapToGrid(currentSizeY, windowName)
 
-                    if posChanged or sizeChanged then
-                        if settings.master.animationEnabled then
-                            state.animating = true
-                            state.animationStartTime = os.clock()
-                            state.startPosX = currentPosX
-                            state.startPosY = currentPosY
-                            state.targetPosX = targetX
-                            state.targetPosY = targetY
-                            state.startSizeX = currentSizeX
-                            state.startSizeY = currentSizeY
-                            state.targetSizeX = targetSizeX
-                            state.targetSizeY = targetSizeY
-                        else
-                            -- Immediate snap
-                            table.insert(deferredSnapOperations, {
-                                windowName = windowName,
-                                targetPosX = targetX,
-                                targetPosY = targetY,
-                                targetSizeX = targetSizeX,
-                                targetSizeY = targetSizeY
-                            })
+                        local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
+                        local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
+
+                        if posChanged or sizeChanged then
+                            if settings.master.animationEnabled then
+                                state.animating = true
+                                state.animationStartTime = os.clock()
+                                state.startPosX = currentPosX
+                                state.startPosY = currentPosY
+                                state.targetPosX = targetX
+                                state.targetPosY = targetY
+                                state.startSizeX = currentSizeX
+                                state.startSizeY = currentSizeY
+                                state.targetSizeX = targetSizeX
+                                state.targetSizeY = targetSizeY
+                            else
+                                -- Immediate snap
+                                table.insert(deferredSnapOperations, {
+                                    windowName = windowName,
+                                    targetPosX = targetX,
+                                    targetPosY = targetY,
+                                    targetSizeX = targetSizeX,
+                                    targetSizeY = targetSizeY
+                                })
+                            end
                         end
                     end
                 end
@@ -753,7 +771,7 @@ function core.updateExternalWindows()
             end
 
             -- Handle animation for this window
-            if state.animating then
+            if state.animating and settings.master.gridEnabled and settings.master.animationEnabled then
                 local duration = settings.master.animationDuration
                 local elapsedTime = os.clock() - state.animationStartTime
                 local t = math.min(elapsedTime / duration, 1)
@@ -778,6 +796,7 @@ function core.updateExternalWindows()
                 end
             end
         end
+        ::continue::
     end
 end
 

@@ -91,8 +91,8 @@ local function createDefaultSettings()
         blurOnOverlayOpen = false,
         blurOnDragOnly = false,
         blurIntensity = 0.005,
-        blurFadeInDuration = 0.3,
-        blurFadeOutDuration = 0.2
+        blurFadeInDuration = 0.25,
+        blurFadeOutDuration = 0.05
     }
 end
 

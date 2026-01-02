@@ -487,9 +487,9 @@ function ui.drawSettingsWindow()
     end
 
     if settings.master.enabled then
-        controls.TextSuccess("Master settings active - overriding all mods")
+        controls.TextSuccess("Master Settings Active - Overriding All mods")
     else
-        controls.TextMuted("Master settings disabled - mods use their own")
+        controls.TextMuted("Master Settings Disabled - Mods Use Their Own Settings")
     end
 
         -- General settings
@@ -499,48 +499,43 @@ function ui.drawSettingsWindow()
 
     -- Grid Visualization section (always enabled, independent of master override)
     controls.SectionHeader("Grid Visualization", 10, 0)
-    settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Show Grid Overlay", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
-    if changed then settings.save() end
+    settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Enable", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
+    if changed then
+        if not settings.master.gridVisualizationEnabled then
+            -- Turn off active effects but keep user preferences for restore
+            if ui.blur.isActive then ui.disableBlur() end
+        else
+            -- If re-enabled and blur was previously on, reapply when overlay is open
+            if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
+                ui.enableBlur()
+            end
+        end
+        settings.save()
+    end
 
     -- Grid visualization sub-options (only when visualization enabled)
     if settings.master.gridVisualizationEnabled then
         ImGui.SameLine()
-        settings.master.gridShowOnDragOnly, changed = controls.Checkbox("Show on Drag Only", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
+        settings.master.gridShowOnDragOnly, changed = controls.Checkbox("On Drag", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
         if changed then settings.save() end
 
         if settings.master.gridShowOnDragOnly then
             ImGui.SameLine()
             settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid")
             if changed then settings.save() end
-        end
 
-        -- Grid dimming slider (only when guides enabled)
-        if settings.master.gridGuidesEnabled then
-            -- Display as 0-100%, store as 0-1
-            local dimmingPercent = settings.master.gridGuidesDimming * 100
-            local newDimmingPercent
-            newDimmingPercent, changed = controls.SliderFloat(IconGlyphs.Brightness5, "gridDimming", dimmingPercent, 0, 100, "%.0f%%", nil, settings.defaults.gridGuidesDimming * 100, "Grid Dimming (opacity of grid lines when guides active)")
-            if changed then
-                settings.master.gridGuidesDimming = newDimmingPercent / 100
-                settings.save()
+            if settings.master.gridGuidesEnabled then
+                -- Display as 0-100%, store as 0-1
+                local dimmingPercent = settings.master.gridGuidesDimming * 100
+                local newDimmingPercent
+                newDimmingPercent, changed = controls.SliderFloat(IconGlyphs.Brightness5, "gridDimming", dimmingPercent, 0, 100, "%.0f%%", nil, settings.defaults.gridGuidesDimming * 100, "Grid Dimming (opacity of grid lines when guides active)")
+                if changed then
+                    settings.master.gridGuidesDimming = newDimmingPercent / 100
+                    settings.save()
+                end
             end
-        end
 
-        local thickness = settings.master.gridLineThickness
-        thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
-        if changed then
-            settings.master.gridLineThickness = thickness
-            settings.save()
-        end
-
-        -- RGBA color picker
-        settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
-        if changed then
-            settings.save()
-        end
-
-        -- Grid feathering (only available when Show on Drag Only is enabled)
-        if settings.master.gridShowOnDragOnly then
+            -- Grid feathering (only available when Show on Drag Only is enabled)
             settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
             if changed then settings.save() end
 
@@ -568,7 +563,26 @@ function ui.drawSettingsWindow()
             end
         end
 
-        -- Dim Background option
+        local thickness = settings.master.gridLineThickness
+        thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
+        if changed then
+            settings.master.gridLineThickness = thickness
+            settings.save()
+        end
+
+        -- RGBA color picker
+        settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
+        if changed then
+            settings.save()
+        end
+
+    end
+
+    -- Background section (only shown when grid visualization is enabled)
+    if settings.master.gridVisualizationEnabled then
+        controls.SectionHeader("Background", 10, 0)
+
+        -- Dim Background option (applies to grid overlay backdrop)
         settings.master.gridDimBackground, changed = controls.Checkbox("Dim Background", settings.master.gridDimBackground, settings.defaults.gridDimBackground, "Darken Screen Behind Grid\n(Makes grid easier to see in bright scenes)")
         if changed then settings.save() end
 
@@ -582,62 +596,56 @@ function ui.drawSettingsWindow()
                 settings.save()
             end
         end
-    end
 
-    -- Background Blur section
-    controls.SectionHeader("Background Blur", 10, 0)
-
-    if not ui.isBlurAvailable() then
-        controls.TextWarning("BlurUtils Not Installed")
-    else
-        settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens")
-        if changed then
-            settings.save()
-            -- Apply or remove blur immediately based on new setting
-            if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
-                ui.enableBlur()
-            elseif not settings.master.blurOnOverlayOpen then
-                ui.disableBlur()
-            end
-        end
-
-        if settings.master.blurOnOverlayOpen then
-            ImGui.SameLine()
-            settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
+        -- Blur settings (only shown when background is available)
+        if not ui.isBlurAvailable() then
+            controls.TextWarning("BlurUtils Not Installed")
+        else
+            settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens")
             if changed then
                 settings.save()
-                -- If turning off drag-only while overlay is open, enable blur now
-                if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
+                -- Apply or remove blur immediately based on new setting
+                if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
                     ui.enableBlur()
-                elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
-                    -- If turning on drag-only and not currently dragging, disable blur
+                elseif not settings.master.blurOnOverlayOpen then
                     ui.disableBlur()
                 end
             end
-        end
 
-        if settings.master.blurOnOverlayOpen then
-            local intensity = settings.master.blurIntensity
-            intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
-            if changed then
-                settings.master.blurIntensity = intensity
-                settings.save()
-                -- Update blur in real-time if active
-                ui.updateBlurIntensity(intensity)
-            end
+            if settings.master.blurOnOverlayOpen then
+                ImGui.SameLine()
+                settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
+                if changed then
+                    settings.save()
+                    -- If turning off drag-only while overlay is open, enable blur now
+                    if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
+                        ui.enableBlur()
+                    elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
+                        ui.disableBlur()
+                    end
+                end
 
-            local fadeIn = settings.master.blurFadeInDuration
-            fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
-            if changed then
-                settings.master.blurFadeInDuration = fadeIn
-                settings.save()
-            end
+                local intensity = settings.master.blurIntensity
+                intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
+                if changed then
+                    settings.master.blurIntensity = intensity
+                    settings.save()
+                    ui.updateBlurIntensity(intensity)
+                end
 
-            local fadeOut = settings.master.blurFadeOutDuration
-            fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
-            if changed then
-                settings.master.blurFadeOutDuration = fadeOut
-                settings.save()
+                local fadeIn = settings.master.blurFadeInDuration
+                fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
+                if changed then
+                    settings.master.blurFadeInDuration = fadeIn
+                    settings.save()
+                end
+
+                local fadeOut = settings.master.blurFadeOutDuration
+                fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
+                if changed then
+                    settings.master.blurFadeOutDuration = fadeOut
+                    settings.save()
+                end
             end
         end
     end
@@ -652,55 +660,61 @@ function ui.drawSettingsWindow()
     settings.master.gridEnabled, changed = controls.Checkbox("Enable Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
     if changed then settings.save() end
 
-    ImGui.SameLine()
-    settings.master.snapCollapsed, changed = controls.Checkbox("Snap Collapsed", settings.master.snapCollapsed, settings.defaults.snapCollapsed, "Snap Collapsed Windows When Dragged")
-    if changed then settings.save() end
+    if settings.master.gridEnabled then
+        ImGui.SameLine()
+        settings.master.snapCollapsed, changed = controls.Checkbox("Snap Collapsed", settings.master.snapCollapsed, settings.defaults.snapCollapsed, "Snap Collapsed Windows When Dragged")
+        if changed then settings.save() end
 
-    -- Get valid grid units and map to scale 1-N
-    local validUnits = settings.getValidGridUnits(10)
-    local maxScale = math.min(#validUnits, 5)  -- Cap at 5 scales
-    local currentScale = 1
-    local defaultScale = 1
+        -- Get valid grid units and map to scale 1-N
+        local validUnits = settings.getValidGridUnits(10)
+        local maxScale = math.min(#validUnits, 5)  -- Cap at 5 scales
+        local currentScale = 1
+        local defaultScale = 1
 
-    for i, units in ipairs(validUnits) do
-        if i <= maxScale then
-            if units == settings.master.gridUnits then
-                currentScale = i
+        for i, units in ipairs(validUnits) do
+            if i <= maxScale then
+                if units == settings.master.gridUnits then
+                    currentScale = i
+                end
+                if units == settings.defaults.gridUnits then
+                    defaultScale = i
+                end
             end
-            if units == settings.defaults.gridUnits then
-                defaultScale = i
-            end
+        end
+
+        local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
+        local newScale
+        newScale, changed = controls.SliderInt(IconGlyphs.Grid, "gridScale", currentScale, 1, maxScale, "Scale %d (" .. gridSize .. "px)", nil, defaultScale, "Grid Scale (maps to valid grid sizes for your resolution)")
+        if changed then
+            settings.master.gridUnits = validUnits[newScale]
+            settings.save()
+            core.invalidateGridCache()  -- Clear cached grid sizes
         end
     end
 
-    local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
-    local newScale
-    newScale, changed = controls.SliderInt(IconGlyphs.Grid, "gridScale", currentScale, 1, maxScale, "Scale %d (" .. gridSize .. "px)", nil, defaultScale, "Grid Scale (maps to valid grid sizes for your resolution)")
-    if changed then
-        settings.master.gridUnits = validUnits[newScale]
-        settings.save()
-        core.invalidateGridCache()  -- Clear cached grid sizes
-    end
+    -- Animation settings (only meaningful when grid snapping is on)
+    if settings.master.gridEnabled then
+        controls.SectionHeader("Animation", 10, 0)
+        settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
+        if changed then settings.save() end
 
-    -- Animation settings
-    controls.SectionHeader("Animation", 10, 0)
-    settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
-    if changed then settings.save() end
+        if settings.master.animationEnabled then
+            local duration = settings.master.animationDuration
+            duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 1.0, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
+            if changed then
+                settings.master.animationDuration = duration
+                settings.save()
+            end
 
-    local duration = settings.master.animationDuration
-    duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 1.0, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
-    if changed then
-        settings.master.animationDuration = duration
-        settings.save()
-    end
-
-    local currentIndex = findEasingIndex(settings.master.easeFunction)
-    local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
-    local newIndex
-    newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
-    if changed then
-        settings.master.easeFunction = settings.easingNames[newIndex + 1]
-        settings.save()
+            local currentIndex = findEasingIndex(settings.master.easeFunction)
+            local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
+            local newIndex
+            newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
+            if changed then
+                settings.master.easeFunction = settings.easingNames[newIndex + 1]
+                settings.save()
+            end
+        end
     end
 
     -- Experimental settings
