@@ -88,7 +88,7 @@ local function createDefaultSettings()
         gridGuidesDimming = 0.2,
         gridDimBackground = true,
         gridDimBackgroundOnDragOnly = true,
-        gridDimBackgroundOpacity = 0.10,
+        gridDimBackgroundOpacity = 0.2,
         showSettingsWindow = false,
         blurOnOverlayOpen = false,
         blurOnDragOnly = true,

@@ -394,8 +394,9 @@ local function drawGridVisualization()
     -- Use feathering if currently dragging with feather enabled, OR fading out with preserved bounds
     local useFeather = settings.master.gridShowOnDragOnly and featherEnabled and (anyDragging or gridFade.wasFeathering)
 
-    -- Guides only work when Show on Drag Only is enabled
-    local guidesActive = settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled
+    -- Guides active when setting enabled, OR when axis lock (shift+drag) is active
+    local axisLockActive = core.isAxisLockActive()
+    local guidesActive = (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) or axisLockActive
 
     -- Get window bounds (needed for feathering AND guides)
     local needBounds = useFeather or guidesActive

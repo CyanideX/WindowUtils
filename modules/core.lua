@@ -485,6 +485,13 @@ function core.getDraggingWindowGridSize()
     return getGridSize(draggingWindowName)
 end
 
+---Check if axis lock is currently active (shift+drag).
+---@return boolean active Whether axis lock is active
+---@return string|nil axis The locked axis ("x" or "y") or nil
+function core.isAxisLockActive()
+    return axisLock.active, axisLock.axis
+end
+
 ---Remove tracking for windows not in the active list.
 ---@param activeWindowNames string[] List of active window names
 function core.cleanupUnusedWindows(activeWindowNames)
