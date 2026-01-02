@@ -668,16 +668,17 @@ function core.updateExternalWindows()
 
                 -- For override-all: never snap collapsed external windows
                 if isCollapsed then
-                    state.isDragging = false
+                    -- Clean up state only if needed
+                    if state.isDragging then
+                        state.isDragging = false
+                        draggingWindowBoundsValid = false
+                        draggingWindowName = nil
+                    end
                     state.animating = false
-                    draggingWindowBoundsValid = false
-                    draggingWindowName = nil
                     ImGui.End()
-                    goto continue
-                end
-
-                -- Track drag state
-                if isFocused and isDragging then
+                else
+                    -- Track drag state
+                    if isFocused and isDragging then
                     -- Record drag start position when drag begins
                     if not state.isDragging then
                         dragStartPos.x = currentPosX
@@ -767,48 +768,53 @@ function core.updateExternalWindows()
                     end
                 end
 
-                ImGui.End()
+                    ImGui.End()
+                end
             end
 
-            -- Handle animation for this window
-            if state.animating and settings.master.gridEnabled and settings.master.animationEnabled then
-                local duration = settings.master.animationDuration
-                local elapsedTime = os.clock() - state.animationStartTime
-                local t = math.min(elapsedTime / duration, 1)
-                t = core.applyEasing(t, windowName)
-
-                local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
-                local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
-                local newSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
-                local newSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
-
-                -- Queue position and size update
-                table.insert(deferredSnapOperations, {
-                    windowName = windowName,
-                    targetPosX = newPosX,
-                    targetPosY = newPosY,
-                    targetSizeX = newSizeX,
-                    targetSizeY = newSizeY
-                })
-
-                if t >= 1 then
+            -- Handle animation for this window (check state first for performance)
+            if state.animating then
+                -- Only check settings if actually animating
+                if not settings.master.gridEnabled or not settings.master.animationEnabled then
+                    -- Cancel animation if settings changed mid-animation
                     state.animating = false
+                else
+                    -- Use master settings only for override-all (pass nil to force master easing)
+                    local duration = settings.master.animationDuration
+                    local elapsedTime = os.clock() - state.animationStartTime
+                    local t = math.min(elapsedTime / duration, 1)
+                    t = core.applyEasing(t, nil)
+
+                    local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
+                    local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
+                    local newSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
+                    local newSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
+
+                    -- Queue position and size update
+                    table.insert(deferredSnapOperations, {
+                        windowName = windowName,
+                        targetPosX = newPosX,
+                        targetPosY = newPosY,
+                        targetSizeX = newSizeX,
+                        targetSizeY = newSizeY
+                    })
+
+                    if t >= 1 then
+                        state.animating = false
+                    end
                 end
             end
         end
-        ::continue::
     end
 end
 
 --- Process deferred snap operations (called at end of draw loop).
 function core.processDeferred()
     for _, op in ipairs(deferredSnapOperations) do
-        if ImGui.Begin(op.windowName, true) then
-            ImGui.SetWindowPos(op.targetPosX, op.targetPosY)
-            if op.targetSizeX and op.targetSizeY then
-                ImGui.SetWindowSize(op.targetSizeX, op.targetSizeY)
-            end
-            ImGui.End()
+        -- Set position/size directly by window name to avoid conflicts with draw cycle
+        ImGui.SetWindowPos(op.windowName, op.targetPosX, op.targetPosY)
+        if op.targetSizeX and op.targetSizeY then
+            ImGui.SetWindowSize(op.windowName, op.targetSizeX, op.targetSizeY)
         end
     end
 

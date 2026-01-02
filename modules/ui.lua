@@ -719,7 +719,7 @@ function ui.drawSettingsWindow()
 
     -- Experimental settings
     controls.SectionHeader("Experimental", 10, 0)
-    settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nWARNING: Currently has issue with windows not hidden by Window Manager!", true)
+    settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nWARNING: Currently has issue with windows not hidden by Window Manager!\nDoes not work with collapsed windows and may break the grid.\nMay conflict with windows using older versions of WindowUtils.", true)
     if changed then
         settings.save()
         core.invalidateGridCache()  -- Clear cached grid sizes when override changes
