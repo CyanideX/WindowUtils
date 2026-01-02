@@ -586,61 +586,59 @@ function ui.drawSettingsWindow()
 
     -- Background Blur section
     controls.SectionHeader("Background Blur", 10, 0)
-    settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens\n(Requires BlurUtils redscript)")
-    if changed then
-        settings.save()
-        -- Apply or remove blur immediately based on new setting
-        if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
-            ui.enableBlur()
-        elseif not settings.master.blurOnOverlayOpen then
-            ui.disableBlur()
-        end
-    end
 
-    if settings.master.blurOnOverlayOpen then
-        ImGui.SameLine()
-        settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
+    if not ui.isBlurAvailable() then
+        controls.TextWarning("BlurUtils Not Installed")
+    else
+        settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens")
         if changed then
             settings.save()
-            -- If turning off drag-only while overlay is open, enable blur now
-            if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
+            -- Apply or remove blur immediately based on new setting
+            if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
                 ui.enableBlur()
-            elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
-                -- If turning on drag-only and not currently dragging, disable blur
+            elseif not settings.master.blurOnOverlayOpen then
                 ui.disableBlur()
             end
         end
-    end
 
-    if settings.master.blurOnOverlayOpen then
-        local intensity = settings.master.blurIntensity
-        intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
-        if changed then
-            settings.master.blurIntensity = intensity
-            settings.save()
-            -- Update blur in real-time if active
-            ui.updateBlurIntensity(intensity)
+        if settings.master.blurOnOverlayOpen then
+            ImGui.SameLine()
+            settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
+            if changed then
+                settings.save()
+                -- If turning off drag-only while overlay is open, enable blur now
+                if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
+                    ui.enableBlur()
+                elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
+                    -- If turning on drag-only and not currently dragging, disable blur
+                    ui.disableBlur()
+                end
+            end
         end
 
-        local fadeIn = settings.master.blurFadeInDuration
-        fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
-        if changed then
-            settings.master.blurFadeInDuration = fadeIn
-            settings.save()
-        end
+        if settings.master.blurOnOverlayOpen then
+            local intensity = settings.master.blurIntensity
+            intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
+            if changed then
+                settings.master.blurIntensity = intensity
+                settings.save()
+                -- Update blur in real-time if active
+                ui.updateBlurIntensity(intensity)
+            end
 
-        local fadeOut = settings.master.blurFadeOutDuration
-        fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
-        if changed then
-            settings.master.blurFadeOutDuration = fadeOut
-            settings.save()
-        end
+            local fadeIn = settings.master.blurFadeInDuration
+            fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
+            if changed then
+                settings.master.blurFadeInDuration = fadeIn
+                settings.save()
+            end
 
-        -- Show blur status
-        if ui.blur.isActive then
-            controls.TextSuccess("Blur active")
-        elseif not ui.isBlurAvailable() then
-            controls.TextWarning("BlurUtils not found - Install BlurUtils redscript")
+            local fadeOut = settings.master.blurFadeOutDuration
+            fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
+            if changed then
+                settings.master.blurFadeOutDuration = fadeOut
+                settings.save()
+            end
         end
     end
 
