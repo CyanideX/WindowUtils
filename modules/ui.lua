@@ -215,9 +215,9 @@ local GRID_FADE_OUT_DURATION = 0.25
 -- Helper Functions
 --------------------------------------------------------------------------------
 
-local function findEasingIndex(name)
-    for i, n in ipairs(settings.easingNames) do
-        if n == name then
+local function findEasingIndex(key)
+    for i, k in ipairs(settings.easingKeys) do
+        if k == key then
             return i - 1  -- ImGui combo is 0-indexed
         end
     end
@@ -337,7 +337,11 @@ local function drawGridVisualization()
             gridFade.lastWindowName = core.getDraggingWindowName()
             -- Preserve bounds if feathering OR guides enabled (both need window position)
             if featherEnabled or (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) then
-                gridFade.lastBounds = core.getDraggingWindowBounds()
+                -- Deep copy bounds to avoid stale reference (draggingWindowBounds is reused)
+                local bounds = core.getDraggingWindowBounds()
+                if bounds then
+                    gridFade.lastBounds = { x = bounds.x, y = bounds.y, width = bounds.width, height = bounds.height }
+                end
                 gridFade.wasFeathering = featherEnabled
             end
         end
@@ -382,8 +386,9 @@ local function drawGridVisualization()
     local gridSize = anyDragging and core.getDraggingWindowGridSize() or gridFade.lastGridSize or (settings.master.gridUnits * settings.GRID_UNIT_SIZE)
     local drawList = ImGui.GetBackgroundDrawList()
     local displayWidth, displayHeight = GetDisplayResolution()
-    local thickness = settings.master.gridLineThickness
-    local color = settings.master.gridLineColor
+    local thickness = settings.master.gridLineThickness or settings.defaults.gridLineThickness
+    local color = settings.master.gridLineColor or settings.defaults.gridLineColor
+    if not color or not color[4] then return end  -- Safety check
     local baseAlpha = color[4] * gridFade.opacity
 
     -- Get feather settings
@@ -752,7 +757,7 @@ function ui.drawSettingsWindow()
             local newIndex
             newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
             if changed then
-                settings.master.easeFunction = settings.easingNames[newIndex + 1]
+                settings.master.easeFunction = settings.easingKeys[newIndex + 1]
                 settings.save()
             end
         end

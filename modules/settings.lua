@@ -44,8 +44,10 @@
 ---@field external table|nil External settings reference
 ---@field KEY_MAP table<string, string> Internal to external key mapping
 ---@field easingNames string[] Available easing function names
----@field load fun() Load settings from file
----@field save fun() Save settings to file
+---@field load fun(): boolean Load settings from file
+---@field save fun(): boolean Save settings to file
+---@field reset fun() Reset settings to defaults
+---@field reload fun() Reload settings from file
 ---@field setDefaults fun(config: table) Set global defaults
 ---@field configure fun(settingsObj: table) Configure with external settings
 ---@field setWindowConfig fun(windowName: string, config: table) Set per-window config
@@ -99,7 +101,7 @@ local function createDefaultSettings()
         gridShowOnDragOnly = true,
         animationEnabled = true,
         animationDuration = 0.2,
-        easeFunction = "easeInOut",
+        easeFunction = "easeOut",
         tooltipsEnabled = true,
         debugOutput = false,
         overrideAllWindows = false,
@@ -145,39 +147,86 @@ settings.KEY_MAP = {
     tooltipsEnabled = "tooltipsEnabled"
 }
 
--- Easing function names (ordered for dropdown)
-settings.easingNames = {"linear", "easeIn", "easeOut", "easeInOut", "bounce"}
+-- Easing function keys (internal, for function lookup)
+settings.easingKeys = {"linear", "easeIn", "easeOut", "easeInOut", "bounce"}
+
+-- Easing display names (for UI dropdown)
+settings.easingNames = {"Linear", "Ease In", "Ease Out", "Ease In-Out", "Bounce"}
 
 --------------------------------------------------------------------------------
 -- Persistence
 --------------------------------------------------------------------------------
 
+--- Load settings from file.
+-- @return boolean: True if settings were loaded successfully
 function settings.load()
     local file = io.open(settingsPath, "r")
-    if file then
-        local content = file:read("*a")
-        file:close()
-        local success, data = pcall(json.decode, content)
-        if success and data then
-            for key, value in pairs(data) do
-                if settings.master[key] ~= nil then
-                    settings.master[key] = value
-                end
-            end
-            settings.debugPrint("Settings Loaded", true)
+    if not file then
+        settings.debugPrint("No settings file found, using defaults")
+        return false
+    end
+
+    local content = file:read("*a")
+    file:close()
+
+    local success, data = pcall(json.decode, content)
+    if not success then
+        settings.debugPrint("Failed to parse settings: " .. tostring(data), true)
+        return false
+    end
+
+    if not data then
+        settings.debugPrint("Settings file was empty", true)
+        return false
+    end
+
+    for key, value in pairs(data) do
+        if settings.master[key] ~= nil then
+            settings.master[key] = value
         end
     end
+
+    settings.debugPrint("Settings Loaded", true)
+    return true
 end
 
+--- Save settings to file.
+-- @return boolean: True if settings were saved successfully
 function settings.save()
-    local success, content = pcall(json.encode, settings.master)
-    if success then
-        local file = io.open(settingsPath, "w")
-        if file then
-            file:write(content)
-            file:close()
-        end
+    if not settings.master then
+        settings.debugPrint("Cannot save: master settings not initialized", true)
+        return false
     end
+
+    local success, content = pcall(json.encode, settings.master)
+    if not success then
+        settings.debugPrint("Failed to encode settings: " .. tostring(content), true)
+        return false
+    end
+
+    local file, err = io.open(settingsPath, "w")
+    if not file then
+        settings.debugPrint("Failed to open settings file for writing: " .. tostring(err), true)
+        return false
+    end
+
+    file:write(content)
+    file:close()
+    return true
+end
+
+--- Reset settings to defaults.
+function settings.reset()
+    settings.master = createDefaultSettings()
+    settings.master.enabled = false
+    settings.save()
+    settings.debugPrint("Settings reset to defaults", true)
+end
+
+--- Reload settings from file.
+function settings.reload()
+    settings.load()
+    settings.debugPrint("Settings reloaded")
 end
 
 --------------------------------------------------------------------------------

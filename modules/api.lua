@@ -150,11 +150,85 @@ function api.ToggleTooltips()
 end
 
 --------------------------------------------------------------------------------
+-- Grid Size Control
+--------------------------------------------------------------------------------
+
+function api.GetGridUnits()
+    return settings.master.gridUnits
+end
+
+function api.SetGridUnits(units)
+    if type(units) ~= "number" or units <= 0 then return false end
+    settings.master.gridUnits = units
+    settings.save()
+    return true
+end
+
+--------------------------------------------------------------------------------
+-- Animation Duration Control
+--------------------------------------------------------------------------------
+
+function api.GetAnimationDuration()
+    return settings.master.animationDuration
+end
+
+function api.SetAnimationDuration(duration)
+    if type(duration) ~= "number" or duration <= 0 then return false end
+    settings.master.animationDuration = duration
+    settings.save()
+    return true
+end
+
+--------------------------------------------------------------------------------
 -- Settings Access
 --------------------------------------------------------------------------------
 
+--- Get the current master settings table (mutable reference).
+-- Changes made to this table affect WindowUtils behavior.
+-- Call settings.save() to persist changes.
 function api.GetSettings()
     return settings.master
+end
+
+--- Get the default settings table (read-only reference).
+function api.GetDefaults()
+    return settings.defaults
+end
+
+--- Apply multiple settings at once.
+-- @param settingsTable table: Key-value pairs of settings to apply
+-- @return boolean: True if any settings were applied
+function api.ApplySettings(settingsTable)
+    if type(settingsTable) ~= "table" then return false end
+
+    local applied = false
+    for key, value in pairs(settingsTable) do
+        if settings.master[key] ~= nil then
+            settings.master[key] = value
+            applied = true
+        end
+    end
+
+    if applied then
+        settings.save()
+    end
+    return applied
+end
+
+--- Reset all settings to defaults.
+function api.ResetSettings()
+    settings.reset()
+end
+
+--- Reload settings from file.
+function api.ReloadSettings()
+    settings.reload()
+end
+
+--- Save current settings to file.
+-- @return boolean: True if save was successful
+function api.SaveSettings()
+    return settings.save()
 end
 
 return api

@@ -57,6 +57,58 @@ local dragStartPos = {
 local gridSizeCache = {}
 
 --------------------------------------------------------------------------------
+-- Drag Helper Functions
+--------------------------------------------------------------------------------
+
+--- Apply axis lock constraint during Shift+drag.
+-- @param windowName string: Window being dragged
+-- @param currentPosX number: Current X position
+-- @param currentPosY number: Current Y position
+-- @param shiftHeld boolean: Whether Shift key is held
+-- @return number, number: Constrained X and Y positions
+local function applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
+    if shiftHeld then
+        axisLock.active = true
+
+        -- Dynamically determine axis based on which direction has more movement
+        local deltaX = math.abs(currentPosX - dragStartPos.x)
+        local deltaY = math.abs(currentPosY - dragStartPos.y)
+        if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
+            axisLock.axis = deltaX > deltaY and "x" or "y"
+        end
+
+        -- Apply axis constraint
+        if axisLock.axis == "x" then
+            ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
+            currentPosY = dragStartPos.y
+        elseif axisLock.axis == "y" then
+            ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
+            currentPosX = dragStartPos.x
+        end
+    else
+        axisLock.active = false
+        axisLock.axis = nil
+    end
+
+    return currentPosX, currentPosY
+end
+
+--- Update dragging window bounds for grid visualization.
+-- @param windowName string: Window being dragged
+-- @param posX number: Current X position
+-- @param posY number: Current Y position
+-- @param sizeX number: Current width
+-- @param sizeY number: Current height
+local function updateDraggingBounds(windowName, posX, posY, sizeX, sizeY)
+    draggingWindowBounds.x = posX
+    draggingWindowBounds.y = posY
+    draggingWindowBounds.width = sizeX
+    draggingWindowBounds.height = sizeY
+    draggingWindowBoundsValid = true
+    draggingWindowName = windowName
+end
+
+--------------------------------------------------------------------------------
 -- Grid Size Caching
 --------------------------------------------------------------------------------
 
@@ -73,6 +125,10 @@ local function getGridSize(windowName)
             gridUnits = settings.getConfig(windowName, "gridUnits")
         else
             gridUnits = settings.master.gridUnits
+        end
+        -- Validate gridUnits to prevent division by zero
+        if not gridUnits or gridUnits <= 0 then
+            gridUnits = settings.defaults.gridUnits
         end
         gridSizeCache[cacheKey] = gridUnits * settings.GRID_UNIT_SIZE
     end
@@ -154,9 +210,9 @@ function core.applyEasing(t, windowName)
     return func(t)
 end
 
---- Get available easing function names.
+--- Get available easing function keys (for use with easeFunction setting).
 function core.getEasingFunctions()
-    return settings.easingNames
+    return settings.easingKeys
 end
 
 --------------------------------------------------------------------------------
@@ -322,41 +378,11 @@ function core.update(windowName, options)
                 state.isDragging = true
                 state.animating = false  -- Cancel any running animation
 
-                -- Handle Shift+drag axis locking (uses original drag start position)
-                if shiftHeld then
-                    axisLock.active = true
+                -- Handle Shift+drag axis locking
+                currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
 
-                    -- Dynamically determine axis based on which direction has more movement
-                    local deltaX = math.abs(currentPosX - dragStartPos.x)
-                    local deltaY = math.abs(currentPosY - dragStartPos.y)
-                    if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
-                        -- Continuously update axis based on dominant movement direction
-                        axisLock.axis = deltaX > deltaY and "x" or "y"
-                    end
-
-                    -- Apply axis constraint (use explicit window name for reliability)
-                    if axisLock.axis == "x" then
-                        -- Lock Y to drag start position (allow only horizontal movement)
-                        ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
-                        currentPosY = dragStartPos.y
-                    elseif axisLock.axis == "y" then
-                        -- Lock X to drag start position (allow only vertical movement)
-                        ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
-                        currentPosX = dragStartPos.x
-                    end
-                else
-                    -- Shift released - clear axis lock
-                    axisLock.active = false
-                    axisLock.axis = nil
-                end
-
-                -- Update live bounds in place for grid feathering
-                draggingWindowBounds.x = currentPosX
-                draggingWindowBounds.y = currentPosY
-                draggingWindowBounds.width = currentSizeX
-                draggingWindowBounds.height = currentSizeY
-                draggingWindowBoundsValid = true
-                draggingWindowName = windowName
+                -- Update live bounds for grid feathering
+                updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
             end
         elseif state.pendingDragCheck and isReleased then
             -- Mouse released - check if window position/size changed from baseline
@@ -695,39 +721,11 @@ function core.updateExternalWindows()
                         state.isDragging = true
                         state.animating = false -- Cancel any running animation
 
-                        -- Handle Shift+drag axis locking (uses original drag start position)
-                        if shiftHeld then
-                            axisLock.active = true
+                        -- Handle Shift+drag axis locking
+                        currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
 
-                            -- Dynamically determine axis based on which direction has more movement
-                            local deltaX = math.abs(currentPosX - dragStartPos.x)
-                            local deltaY = math.abs(currentPosY - dragStartPos.y)
-                            if deltaX >= axisLock.threshold or deltaY >= axisLock.threshold then
-                                -- Continuously update axis based on dominant movement direction
-                                axisLock.axis = deltaX > deltaY and "x" or "y"
-                            end
-
-                            -- Apply axis constraint (use explicit window name for reliability)
-                            if axisLock.axis == "x" then
-                                ImGui.SetWindowPos(windowName, currentPosX, dragStartPos.y)
-                                currentPosY = dragStartPos.y
-                            elseif axisLock.axis == "y" then
-                                ImGui.SetWindowPos(windowName, dragStartPos.x, currentPosY)
-                                currentPosX = dragStartPos.x
-                            end
-                        else
-                            -- Shift released - clear axis lock
-                            axisLock.active = false
-                            axisLock.axis = nil
-                        end
-
-                        -- Update live bounds in place for grid feathering
-                        draggingWindowBounds.x = currentPosX
-                        draggingWindowBounds.y = currentPosY
-                        draggingWindowBounds.width = currentSizeX
-                        draggingWindowBounds.height = currentSizeY
-                        draggingWindowBoundsValid = true
-                        draggingWindowName = windowName
+                        -- Update live bounds for grid feathering
+                        updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
                     elseif state.isDragging and isReleased then
                         state.isDragging = false
                         -- Clear axis lock on drag end
