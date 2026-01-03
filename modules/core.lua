@@ -588,7 +588,7 @@ end
 
 -- Windows to skip (managed internally or system windows)
 local skipWindows = {
-    ["WindowUtils Settings"] = true,
+    [settings.NAME] = true,
     ["Dear ImGui Demo"] = true,
     ["Dear ImGui Metrics/Debugger"] = true,
     ["About Dear ImGui"] = true,

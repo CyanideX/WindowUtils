@@ -513,9 +513,9 @@ function ui.drawSettingsWindow()
 
     ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
     -- No close button (use toggle/hotkey to hide), allow collapse
-    if not ImGui.Begin("WindowUtils Settings") then
+    if not ImGui.Begin(settings.NAME) then
         -- Window is collapsed - still update for grid snapping when dragging collapsed window
-        core.update("WindowUtils Settings", {
+        core.update(settings.NAME, {
             gridEnabled = settings.master.gridEnabled,
             animationEnabled = settings.master.animationEnabled,
             animationDuration = settings.master.animationDuration,
@@ -543,6 +543,10 @@ function ui.drawSettingsWindow()
     controls.SectionHeader("General", 10, 0)
     settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
     if changed then settings.save() end
+
+    ImGui.SameLine()
+    settings.master.debugOutput, changed = controls.Checkbox("Debug Output", settings.master.debugOutput, settings.defaults.debugOutput, "Print Debug Messages to Console", true)
+    if changed then settings.save() settings.debugPrint("Debug Output Enabled") end
 
     -- Grid Visualization section (always enabled, independent of master override)
     controls.SectionHeader("Grid Visualization", 10, 0)
@@ -772,7 +776,7 @@ function ui.drawSettingsWindow()
 
     -- Update with WindowUtils (for this window)
     -- treatAllDragsAsWindowDrag enables live grid preview when adjusting sliders
-    core.update("WindowUtils Settings", {
+    core.update(settings.NAME, {
         gridEnabled = settings.master.gridEnabled,
         animationEnabled = settings.master.animationEnabled,
         animationDuration = settings.master.animationDuration,

@@ -25,6 +25,9 @@ local hotkeys = require("modules/hotkeys")
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
 local WindowUtils = {
+    NAME = settings.NAME,
+    ICON = settings.ICON,
+    VERSION = settings.VERSION,
     runtimeData = {
         cetOpen = false
     }
@@ -95,7 +98,7 @@ hotkeys.register()
 registerForEvent("onInit", function()
     settings.load()
     ui.init()  -- Initialize UI state from saved settings
-    print(IconGlyphs.WindowMaximize .. " WindowUtils: Initialized!")
+    settings.debugPrint("Initialized!", true)
 end)
 
 registerForEvent("onDraw", function()

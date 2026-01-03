@@ -15,6 +15,7 @@
 ---@field animationDuration number Animation duration in seconds
 ---@field easeFunction string Easing function name
 ---@field tooltipsEnabled boolean Show tooltips
+---@field debugOutput boolean Print debug messages to console
 ---@field overrideAllWindows boolean Apply to all CET windows
 ---@field gridFeatherEnabled boolean Enable grid feathering
 ---@field gridFeatherRadius number Feather radius in pixels
@@ -56,6 +57,27 @@ local settings = {} ---@type WindowUtilsSettings
 -- Settings file path
 local settingsPath = "data/settings.json"
 
+--------------------------------------------------------------------------------
+-- Mod Identity
+--------------------------------------------------------------------------------
+
+settings.NAME = "Window Utils"
+settings.ICON = IconGlyphs.WindowMaximize
+settings.VERSION = "1.0.0"
+
+--- Print a debug message with the mod icon and name prefix.
+-- @param message string: The message to print
+-- @param force boolean: If true, always print; if false/nil, only print when debug mode is enabled
+function settings.debugPrint(message, forced)
+    if settings.master.debugOutput or forced then
+        print(settings.ICON .. " " .. settings.NAME .. ": " .. message)
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Grid Constants
+--------------------------------------------------------------------------------
+
 -- Grid unit size in pixels (hardcoded base unit)
 settings.GRID_UNIT_SIZE = 20
 
@@ -79,6 +101,7 @@ local function createDefaultSettings()
         animationDuration = 0.2,
         easeFunction = "easeInOut",
         tooltipsEnabled = true,
+        debugOutput = false,
         overrideAllWindows = false,
         gridFeatherEnabled = true,
         gridFeatherRadius = 400,
@@ -141,7 +164,7 @@ function settings.load()
                     settings.master[key] = value
                 end
             end
-            print("[WindowUtils] Settings loaded")
+            settings.debugPrint("Settings Loaded", true)
         end
     end
 end
@@ -173,7 +196,7 @@ end
 --- Configure with an external settings object reference.
 function settings.configure(settingsObj)
     settings.external = settingsObj
-    print("[WindowUtils] Configured with settings object")
+    settings.debugPrint("Configured", true)
 end
 
 --- Set configuration for a specific window.
