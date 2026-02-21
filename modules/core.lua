@@ -191,6 +191,26 @@ function core.snapToGrid(position, windowName)
     return math.floor(position / gridSize + 0.5) * gridSize
 end
 
+---Align a minimum constraint so snapToGrid always rounds into the valid range.
+---@param value number Raw minimum constraint in pixels
+---@param windowName? string Window name for grid config lookup
+---@return number alignedMin
+function core.gridAlignMin(value, windowName)
+    local gridSize = getGridSize(windowName)
+    local halfGrid = math.floor(gridSize / 2)
+    return math.ceil(value / gridSize) * gridSize - halfGrid + 1
+end
+
+---Align a maximum constraint so snapToGrid always rounds into the valid range.
+---@param value number Raw maximum constraint in pixels
+---@param windowName? string Window name for grid config lookup
+---@return number alignedMax
+function core.gridAlignMax(value, windowName)
+    local gridSize = getGridSize(windowName)
+    local halfGrid = math.floor(gridSize / 2)
+    return math.floor(value / gridSize) * gridSize + halfGrid - 1
+end
+
 ---Linear interpolation between two values.
 ---@param a number Start value
 ---@param b number End value
