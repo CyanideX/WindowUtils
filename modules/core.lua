@@ -226,6 +226,22 @@ function core.setNextWindowSizeConstraints(minW, minH, maxW, maxH, windowName)
     )
 end
 
+---Set grid-aligned window size constraints using display-percentage values.
+---Converts percentages to pixels via GetDisplayResolution(), then grid-aligns.
+---@param minWPct number Minimum width as display percentage (0-100)
+---@param minHPct number Minimum height as display percentage (0-100)
+---@param maxWPct number Maximum width as display percentage (0-100)
+---@param maxHPct number Maximum height as display percentage (0-100)
+---@param windowName? string Window name for grid config lookup
+function core.setNextWindowSizeConstraintsPercent(minWPct, minHPct, maxWPct, maxHPct, windowName)
+    local dw, dh = GetDisplayResolution()
+    core.setNextWindowSizeConstraints(
+        (dw / 100) * minWPct, (dh / 100) * minHPct,
+        (dw / 100) * maxWPct, (dh / 100) * maxHPct,
+        windowName
+    )
+end
+
 ---Linear interpolation between two values.
 ---@param a number Start value
 ---@param b number End value
