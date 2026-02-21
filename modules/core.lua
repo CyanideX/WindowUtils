@@ -211,6 +211,21 @@ function core.gridAlignMax(value, windowName)
     return math.floor(value / gridSize) * gridSize + halfGrid - 1
 end
 
+---Grid-align all four constraints and apply them via ImGui.SetNextWindowSizeConstraints.
+---@param minW number Raw minimum width in pixels
+---@param minH number Raw minimum height in pixels
+---@param maxW number Raw maximum width in pixels
+---@param maxH number Raw maximum height in pixels
+---@param windowName? string Window name for grid config lookup
+function core.setNextWindowSizeConstraints(minW, minH, maxW, maxH, windowName)
+    ImGui.SetNextWindowSizeConstraints(
+        core.gridAlignMin(minW, windowName),
+        core.gridAlignMin(minH, windowName),
+        core.gridAlignMax(maxW, windowName),
+        core.gridAlignMax(maxH, windowName)
+    )
+end
+
 ---Linear interpolation between two values.
 ---@param a number Start value
 ---@param b number End value
