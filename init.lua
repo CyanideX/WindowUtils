@@ -1,17 +1,17 @@
-------------------------------------------------------
+--------------------------------------------------------------------------------
 --  _    _ _           _               _   _ _   _ _
 -- | |  | (_)         | |             | | | | | (_) |
 -- | |  | |_ _ __   __| | _____      _| | | | |_ _| |___
 -- | |/\| | | '_ \ / _` |/ _ \ \ /\ / / | | | __| | / __|
 -- \  /\  / | | | | (_| | (_) \ V  V /| |_| | |_| | \__ \
 --  \/  \/|_|_| |_|\__,_|\___/ \_/\_/  \___/ \__|_|_|___/
-------------------------------------------------------
+--------------------------------------------------------------------------------
 -- A universal library for ImGui window management in CET mods.
 -- Provides grid snapping, smooth animations, and collapse-safe sizing.
 --
 -- Copyright (c) 2024 CyanideX
 -- https://next.nexusmods.com/profile/theCyanideX/mods
-------------------------------------------------------
+--------------------------------------------------------------------------------
 
 local settings = require("modules/settings")
 local core = require("modules/core")
@@ -48,6 +48,10 @@ WindowUtils.GetConfig = settings.getConfig
 WindowUtils.Update = core.update
 WindowUtils.UpdateWindow = core.updateWindow
 WindowUtils.SnapToGrid = core.snapToGrid
+WindowUtils.GridAlignMin = core.gridAlignMin
+WindowUtils.GridAlignMax = core.gridAlignMax
+WindowUtils.SetNextWindowSizeConstraints = core.setNextWindowSizeConstraints
+WindowUtils.SetNextWindowSizeConstraintsPercent = core.setNextWindowSizeConstraintsPercent
 WindowUtils.Lerp = core.lerp
 WindowUtils.ApplyEasing = core.applyEasing
 WindowUtils.GetEasingFunctions = core.getEasingFunctions
