@@ -69,6 +69,8 @@ WindowUtils.StartConstraintAnimation = core.startConstraintAnimation
 WindowUtils.UpdateConstraintAnimation = core.updateConstraintAnimation
 WindowUtils.IsConstraintAnimating = core.isConstraintAnimating
 WindowUtils.IsAnyConstraintAnimating = core.isAnyConstraintAnimating
+WindowUtils.IsConstraintAnimatingForWindow = core.isConstraintAnimatingForWindow
+WindowUtils.ApplyEasingByName = core.applyEasingByName
 
 -- UI controls
 WindowUtils.ShowSettingsWindow = ui.show

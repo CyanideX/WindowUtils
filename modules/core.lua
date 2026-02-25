@@ -218,12 +218,17 @@ end
 ---@param maxH number Raw maximum height in pixels
 ---@param windowName? string Window name for grid config lookup
 function core.setNextWindowSizeConstraints(minW, minH, maxW, maxH, windowName)
-    ImGui.SetNextWindowSizeConstraints(
-        core.gridAlignMin(minW, windowName),
-        core.gridAlignMin(minH, windowName),
-        core.gridAlignMax(maxW, windowName),
-        core.gridAlignMax(maxH, windowName)
-    )
+    -- Bypass grid alignment during constraint animation for smooth interpolation
+    if windowName and core.isConstraintAnimatingForWindow(windowName) then
+        ImGui.SetNextWindowSizeConstraints(minW, minH, maxW, maxH)
+    else
+        ImGui.SetNextWindowSizeConstraints(
+            core.gridAlignMin(minW, windowName),
+            core.gridAlignMin(minH, windowName),
+            core.gridAlignMax(maxW, windowName),
+            core.gridAlignMax(maxH, windowName)
+        )
+    end
 end
 
 ---Set grid-aligned window size constraints using display-percentage values.
@@ -264,6 +269,15 @@ end
 --- Get available easing function keys (for use with easeFunction setting).
 function core.getEasingFunctions()
     return settings.easingKeys
+end
+
+---Apply easing function by name.
+---@param t number Interpolation factor (0-1)
+---@param name? string Easing function name (default: "easeInOut")
+---@return number easedValue
+function core.applyEasingByName(t, name)
+    local func = easeFunctions[name] or easeFunctions.easeInOut
+    return func(t)
 end
 
 --------------------------------------------------------------------------------
@@ -359,14 +373,23 @@ end
 function core.update(windowName, options)
     options = options or {}
 
+    -- Auto-disable grid and animation during constraint animation to prevent conflicts
+    local constraintAnimActive = core.isConstraintAnimatingForWindow(windowName)
+
     local useGrid = options.gridEnabled
     if useGrid == nil then
         useGrid = settings.getConfig(windowName, "gridEnabled")
+    end
+    if constraintAnimActive then
+        useGrid = false
     end
 
     local useAnimation = options.animationEnabled
     if useAnimation == nil then
         useAnimation = settings.getConfig(windowName, "animationEnabled")
+    end
+    if constraintAnimActive then
+        useAnimation = false
     end
 
     local duration = options.animationDuration or settings.getConfig(windowName, "animationDuration")
@@ -457,6 +480,25 @@ function core.update(windowName, options)
                 end
             end
             -- else: was a child element drag (splitter, etc.) - do nothing
+        end
+    end
+
+    -- After constraint animation completes, trigger a one-time grid snap
+    -- so the window lands precisely on a grid line
+    if not constraintAnimActive then
+        for _, cAnim in pairs(constraintAnimations) do
+            if cAnim.snapPending and cAnim.windowName == windowName then
+                cAnim.snapPending = false
+                if useGrid then
+                    local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
+                    local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+                    handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
+                    if useAnimation then
+                        state.animating = true
+                        state.animationStartTime = os.clock()
+                    end
+                end
+            end
         end
     end
 
@@ -595,51 +637,76 @@ local function getConstraintAnimation(property)
             active = false,
             current = nil,
             target = nil,
-            lastTime = nil
+            windowName = nil,
+            startTime = nil,
+            startValue = nil,
+            duration = nil,
+            easing = nil
         }
     end
     return constraintAnimations[property]
 end
 
-function core.startConstraintAnimation(property, targetValue, initialValue)
+---Start a smooth constraint animation with time-based easing.
+---Automatically calls CompleteAnimation for the associated window.
+---@param windowName string Window name (for CompleteAnimation + grid bypass coordination)
+---@param property string Constraint property key (e.g. "maxH")
+---@param targetValue number Target value to animate to
+---@param options? {duration?: number, easing?: string, initialValue?: number}
+function core.startConstraintAnimation(windowName, property, targetValue, options)
+    options = options or {}
     local anim = getConstraintAnimation(property)
+
+    -- Use current animated value or explicit initialValue as starting point
+    if options.initialValue then
+        anim.current = options.initialValue
+    elseif anim.current == nil then
+        anim.current = targetValue
+    end
+
     anim.active = true
     anim.target = targetValue
-    if anim.current == nil then
-        anim.current = initialValue
+    anim.windowName = windowName
+    anim.startTime = os.clock()
+    anim.startValue = anim.current
+    anim.duration = options.duration or 0.3
+    anim.easing = options.easing or "easeOut"
+
+    -- Complete any running grid snap animation to prevent conflicts
+    if windowName then
+        core.completeAnimation(windowName)
     end
-    anim.lastTime = os.clock()
 end
 
-function core.updateConstraintAnimation(property, normalValue, expandedValue, isExpanded, speed)
-    speed = speed or 8.0
+---Update constraint animation each frame. Returns the current interpolated value.
+---@param property string Constraint property key
+---@param normalValue number Value when not expanded
+---@param expandedValue number Value when expanded
+---@param isExpanded boolean Current expanded state (used for initial value if no animation started)
+---@return number currentValue
+function core.updateConstraintAnimation(property, normalValue, expandedValue, isExpanded)
     local anim = getConstraintAnimation(property)
 
     if anim.current == nil then
         anim.current = isExpanded and expandedValue or normalValue
         anim.target = anim.current
+        anim.startValue = anim.current
     end
 
     if not anim.active then
         return anim.current
     end
 
-    local now = os.clock()
-    if anim.lastTime == nil then
-        anim.lastTime = now
-    end
-    local delta = now - anim.lastTime
-    anim.lastTime = now
+    local elapsed = os.clock() - anim.startTime
+    local t = math.min(elapsed / anim.duration, 1)
+    t = core.applyEasingByName(t, anim.easing)
 
-    if anim.current ~= anim.target then
-        local diff = anim.target - anim.current
-        anim.current = anim.current + diff * speed * delta
-        if math.abs(diff) < 0.1 then
-            anim.current = anim.target
-            anim.active = false
-        end
-    else
+    anim.current = anim.startValue + (anim.target - anim.startValue) * t
+
+    if t >= 1 then
+        anim.current = anim.target
         anim.active = false
+        anim.snapPending = true
     end
 
     return anim.current
@@ -653,6 +720,18 @@ end
 function core.isAnyConstraintAnimating()
     for _, anim in pairs(constraintAnimations) do
         if anim.active then
+            return true
+        end
+    end
+    return false
+end
+
+---Check if any constraint animation is active for a specific window.
+---@param windowName string Window name to check
+---@return boolean
+function core.isConstraintAnimatingForWindow(windowName)
+    for _, anim in pairs(constraintAnimations) do
+        if anim.active and anim.windowName == windowName then
             return true
         end
     end
