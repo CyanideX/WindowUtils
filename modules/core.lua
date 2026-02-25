@@ -660,7 +660,7 @@ function core.startConstraintAnimation(windowName, property, targetValue, option
     -- Auto-snap target to nearest grid line when target is a display percentage.
     -- Convention: property suffix "H" = height %, "W" = width %.
     local suffix = property:sub(-1):upper()
-    if suffix == "H" or suffix == "W" then
+    if (suffix == "H" or suffix == "W") and settings.getConfig(windowName, "gridEnabled") then
         local dw, dh = GetDisplayResolution()
         local dim = (suffix == "H") and dh or dw
         local targetPx = (dim / 100) * targetValue
