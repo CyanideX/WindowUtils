@@ -657,6 +657,16 @@ function core.startConstraintAnimation(windowName, property, targetValue, option
     options = options or {}
     local anim = getConstraintAnimation(property)
 
+    -- Auto-snap target to nearest grid line when target is a display percentage.
+    -- Convention: property suffix "H" = height %, "W" = width %.
+    local suffix = property:sub(-1):upper()
+    if suffix == "H" or suffix == "W" then
+        local dw, dh = GetDisplayResolution()
+        local dim = (suffix == "H") and dh or dw
+        local targetPx = (dim / 100) * targetValue
+        targetValue = (core.snapToGrid(targetPx, windowName) / dim) * 100
+    end
+
     -- Use current animated value or explicit initialValue as starting point
     if options.initialValue then
         anim.current = options.initialValue
