@@ -756,22 +756,6 @@ end
 -- External Window Management (Override All Windows)
 --------------------------------------------------------------------------------
 
--- Windows to skip (managed internally or system windows)
-local skipWindows = {
-    [settings.NAME] = true,
-    ["Dear ImGui Demo"] = true,
-    ["Dear ImGui Metrics/Debugger"] = true,
-    ["About Dear ImGui"] = true,
-    ["Dear ImGui Style Editor"] = true,
-    ["Dear ImGui Debug Log"] = true,
-    ["Dear ImGui ID Stack Tool"] = true,
-    ["Settings"] = true,
-    ["TweakDB Editor"] = true,
-    ["Bindings"] = true,
-    ["Game Log"] = true,
-    ["Console"] = true,
-    ["Crosshair"] = true
-}
 
 -- Probe system for detecting windows not actively rendered by any mod.
 -- Windows toggled off by their parent mod still exist in ImGui's layout data.
@@ -818,10 +802,6 @@ end
 local function shouldManageWindow(windowName)
     -- Skip windows with ## (ImGui hidden/ID windows)
     if windowName:find("##", 1, true) then
-        return false
-    end
-    -- Skip our own windows and system windows
-    if skipWindows[windowName] then
         return false
     end
     -- Skip windows already managed internally
