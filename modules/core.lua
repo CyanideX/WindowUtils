@@ -30,6 +30,10 @@ local constraintAnimations = {}
 -- External window state tracking (for Override All Windows feature)
 local externalWindowStates = {}
 
+-- Persistent cache for external window expanded sizes (survives game restart)
+local windowCachePath = "data/window_cache.json"
+local windowCache = {}
+
 -- Deferred snap operations (executed at end of draw)
 local deferredSnapOperations = {}
 
@@ -802,8 +806,8 @@ local function getExternalWindowState(windowName)
             targetSizeX = 0,
             targetSizeY = 0,
             probePhase = PROBE_SKIP,
-            expandedSizeX = nil,
-            expandedSizeY = nil,
+            expandedSizeX = windowCache[windowName] and windowCache[windowName].width or nil,
+            expandedSizeY = windowCache[windowName] and windowCache[windowName].height or nil,
             wasCollapsed = false
         }
     end
@@ -889,6 +893,13 @@ local function manageExternalWindow(windowName, state)
     if not isCollapsed then
         state.expandedSizeX = currentSizeX
         state.expandedSizeY = currentSizeY
+        -- Update in-memory cache (saved to disk on overlay close)
+        if not windowCache[windowName]
+            or windowCache[windowName].width ~= currentSizeX
+            or windowCache[windowName].height ~= currentSizeY
+        then
+            windowCache[windowName] = { width = currentSizeX, height = currentSizeY }
+        end
     end
 
     local isFocused = ImGui.IsWindowFocused()
@@ -913,6 +924,7 @@ local function manageExternalWindow(windowName, state)
         state.isDragging = false
         axisLock.active = false
         axisLock.axis = nil
+        core.saveWindowCache()
 
         local gridEnabled = settings.master.gridEnabled
 
@@ -1095,6 +1107,28 @@ function core.isAnyExternalWindowDragging()
         end
     end
     return false
+end
+
+--- Load cached external window expanded sizes from disk.
+function core.loadWindowCache()
+    local file = io.open(windowCachePath, "r")
+    if not file then return end
+    local content = file:read("*a")
+    file:close()
+    local success, data = pcall(json.decode, content)
+    if success and data then
+        windowCache = data
+    end
+end
+
+--- Save cached external window expanded sizes to disk.
+function core.saveWindowCache()
+    local success, content = pcall(json.encode, windowCache)
+    if not success then return end
+    local file = io.open(windowCachePath, "w")
+    if not file then return end
+    file:write(content)
+    file:close()
 end
 
 return core

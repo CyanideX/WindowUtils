@@ -103,6 +103,7 @@ hotkeys.register()
 
 registerForEvent("onInit", function()
     settings.load()
+    core.loadWindowCache()
     ui.init()  -- Initialize UI state from saved settings
     settings.debugPrint("Initialized!", true)
 end)
@@ -139,6 +140,8 @@ end)
 registerForEvent("onOverlayClose", function()
     WindowUtils.runtimeData.cetOpen = false
     ui.state.isOverlayOpen = false
+    -- Save cached external window sizes to disk
+    core.saveWindowCache()
     -- Disable blur and dim when overlay closes
     ui.disableBlur()
     ui.disableDim()
