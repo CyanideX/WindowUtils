@@ -769,6 +769,23 @@ local skipWindows = {
     ["Crosshair"] = true
 }
 
+-- Probe system for detecting windows not actively rendered by any mod.
+-- Windows toggled off by their parent mod still exist in ImGui's layout data.
+-- Calling ImGui.Begin() on them creates empty window frames.
+--
+-- Detection method: skip 1 frame (don't call Begin), then probe with Alpha=0
+-- and check IsWindowAppearing(). If the window was NOT rendered by any mod
+-- during the skip frame, IsWindowAppearing() returns true on the probe frame.
+--
+--   SKIP (0):    don't call Begin — lets window go inactive if no mod renders it
+--   CHECK (1):   invisible probe (Alpha=0) — test IsWindowAppearing()
+--   ACTIVE (2):  confirmed active — manage normally (drag/snap/animate)
+--   BLOCKED (3): confirmed inactive — don't call Begin
+local PROBE_SKIP = 0
+local PROBE_CHECK = 1
+local PROBE_ACTIVE = 2
+local PROBE_BLOCKED = 3
+
 --- Get or create external window state.
 local function getExternalWindowState(windowName)
     if not externalWindowStates[windowName] then
@@ -783,7 +800,11 @@ local function getExternalWindowState(windowName)
             startSizeX = 0,
             startSizeY = 0,
             targetSizeX = 0,
-            targetSizeY = 0
+            targetSizeY = 0,
+            probePhase = PROBE_SKIP,
+            expandedSizeX = nil,
+            expandedSizeY = nil,
+            wasCollapsed = false
         }
     end
     return externalWindowStates[windowName]
@@ -803,7 +824,147 @@ local function shouldManageWindow(windowName)
     if windowStates[windowName] then
         return false
     end
+    -- Respect WindowManager's hidden/locked state (CETWM is a global set by Window Manager)
+    if type(CETWM) == "table" and type(CETWM.windows) == "table" then
+        local wmState = CETWM.windows[windowName]
+        if wmState then
+            if not wmState.visible then return false end
+            if wmState.locked then return false end
+        end
+    end
     return true
+end
+
+--- Invisible probe: call Begin with Alpha=0, check IsWindowAppearing().
+-- Returns true if window is active (another mod rendered it), false if inactive.
+local function probeWindowActivity(windowName)
+    ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 0)
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0)
+    local began = ImGui.Begin(windowName, true)
+    local active = false
+    if began then
+        active = not ImGui.IsWindowAppearing()
+        ImGui.End()
+    end
+    ImGui.PopStyleVar(2)
+    return active
+end
+
+--- Manage a confirmed-active external window: drag detection, snap, animation.
+local function manageExternalWindow(windowName, state)
+    if not ImGui.Begin(windowName, true) then
+        return
+    end
+
+    local isCollapsed = ImGui.IsWindowCollapsed()
+    local currentPosX, currentPosY = ImGui.GetWindowPos()
+
+    -- Skip windows at extreme offscreen positions (likely hidden by another mod)
+    if currentPosX >= 9000 or currentPosY >= 9000 then
+        if state.isDragging then
+            state.isDragging = false
+            draggingWindowBoundsValid = false
+            draggingWindowName = nil
+        end
+        state.animating = false
+        ImGui.End()
+        return
+    end
+
+    -- Handle drag and snap (works for both collapsed and expanded windows)
+    local currentSizeX, currentSizeY = ImGui.GetWindowSize()
+
+    -- Restore size when expanding from collapsed state (before tracking, so we
+    -- don't overwrite the stored expanded size with the current frame's value)
+    if state.wasCollapsed and not isCollapsed then
+        if state.expandedSizeX and state.expandedSizeY then
+            ImGui.SetWindowSize(windowName, state.expandedSizeX, state.expandedSizeY)
+            currentSizeX = state.expandedSizeX
+            currentSizeY = state.expandedSizeY
+        end
+    end
+    state.wasCollapsed = isCollapsed
+
+    -- Track expanded size when not collapsed
+    if not isCollapsed then
+        state.expandedSizeX = currentSizeX
+        state.expandedSizeY = currentSizeY
+    end
+
+    local isFocused = ImGui.IsWindowFocused()
+    local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
+    local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+    local shiftHeld = isShiftHeld()
+    local allowSnapCollapsed = settings.master.snapCollapsed
+
+    if isFocused and isDragging then
+        if not state.isDragging then
+            dragStartPos.x = currentPosX
+            dragStartPos.y = currentPosY
+        end
+
+        state.isDragging = true
+        state.animating = false
+
+        currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
+        updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
+
+    elseif state.isDragging and isReleased then
+        state.isDragging = false
+        axisLock.active = false
+        axisLock.axis = nil
+
+        local gridEnabled = settings.master.gridEnabled
+
+        if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
+            draggingWindowBoundsValid = false
+            draggingWindowName = nil
+        else
+            local targetX = core.snapToGrid(currentPosX, windowName)
+            local targetY = core.snapToGrid(currentPosY, windowName)
+
+            -- Only snap size for expanded windows (collapsed size is fixed to title bar)
+            local targetSizeX = currentSizeX
+            local targetSizeY = currentSizeY
+            if not isCollapsed then
+                targetSizeX = core.snapToGrid(currentSizeX, windowName)
+                targetSizeY = core.snapToGrid(currentSizeY, windowName)
+            end
+
+            local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
+            local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
+
+            if posChanged or sizeChanged then
+                if settings.master.animationEnabled then
+                    state.animating = true
+                    state.animationStartTime = os.clock()
+                    state.startPosX = currentPosX
+                    state.startPosY = currentPosY
+                    state.targetPosX = targetX
+                    state.targetPosY = targetY
+                    -- Skip size targets for collapsed windows to preserve expanded size
+                    state.startSizeX = isCollapsed and nil or currentSizeX
+                    state.startSizeY = isCollapsed and nil or currentSizeY
+                    state.targetSizeX = isCollapsed and nil or targetSizeX
+                    state.targetSizeY = isCollapsed and nil or targetSizeY
+                else
+                    local op = {
+                        windowName = windowName,
+                        targetPosX = targetX,
+                        targetPosY = targetY,
+                    }
+                    -- Skip size for collapsed windows to preserve expanded size
+                    if not isCollapsed then
+                        op.targetSizeX = targetSizeX
+                        op.targetSizeY = targetSizeY
+                    end
+                    table.insert(deferredSnapOperations, op)
+                end
+            end
+        end
+    end
+
+    ImGui.End()
 end
 
 --- Update all external windows (called every frame when override is enabled).
@@ -824,129 +985,74 @@ function core.updateExternalWindows()
     for _, windowInfo in ipairs(windows) do
         local windowName = windowInfo.name
 
-        -- Skip collapsed windows (they can't be dragged) and windows we shouldn't manage
-        if not windowInfo.collapsed and shouldManageWindow(windowName) then
+        -- Skip offscreen and unmanageable windows
+        if shouldManageWindow(windowName)
+            and windowInfo.posX < 9000
+            and windowInfo.posY < 9000
+        then
             local state = getExternalWindowState(windowName)
 
-            -- Access the window to check its state
-            if ImGui.Begin(windowName, true) then
-                local isCollapsed = ImGui.IsWindowCollapsed()
-                local allowSnapCollapsed = settings.master.snapCollapsed
-                local currentPosX, currentPosY = ImGui.GetWindowPos()
-                local currentSizeX, currentSizeY = ImGui.GetWindowSize()
-                local isFocused = ImGui.IsWindowFocused()
-                local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
-                local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
-                local shiftHeld = isShiftHeld()
+            if state.probePhase == PROBE_SKIP then
+                -- Don't call Begin — let window go inactive if no mod renders it.
+                state.probePhase = PROBE_CHECK
 
-                -- Skip collapsed external windows entirely to avoid grid/animation issues
-                if isCollapsed then
-                    -- Clean up state only if needed
-                    if state.isDragging then
-                        state.isDragging = false
-                        draggingWindowBoundsValid = false
-                        draggingWindowName = nil
-                    end
-                    state.animating = false
-                    ImGui.End()
+            elseif state.probePhase == PROBE_CHECK then
+                -- Invisible probe: Alpha=0, check if another mod rendered last frame
+                if probeWindowActivity(windowName) then
+                    state.probePhase = PROBE_ACTIVE
                 else
-                    -- Track drag state
-                    if isFocused and isDragging then
-                        -- Record drag start position when drag begins
-                        if not state.isDragging then
-                            dragStartPos.x = currentPosX
-                            dragStartPos.y = currentPosY
-                        end
-
-                        state.isDragging = true
-                        state.animating = false -- Cancel any running animation
-
-                        -- Handle Shift+drag axis locking
-                        currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
-
-                        -- Update live bounds for grid feathering
-                        updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
-                    elseif state.isDragging and isReleased then
-                        state.isDragging = false
-                        -- Clear axis lock on drag end
-                        axisLock.active = false
-                        axisLock.axis = nil
-
-                        local gridEnabled = settings.master.gridEnabled
-
-                        -- Skip snapping entirely if grid is disabled, or if collapsed and snap-collapsed is off
-                        if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
-                            draggingWindowBoundsValid = false
-                            draggingWindowName = nil
-                        else
-                            local targetX = core.snapToGrid(currentPosX, windowName)
-                            local targetY = core.snapToGrid(currentPosY, windowName)
-                            local targetSizeX = core.snapToGrid(currentSizeX, windowName)
-                            local targetSizeY = core.snapToGrid(currentSizeY, windowName)
-
-                            local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
-                            local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
-
-                            if posChanged or sizeChanged then
-                                if settings.master.animationEnabled then
-                                    state.animating = true
-                                    state.animationStartTime = os.clock()
-                                    state.startPosX = currentPosX
-                                    state.startPosY = currentPosY
-                                    state.targetPosX = targetX
-                                    state.targetPosY = targetY
-                                    state.startSizeX = currentSizeX
-                                    state.startSizeY = currentSizeY
-                                    state.targetSizeX = targetSizeX
-                                    state.targetSizeY = targetSizeY
-                                else
-                                    -- Immediate snap
-                                    table.insert(deferredSnapOperations, {
-                                        windowName = windowName,
-                                        targetPosX = targetX,
-                                        targetPosY = targetY,
-                                        targetSizeX = targetSizeX,
-                                        targetSizeY = targetSizeY
-                                    })
-                                end
-                            end
-                        end
-                    end
-
-                    ImGui.End()
+                    state.probePhase = PROBE_BLOCKED
+                    state.animating = false
                 end
-            end
 
-            -- Handle animation for this window (check state first for performance)
-            if state.animating then
-                -- Only check settings if actually animating
-                if not settings.master.gridEnabled or not settings.master.animationEnabled then
-                    -- Cancel animation if settings changed mid-animation
-                    state.animating = false
-                else
-                    local duration = settings.master.animationDuration
-                    local elapsedTime = os.clock() - state.animationStartTime
-                    local t = math.min(elapsedTime / duration, 1)
-                    t = core.applyEasing(t, windowName)
+            elseif state.probePhase == PROBE_ACTIVE then
+                -- Confirmed active — manage normally
+                manageExternalWindow(windowName, state)
 
-                    local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
-                    local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
-                    local newSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
-                    local newSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
-
-                    -- Queue position and size update
-                    table.insert(deferredSnapOperations, {
-                        windowName = windowName,
-                        targetPosX = newPosX,
-                        targetPosY = newPosY,
-                        targetSizeX = newSizeX,
-                        targetSizeY = newSizeY
-                    })
-
-                    if t >= 1 then
+                -- Handle animation (outside Begin/End)
+                if state.animating then
+                    if not settings.master.gridEnabled or not settings.master.animationEnabled then
                         state.animating = false
+                    else
+                        local duration = settings.master.animationDuration
+                        local elapsedTime = os.clock() - state.animationStartTime
+                        local t = math.min(elapsedTime / duration, 1)
+                        t = core.applyEasing(t, windowName)
+
+                        local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
+                        local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
+
+                        local op = {
+                            windowName = windowName,
+                            targetPosX = newPosX,
+                            targetPosY = newPosY,
+                        }
+                        -- Only lerp size when size targets exist (nil for collapsed windows)
+                        if state.startSizeX and state.targetSizeX then
+                            op.targetSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
+                            op.targetSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
+                        end
+                        table.insert(deferredSnapOperations, op)
+
+                        if t >= 1 then
+                            state.animating = false
+                        end
                     end
                 end
+
+                -- No periodic re-check — re-probed on overlay reopen via resetExternalProbes()
+
+            end
+            -- PROBE_BLOCKED: do nothing — re-probed on overlay reopen via resetExternalProbes()
+        else
+            -- Clean up stale external state for windows we're no longer managing
+            local staleState = externalWindowStates[windowName]
+            if staleState then
+                if staleState.isDragging then
+                    draggingWindowBoundsValid = false
+                    draggingWindowName = nil
+                end
+                externalWindowStates[windowName] = nil
             end
         end
     end
@@ -969,6 +1075,16 @@ end
 --- Check if discovery plugin is available.
 function core.isDiscoveryAvailable()
     return discovery.isAvailable()
+end
+
+--- Reset blocked/active external probes so they re-check on next frame.
+--- Called on overlay open to pick up windows whose state changed while overlay was closed.
+function core.resetExternalProbes()
+    for _, state in pairs(externalWindowStates) do
+        if state.probePhase == PROBE_BLOCKED or state.probePhase == PROBE_ACTIVE then
+            state.probePhase = PROBE_SKIP
+        end
+    end
 end
 
 --- Check if any external window is being dragged.

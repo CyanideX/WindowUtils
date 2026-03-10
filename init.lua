@@ -128,6 +128,8 @@ end)
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
     ui.state.isOverlayOpen = true
+    -- Re-probe blocked external windows in case they became active while overlay was closed
+    core.resetExternalProbes()
     -- Enable blur if setting is enabled (unless drag-only mode)
     if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
         ui.enableBlur()
