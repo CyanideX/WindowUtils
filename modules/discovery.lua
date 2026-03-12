@@ -19,8 +19,6 @@ end
 -- Plugin Detection
 --------------------------------------------------------------------------------
 
---- Check if RedCetWM plugin is available.
--- @return boolean: True if the plugin is loaded and functional
 function discovery.isAvailable()
     return RedCetWM ~= nil and RedCetWM.GetWindowLayout ~= nil
 end
@@ -29,10 +27,7 @@ end
 -- Window Discovery
 --------------------------------------------------------------------------------
 
---- Get all active ImGui windows from the layout.
--- Parses the layout string returned by RedCetWM.GetWindowLayout()
--- Format: [Window][WindowName]\nPos=X,Y\nSize=W,H\nCollapsed=0|1
--- @return table: Array of window info tables {name, posX, posY, sizeX, sizeY, collapsed}
+-- Parse layout string from RedCetWM.GetWindowLayout() into window info tables.
 function discovery.getActiveWindows()
     if not discovery.isAvailable() then
         return {}
@@ -105,8 +100,6 @@ function discovery.getActiveWindows()
     return windows
 end
 
---- Get just the window names (convenience function).
--- @return table: Array of window name strings
 function discovery.getWindowNames()
     local names = {}
     local windows = discovery.getActiveWindows()

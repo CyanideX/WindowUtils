@@ -106,7 +106,7 @@ registerForEvent("onInit", function()
     settings.load()
     core.loadWindowCache()
     core.rebuildExclusionSet()
-    ui.init()  -- Initialize UI state from saved settings
+    ui.init()
     settings.debugPrint("Initialized!", true)
 end)
 

@@ -70,6 +70,9 @@ local activeReprobeTimer = 0   -- Timer for batch ACTIVE re-probe (auto-removal)
 local activeReprobeIndex = 0   -- Round-robin index for sequential auto-remove
 local lastFrameTime = 0
 
+-- Offscreen position threshold (windows at 9000+ are hidden by other mods)
+local OFFSCREEN_THRESHOLD = 9000
+
 -- Core exclusion list: known CET/ImGui internal windows that should never be managed
 local coreExcludedWindows = {
     ["Debug##Default"] = true,
@@ -79,12 +82,7 @@ local coreExcludedWindows = {
 -- Drag Helper Functions
 --------------------------------------------------------------------------------
 
---- Apply axis lock constraint during Shift+drag.
--- @param windowName string: Window being dragged
--- @param currentPosX number: Current X position
--- @param currentPosY number: Current Y position
--- @param shiftHeld boolean: Whether Shift key is held
--- @return number, number: Constrained X and Y positions
+-- Apply axis lock constraint during Shift+drag.
 local function applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
     if shiftHeld then
         axisLock.active = true
@@ -112,12 +110,7 @@ local function applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
     return currentPosX, currentPosY
 end
 
---- Update dragging window bounds for grid visualization.
--- @param windowName string: Window being dragged
--- @param posX number: Current X position
--- @param posY number: Current Y position
--- @param sizeX number: Current width
--- @param sizeY number: Current height
+-- Update dragging window bounds for grid visualization.
 local function updateDraggingBounds(windowName, posX, posY, sizeX, sizeY)
     draggingWindowBounds.x = posX
     draggingWindowBounds.y = posY
@@ -131,9 +124,7 @@ end
 -- Grid Size Caching
 --------------------------------------------------------------------------------
 
---- Get the effective grid size for a window (cached).
--- @param windowName string|nil: Window name (nil uses master settings)
--- @return number: Grid size in pixels
+-- Get the effective grid size for a window (cached).
 local function getGridSize(windowName)
     -- Use special key for nil/master
     local cacheKey = windowName or "__master__"
@@ -156,7 +147,6 @@ local function getGridSize(windowName)
 end
 
 --- Invalidate grid size cache (call when settings change).
--- @param windowName string|nil: Window to invalidate, or nil to clear all
 function core.invalidateGridCache(windowName)
     if windowName then
         gridSizeCache[windowName] = nil
@@ -192,7 +182,6 @@ local easeFunctions = {
     end
 }
 
---- Check if Shift key is held.
 local function isShiftHeld()
     return ImGui.IsKeyDown(ImGuiKey.LeftShift) or ImGui.IsKeyDown(ImGuiKey.RightShift)
 end
@@ -285,7 +274,6 @@ function core.applyEasing(t, windowName)
     return func(t)
 end
 
---- Get available easing function keys (for use with easeFunction setting).
 function core.getEasingFunctions()
     return settings.easingKeys
 end
@@ -534,7 +522,6 @@ function core.update(windowName, options)
     end
 end
 
---- Legacy API for backward compatibility.
 function core.updateWindow(windowName, gridEnabled, animationEnabled, animationDuration)
     core.update(windowName, {
         gridEnabled = gridEnabled,
@@ -797,7 +784,6 @@ local PROBE_CHECK = 1
 local PROBE_ACTIVE = 2
 local PROBE_BLOCKED = 3
 
---- Get or create external window state.
 local function getExternalWindowState(windowName)
     if not externalWindowStates[windowName] then
         externalWindowStates[windowName] = {
@@ -833,7 +819,6 @@ local function getExternalWindowState(windowName)
     return externalWindowStates[windowName]
 end
 
---- Rebuild the exclusion set from settings for fast lookup.
 function core.rebuildExclusionSet()
     excludedWindowSet = {}
     if settings.master.excludedWindows then
@@ -843,7 +828,6 @@ function core.rebuildExclusionSet()
     end
 end
 
---- Check if a window should be managed externally.
 local function shouldManageWindow(windowName)
     -- Skip known CET/ImGui internal windows
     if coreExcludedWindows[windowName] then
@@ -868,18 +852,14 @@ local function shouldManageWindow(windowName)
     return true
 end
 
---- Flags for invisible probe: prevent the probe window from stealing focus,
---- changing Z-order, or capturing input from the user's active window.
+-- Probe flags: prevent invisible probe from stealing focus, Z-order, or input
 local PROBE_FLAGS = ImGuiWindowFlags.NoFocusOnAppearing
     + ImGuiWindowFlags.NoBringToFrontOnFocus
     + ImGuiWindowFlags.NoInputs
     + ImGuiWindowFlags.NoNav
 
---- Invisible probe: call Begin with Alpha=0, check IsWindowAppearing().
--- Returns true if window is active (another mod rendered it), false if inactive.
--- Uses PROBE_FLAGS to prevent focus stealing and Z-order disruption.
--- Note: Begin() returns false for collapsed windows, but IsWindowAppearing()
--- still works inside the Begin/End block regardless of collapse state.
+-- Invisible probe: Alpha=0 Begin, check IsWindowAppearing().
+-- Returns true if active (another mod rendered it), false if inactive.
 local function probeWindowActivity(windowName)
     ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 0)
     ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0)
@@ -890,9 +870,7 @@ local function probeWindowActivity(windowName)
     return active
 end
 
---- Manage a confirmed-active external window: drag detection, snap, animation.
--- Uses per-window p_open setting: when enabled, passes true to Begin() so the
--- close button is preserved for windows that use it. Default is no p_open.
+-- Manage a confirmed-active external window: drag detection, snap, animation.
 local function manageExternalWindow(windowName, state)
     local usePOpen = settings.master.windowPOpen and settings.master.windowPOpen[windowName]
     local visible
@@ -923,7 +901,7 @@ local function manageExternalWindow(windowName, state)
     local currentPosX, currentPosY = ImGui.GetWindowPos()
 
     -- Skip windows at extreme offscreen positions (likely hidden by another mod)
-    if currentPosX >= 9000 or currentPosY >= 9000 then
+    if currentPosX >= OFFSCREEN_THRESHOLD or currentPosY >= OFFSCREEN_THRESHOLD then
         if state.isDragging then
             state.isDragging = false
             draggingWindowBoundsValid = false
@@ -1086,7 +1064,6 @@ local function manageExternalWindow(windowName, state)
     ImGui.End()
 end
 
---- Update all external windows (called every frame when override is enabled).
 function core.updateExternalWindows()
     -- Only process when master override is enabled
     if not settings.master.enabled or not settings.master.overrideAllWindows then
@@ -1109,8 +1086,8 @@ function core.updateExternalWindows()
 
         -- Skip offscreen and unmanageable windows
         if shouldManageWindow(windowName)
-            and windowInfo.posX < 9000
-            and windowInfo.posY < 9000
+            and windowInfo.posX < OFFSCREEN_THRESHOLD
+            and windowInfo.posY < OFFSCREEN_THRESHOLD
         then
             local state = getExternalWindowState(windowName)
 
@@ -1185,7 +1162,7 @@ function core.updateExternalWindows()
                             op.targetSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
                         end
                         deferredSnapCount = deferredSnapCount + 1
-                    deferredSnapOperations[deferredSnapCount] = op
+                        deferredSnapOperations[deferredSnapCount] = op
 
                         if t >= 1 then
                             state.animating = false
@@ -1290,7 +1267,6 @@ function core.updateExternalWindows()
     end
 end
 
---- Process deferred snap operations (called at end of draw loop).
 function core.processDeferred()
     for i = 1, deferredSnapCount do
         local op = deferredSnapOperations[i]
@@ -1303,18 +1279,13 @@ function core.processDeferred()
     deferredSnapCount = 0
 end
 
---- Check if discovery plugin is available.
 function core.isDiscoveryAvailable()
     return discovery.isAvailable()
 end
 
---- Reset all external probes so they re-check on next overlay open.
---- Resets BOTH ACTIVE and BLOCKED windows to PROBE_SKIP for cleanup.
---- Previously-ACTIVE windows use wasActive flag for flicker-free probing:
----   - skipFrames=1 (only 1 skip frame needed) + visible Begin() during CHECK
---- Previously-BLOCKED windows use standard 2-frame skip + Alpha=0 probe.
---- Drag state (isDragging, bounds) is PRESERVED across the probe cycle so grid
---- visualization continues smoothly if the user is mid-drag on overlay toggle.
+-- Reset all external probes (called on overlay open).
+-- ACTIVE windows use wasActive (flicker-free), BLOCKED use standard probe.
+-- Preserves drag state so grid visualization continues mid-drag.
 function core.resetExternalProbes()
     for _, state in pairs(externalWindowStates) do
         if state.probePhase == PROBE_ACTIVE then
@@ -1359,7 +1330,6 @@ function core.loadWindowCache()
     end
 end
 
---- Save cached external window expanded sizes to disk.
 function core.saveWindowCache()
     local success, content = pcall(json.encode, windowCache)
     if not success then return end
@@ -1379,8 +1349,6 @@ core.PROBE_CHECK = PROBE_CHECK
 core.PROBE_ACTIVE = PROBE_ACTIVE
 core.PROBE_BLOCKED = PROBE_BLOCKED
 
---- Get summary of all external window states for the browser.
--- @return table: {windowName = {probePhase, isDragging, animating}, ...}
 function core.getExternalWindowStates()
     local result = {}
     for name, state in pairs(externalWindowStates) do
@@ -1393,8 +1361,6 @@ function core.getExternalWindowStates()
     return result
 end
 
---- Add a window to the exclusion list.
--- @param windowName string: Window name to exclude
 function core.addExclusion(windowName)
     if not settings.master.excludedWindows then
         settings.master.excludedWindows = {}
@@ -1407,8 +1373,6 @@ function core.addExclusion(windowName)
     settings.save()
 end
 
---- Remove a window from the exclusion list.
--- @param windowName string: Window name to re-include
 function core.removeExclusion(windowName)
     if not settings.master.excludedWindows then return end
     for i, name in ipairs(settings.master.excludedWindows) do
@@ -1421,9 +1385,6 @@ function core.removeExclusion(windowName)
     end
 end
 
---- Set or clear the p_open (close button) override for a window.
--- @param windowName string: Window name
--- @param value boolean|nil: true to enable close button, nil to clear override
 function core.setPOpen(windowName, value)
     if not settings.master.windowPOpen then
         settings.master.windowPOpen = {}

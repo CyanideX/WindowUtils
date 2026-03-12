@@ -9,6 +9,8 @@ local discovery = require("modules/discovery")
 local controls = require("modules/controls")
 local styles = require("modules/styles")
 
+local OFFSCREEN_THRESHOLD = 9000
+
 local browser = {}
 
 -- Browser window state
@@ -140,7 +142,6 @@ function browser.draw()
     ImGui.Dummy(0, 2)
     ImGui.Separator()
 
-    -- Table header — proportional column widths
     local totalWidth = ImGui.GetContentRegionAvail()
     ImGui.Columns(4, "##browserCols", true)
     ImGui.SetColumnWidth(0, totalWidth * 0.55)  -- Window Name
@@ -161,7 +162,6 @@ function browser.draw()
 
     ImGui.Separator()
 
-    -- Window rows
     local filterLower = browser.state.filterText:lower()
 
     for _, windowInfo in ipairs(windows) do
@@ -170,8 +170,7 @@ function browser.draw()
         -- Apply filter
         if filterLower == "" or name:lower():find(filterLower, 1, true) then
             -- Skip offscreen windows
-            if windowInfo.posX < 9000 and windowInfo.posY < 9000 then
-                -- Column 1: Name
+            if windowInfo.posX < OFFSCREEN_THRESHOLD and windowInfo.posY < OFFSCREEN_THRESHOLD then
                 ImGui.Text(name)
                 if ImGui.IsItemHovered() then
                     ImGui.BeginTooltip()
@@ -185,7 +184,6 @@ function browser.draw()
                 end
                 ImGui.NextColumn()
 
-                -- Column 2: Probe status
                 local extState = extStates[name]
                 if extState then
                     local label, style = getStatusLabel(extState.probePhase)
@@ -195,7 +193,6 @@ function browser.draw()
                 end
                 ImGui.NextColumn()
 
-                -- Column 3: Enabled toggle (exclusion list)
                 local isEnabled = not excludedSet[name]
                 local newEnabled, changed = ImGui.Checkbox("##en_" .. name, isEnabled)
                 if changed then
@@ -209,7 +206,6 @@ function browser.draw()
                 end
                 ImGui.NextColumn()
 
-                -- Column 4: pOpen toggle (close button)
                 local hasPOpen = pOpenSet[name] == true
                 local newPOpen
                 newPOpen, changed = ImGui.Checkbox("##po_" .. name, hasPOpen)

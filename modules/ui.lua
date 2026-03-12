@@ -39,7 +39,6 @@ local dimFade = {
     wasDragging = false  -- tracks previous "should dim" state
 }
 
---- Get the BlurUtils service
 local function getBlurService()
     if ui.blur.service then return ui.blur.service end
 
@@ -58,12 +57,10 @@ local function getBlurService()
     return nil
 end
 
---- Smooth easing function (ease in-out)
 local function smoothEase(t)
     return t * t * (3 - 2 * t)
 end
 
---- Enable blur effect with fade-in animation
 function ui.enableBlur()
     if ui.blur.isActive and not ui.blur.isAnimating then return end
 
@@ -92,7 +89,6 @@ function ui.enableBlur()
     ui.blur.isActive = true
 end
 
---- Disable blur effect with fade-out animation
 function ui.disableBlur()
     if not ui.blur.isActive then return end
 
@@ -103,7 +99,6 @@ function ui.disableBlur()
     -- targetRadius stays the same, we fade from currentRadius to 0
 end
 
---- Update blur animation (call every frame)
 function ui.updateBlurAnimation()
     if not ui.blur.isAnimating then return end
 
@@ -144,7 +139,6 @@ function ui.updateBlurAnimation()
     end
 end
 
---- Update blur intensity (when slider changes)
 function ui.updateBlurIntensity(intensity)
     if not ui.blur.isActive then return end
 
@@ -160,12 +154,10 @@ function ui.updateBlurIntensity(intensity)
     end
 end
 
---- Check if BlurUtils service is available
 function ui.isBlurAvailable()
     return getBlurService() ~= nil
 end
 
---- Update blur based on drag state (for "blur on drag only" mode)
 function ui.updateBlurDragState()
     if not settings.master.blurOnOverlayOpen then return end
     if not settings.master.blurOnDragOnly then return end
@@ -185,12 +177,10 @@ function ui.updateBlurDragState()
     ui.blur.wasDragging = isDragging
 end
 
---- Initialize UI state from saved settings
 function ui.init()
     ui.state.showWindow = settings.master.showSettingsWindow or false
 end
 
---- Disable dim background effect (called on overlay close)
 function ui.disableDim()
     dimFade.opacity = 0
     dimFade.wasDragging = false
@@ -211,10 +201,6 @@ local gridFade = {
 -- Hardcoded fade durations (in seconds)
 local GRID_FADE_IN_DURATION = 0.15
 local GRID_FADE_OUT_DURATION = 0.25
-
---------------------------------------------------------------------------------
--- Helper Functions
---------------------------------------------------------------------------------
 
 local function findEasingIndex(key)
     for i, k in ipairs(settings.easingKeys) do
@@ -418,9 +404,6 @@ local function drawGridVisualization()
         windowBounds = { x = mx - 100, y = my - 50, width = 200, height = 100 }
     end
 
-    -- Segment size for feathered drawing (use grid size for efficiency)
-    local segmentSize = gridSize
-
     -- Apply grid dimming when guides are enabled
     local gridAlpha = baseAlpha
     if guidesActive then
@@ -435,7 +418,7 @@ local function drawGridVisualization()
             -- Draw line in segments with varying opacity
             local y1 = 0
             while y1 < displayHeight do
-                local y2 = math.min(y1 + segmentSize, displayHeight)
+                local y2 = math.min(y1 + gridSize, displayHeight)
                 -- Use whichever segment endpoint is CLOSEST to the window
                 local dist1 = distanceToRect(x, y1, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
                 local dist2 = distanceToRect(x, y2, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
@@ -464,7 +447,7 @@ local function drawGridVisualization()
             -- Draw line in segments with varying opacity
             local x1 = 0
             while x1 < displayWidth do
-                local x2 = math.min(x1 + segmentSize, displayWidth)
+                local x2 = math.min(x1 + gridSize, displayWidth)
                 -- Use whichever segment endpoint is CLOSEST to the window
                 local dist1 = distanceToRect(x1, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
                 local dist2 = distanceToRect(x2, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
@@ -512,7 +495,6 @@ end
 --------------------------------------------------------------------------------
 
 function ui.drawSettingsWindow()
-    -- Draw grid visualization (independent of window visibility)
     drawGridVisualization()
 
     if not ui.state.showWindow then return end
@@ -545,14 +527,16 @@ function ui.drawSettingsWindow()
         controls.TextMuted("Master Settings Disabled - Mods Use Their Own Settings")
     end
 
-        -- General settings
     controls.SectionHeader("General", 10, 0)
     settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
     if changed then settings.save() end
 
     ImGui.SameLine()
     settings.master.debugOutput, changed = controls.Checkbox("Debug Output", settings.master.debugOutput, settings.defaults.debugOutput, "Print Debug Messages to Console", true)
-    if changed then settings.save() settings.debugPrint("Debug Output Enabled") end
+    if changed then
+        settings.save()
+        settings.debugPrint("Debug Output Enabled")
+    end
 
     -- Grid Visualization section (always enabled, independent of master override)
     controls.SectionHeader("Grid Visualization", 10, 0)

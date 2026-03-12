@@ -73,9 +73,6 @@ settings.NAME = "Window Utils"
 settings.ICON = IconGlyphs.WindowMaximize
 settings.VERSION = "1.0.0"
 
---- Print a debug message with the mod icon and name prefix.
--- @param message string: The message to print
--- @param force boolean: If true, always print; if false/nil, only print when debug mode is enabled
 function settings.debugPrint(message, forced)
     if settings.master.debugOutput or forced then
         print(settings.ICON .. " " .. settings.NAME .. ": " .. message)
@@ -93,9 +90,6 @@ settings.GRID_UNIT_SIZE = 20
 -- Default Settings Factory
 --------------------------------------------------------------------------------
 
---- Create a fresh settings table with all default values.
--- Used to initialize both defaults and master settings.
--- @return table: New settings table with default values
 local function createDefaultSettings()
     return {
         gridUnits = 2,
