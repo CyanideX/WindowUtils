@@ -5,6 +5,16 @@
 
 local discovery = {}
 
+-- Per-frame cache to avoid re-parsing layout string multiple times per frame
+local cachedWindows = nil
+local cacheGeneration = -1
+local currentGeneration = 0
+
+--- Invalidate the per-frame cache (call once at start of each frame).
+function discovery.invalidateCache()
+    currentGeneration = currentGeneration + 1
+end
+
 --------------------------------------------------------------------------------
 -- Plugin Detection
 --------------------------------------------------------------------------------
@@ -28,17 +38,24 @@ function discovery.getActiveWindows()
         return {}
     end
 
+    -- Return cached result if still valid this frame
+    if cachedWindows and cacheGeneration == currentGeneration then
+        return cachedWindows
+    end
+
     local windows = {}
     local layoutString = RedCetWM.GetWindowLayout()
 
     if not layoutString or layoutString == "" then
-        return {}
+        cachedWindows = windows
+        cacheGeneration = currentGeneration
+        return windows
     end
 
     -- Parse layout string into lines
     local layoutLines = {}
     for line in layoutString:gmatch("[^\n]+") do
-        table.insert(layoutLines, line)
+        layoutLines[#layoutLines + 1] = line
     end
 
     -- Extract window information
@@ -71,18 +88,20 @@ function discovery.getActiveWindows()
                     collapsed = (collapsedVal == "1")
                 end
 
-                table.insert(windows, {
+                windows[#windows + 1] = {
                     name = name,
                     posX = posX,
                     posY = posY,
                     sizeX = sizeX,
                     sizeY = sizeY,
                     collapsed = collapsed
-                })
+                }
             end
         end
     end
 
+    cachedWindows = windows
+    cacheGeneration = currentGeneration
     return windows
 end
 

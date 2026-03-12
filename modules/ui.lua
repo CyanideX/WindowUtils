@@ -810,6 +810,14 @@ function ui.drawSettingsWindow()
                 settings.master.autoRemoveInterval = arInterval
                 settings.save()
             end
+
+            settings.master.batchAutoRemove, changed = controls.Checkbox(
+                "Batch Auto-Remove",
+                settings.master.batchAutoRemove,
+                settings.defaults.batchAutoRemove,
+                "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)"
+            )
+            if changed then settings.save() end
         end
 
         if controls.Button("Window Browser", "inactive", ImGui.GetContentRegionAvail(), 0) then

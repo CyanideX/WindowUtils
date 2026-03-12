@@ -35,6 +35,7 @@
 ---@field probeInterval number Seconds between periodic window re-probes (0.1-5.0)
 ---@field autoRemoveEmptyWindows boolean Auto-remove windows that fail re-probe
 ---@field autoRemoveInterval number Seconds between batch auto-remove checks (0.1-5.0)
+---@field batchAutoRemove boolean Use batch mode for auto-remove checks (all windows at once vs one-at-a-time)
 ---@field excludedWindows string[] Window names excluded from external management
 ---@field windowPOpen table<string, boolean> Per-window p_open (close button) overrides
 
@@ -128,6 +129,7 @@ local function createDefaultSettings()
         probeInterval = 0.5,
         autoRemoveEmptyWindows = true,
         autoRemoveInterval = 0.5,
+        batchAutoRemove = true,
         excludedWindows = {},
         windowPOpen = {}
     }

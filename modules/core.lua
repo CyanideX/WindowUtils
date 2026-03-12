@@ -34,8 +34,9 @@ local externalWindowStates = {}
 local windowCachePath = "data/window_cache.json"
 local windowCache = {}
 
--- Deferred snap operations (executed at end of draw)
+-- Deferred snap operations (executed at end of draw, table reused across frames)
 local deferredSnapOperations = {}
+local deferredSnapCount = 0
 
 -- Currently dragging window bounds (reused table, updated in place)
 local draggingWindowBounds = { x = 0, y = 0, width = 0, height = 0 }
@@ -66,6 +67,7 @@ local excludedWindowSet = {}
 -- Re-probe state
 local blockedReprobeTimer = 0  -- Timer for batch BLOCKED re-probe
 local activeReprobeTimer = 0   -- Timer for batch ACTIVE re-probe (auto-removal)
+local activeReprobeIndex = 0   -- Round-robin index for sequential auto-remove
 local lastFrameTime = 0
 
 -- Core exclusion list: known CET/ImGui internal windows that should never be managed
@@ -1055,7 +1057,8 @@ local function manageExternalWindow(windowName, state)
                         op.targetSizeX = targetSizeX
                         op.targetSizeY = targetSizeY
                     end
-                    table.insert(deferredSnapOperations, op)
+                    deferredSnapCount = deferredSnapCount + 1
+                    deferredSnapOperations[deferredSnapCount] = op
                 end
             end
         end
@@ -1094,6 +1097,9 @@ function core.updateExternalWindows()
     if not discovery.isAvailable() then
         return
     end
+
+    -- Invalidate discovery cache so this frame gets fresh data
+    discovery.invalidateCache()
 
     -- Get all active windows
     local windows = discovery.getActiveWindows()
@@ -1178,7 +1184,8 @@ function core.updateExternalWindows()
                             op.targetSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
                             op.targetSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
                         end
-                        table.insert(deferredSnapOperations, op)
+                        deferredSnapCount = deferredSnapCount + 1
+                    deferredSnapOperations[deferredSnapCount] = op
 
                         if t >= 1 then
                             state.animating = false
@@ -1186,8 +1193,17 @@ function core.updateExternalWindows()
                     end
                 end
 
+            elseif state.probePhase == PROBE_BLOCKED then
+                -- Discovery change tracking: detect if a mod started drawing this window
+                -- by comparing current discovery data to the snapshot taken when blocked.
+                local posChanged = windowInfo.posX ~= state.blockedPosX or windowInfo.posY ~= state.blockedPosY
+                local sizeChanged = windowInfo.sizeX ~= state.blockedSizeX or windowInfo.sizeY ~= state.blockedSizeY
+                if posChanged or sizeChanged then
+                    state.probePhase = PROBE_SKIP
+                    state.skipFrames = 0
+                end
+
             end
-            -- PROBE_BLOCKED: do nothing — detected via discovery change tracking or overlay reopen
         else
             -- Clean up stale external state for windows we're no longer managing
             local staleState = externalWindowStates[windowName]
@@ -1197,22 +1213,6 @@ function core.updateExternalWindows()
                     draggingWindowName = nil
                 end
                 externalWindowStates[windowName] = nil
-            end
-        end
-    end
-
-    -- Discovery change tracking: fast-track BLOCKED windows whose position/size
-    -- changed in discovery data (a mod started drawing them). No Begin() calls
-    -- needed — purely passive comparison. Detects newly-active windows within
-    -- 1-2 frames instead of the old N*interval round-robin.
-    for _, windowInfo in ipairs(windows) do
-        local state = externalWindowStates[windowInfo.name]
-        if state and state.probePhase == PROBE_BLOCKED then
-            local posChanged = windowInfo.posX ~= state.blockedPosX or windowInfo.posY ~= state.blockedPosY
-            local sizeChanged = windowInfo.sizeX ~= state.blockedSizeX or windowInfo.sizeY ~= state.blockedSizeY
-            if posChanged or sizeChanged then
-                state.probePhase = PROBE_SKIP
-                state.skipFrames = 0
             end
         end
     end
@@ -1239,24 +1239,49 @@ function core.updateExternalWindows()
         end
     end
 
-    -- Batch re-probe of ALL idle ACTIVE windows: detects empty shells (windows
-    -- a mod stopped drawing). Uses wasActive approach for minimal disruption:
-    -- 1 SKIP frame (mod keeps window alive) + 1 visible CHECK frame (no Alpha=0).
+    -- Re-probe idle ACTIVE windows to detect empty shells (windows a mod stopped
+    -- drawing). Uses wasActive approach for minimal disruption: 1 SKIP frame
+    -- (mod keeps window alive) + 1 visible CHECK frame (no Alpha=0).
     -- Same mechanism as overlay toggle, which is confirmed flicker-free.
     -- Busy windows (dragging, animating) are skipped.
+    -- Supports batch mode (all at once) or sequential mode (one-at-a-time round-robin).
     if settings.master.autoRemoveEmptyWindows then
         local autoRemoveInterval = settings.master.autoRemoveInterval or 0.5
         activeReprobeTimer = activeReprobeTimer + deltaTime
         if activeReprobeTimer >= autoRemoveInterval then
             activeReprobeTimer = activeReprobeTimer - autoRemoveInterval
-            for _, state in pairs(externalWindowStates) do
-                if state.probePhase == PROBE_ACTIVE
-                    and not state.isDragging
-                    and not state.animating
-                    and not state.pendingDragCheck
-                then
+
+            if settings.master.batchAutoRemove ~= false then
+                -- Batch: reset ALL idle ACTIVE windows at once
+                for _, state in pairs(externalWindowStates) do
+                    if state.probePhase == PROBE_ACTIVE
+                        and not state.isDragging
+                        and not state.animating
+                        and not state.pendingDragCheck
+                    then
+                        state.probePhase = PROBE_SKIP
+                        state.skipFrames = 1
+                        state.wasActive = true
+                        state.pendingDragCheck = false
+                    end
+                end
+            else
+                -- Sequential: reset one idle ACTIVE window per interval (round-robin)
+                local candidates = {}
+                for _, state in pairs(externalWindowStates) do
+                    if state.probePhase == PROBE_ACTIVE
+                        and not state.isDragging
+                        and not state.animating
+                        and not state.pendingDragCheck
+                    then
+                        candidates[#candidates + 1] = state
+                    end
+                end
+                if #candidates > 0 then
+                    activeReprobeIndex = (activeReprobeIndex % #candidates) + 1
+                    local state = candidates[activeReprobeIndex]
                     state.probePhase = PROBE_SKIP
-                    state.skipFrames = 1   -- wasActive: only 1 skip frame needed
+                    state.skipFrames = 1
                     state.wasActive = true
                     state.pendingDragCheck = false
                 end
@@ -1267,16 +1292,15 @@ end
 
 --- Process deferred snap operations (called at end of draw loop).
 function core.processDeferred()
-    for _, op in ipairs(deferredSnapOperations) do
-        -- Set position/size directly by window name to avoid conflicts with draw cycle
+    for i = 1, deferredSnapCount do
+        local op = deferredSnapOperations[i]
         ImGui.SetWindowPos(op.windowName, op.targetPosX, op.targetPosY)
         if op.targetSizeX and op.targetSizeY then
             ImGui.SetWindowSize(op.windowName, op.targetSizeX, op.targetSizeY)
         end
+        deferredSnapOperations[i] = nil
     end
-
-    -- Clear the queue
-    deferredSnapOperations = {}
+    deferredSnapCount = 0
 end
 
 --- Check if discovery plugin is available.
@@ -1309,6 +1333,7 @@ function core.resetExternalProbes()
     end
     blockedReprobeTimer = 0
     activeReprobeTimer = 0
+    activeReprobeIndex = 0
     lastFrameTime = 0
 end
 
