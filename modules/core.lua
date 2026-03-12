@@ -1216,12 +1216,9 @@ function core.updateExternalWindows()
         end
     end
 
-    -- Re-probe idle ACTIVE windows to detect empty shells (windows a mod stopped
-    -- drawing). Uses wasActive approach for minimal disruption: 1 SKIP frame
-    -- (mod keeps window alive) + 1 visible CHECK frame (no Alpha=0).
-    -- Same mechanism as overlay toggle, which is confirmed flicker-free.
+    -- Re-probe idle ACTIVE windows to detect empty shells.
     -- Busy windows (dragging, animating) are skipped.
-    -- Supports batch mode (all at once) or sequential mode (one-at-a-time round-robin).
+    -- Batch mode checks all at once; sequential checks one per interval.
     if settings.master.autoRemoveEmptyWindows then
         local autoRemoveInterval = settings.master.autoRemoveInterval or 0.5
         activeReprobeTimer = activeReprobeTimer + deltaTime

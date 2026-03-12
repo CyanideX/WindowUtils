@@ -215,12 +215,7 @@ end
 -- Grid Visualization
 --------------------------------------------------------------------------------
 
---- Calculate distance from a point to a rectangle (0 if inside, positive if outside).
--- @param px, py: Point coordinates
--- @param rx, ry: Rectangle top-left corner
--- @param rw, rh: Rectangle width and height
--- @param padding: Extra padding around rectangle (points within padding have distance 0)
--- @return number: Distance to rectangle edge (0 if inside or within padding)
+-- Distance from point to rectangle (0 if inside/within padding).
 local function distanceToRect(px, py, rx, ry, rw, rh, padding)
     padding = padding or 0
     local left = rx - padding
@@ -256,7 +251,7 @@ local function drawGridVisualization()
     local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
     local now = os.clock()
 
-    -- Draw dim background independently of grid visualization (with fade animation)
+    -- Dim background (independent of grid viz)
     if settings.master.gridDimBackground then
         local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
 
@@ -319,12 +314,11 @@ local function drawGridVisualization()
         elseif not anyDragging and gridFade.wasDragging then
             -- Stopped dragging - begin fade out
             gridFade.fadeStartTime = now
-            -- Preserve bounds, grid size, and window name for fade-out
+            -- Preserve state for fade-out
             gridFade.lastGridSize = core.getDraggingWindowGridSize()
             gridFade.lastWindowName = core.getDraggingWindowName()
-            -- Preserve bounds if feathering OR guides enabled (both need window position)
+            -- Deep copy bounds (reused table would go stale)
             if featherEnabled or (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) then
-                -- Deep copy bounds to avoid stale reference (draggingWindowBounds is reused)
                 local bounds = core.getDraggingWindowBounds()
                 if bounds then
                     gridFade.lastBounds = { x = bounds.x, y = bounds.y, width = bounds.width, height = bounds.height }
