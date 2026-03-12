@@ -2,22 +2,55 @@
 
 A universal library for ImGui window management in Cyber Engine Tweaks mods. Provides grid snapping, smooth animations, styled UI controls, tooltips, and collapse-safe window sizing.
 
+
+
+
 ## Quick Start
 
 ```lua
 local wu = GetMod("WindowUtils")
+```
 
--- Inside your onDraw callback:
-if ImGui.Begin("My Window") then
+`Update()` must be called between `ImGui.Begin()` and `ImGui.End()` so it can query window state. It must run every frame — including when the window is collapsed — so that collapsed windows still snap to the grid. There are two ways to structure this:
+
+### Option A: Early Return (recommended for existing mods)
+
+Minimal changes to the standard `if ImGui.Begin() then` pattern. Add a collapsed guard at the top, keep your content code flat:
+
+```lua
+if not ImGui.Begin("My Window") then
+    -- Window is collapsed — still update for grid snapping
+    if wu then wu.Update("My Window") end
+    ImGui.End()
+    return
+end
+
+-- Your UI code here (no extra nesting)...
+
+if wu then wu.Update("My Window") end
+ImGui.End()
+```
+
+Trade-off: `Update()` appears twice, but retrofitting an existing mod is just 4 added lines at the top.
+
+### Option B: Single Call
+
+One `Update()` call, but requires restructuring `Begin` out of the `if`:
+
+```lua
+ImGui.Begin("My Window")
+if wu then wu.Update("My Window") end
+
+if not ImGui.IsWindowCollapsed() then
     -- Your UI code here...
 end
 ImGui.End()
-
--- Call once per frame, after ImGui.End()
-wu.Update("My Window")
 ```
 
-That's it. `Update()` handles grid snapping, smooth animations, and collapse-safe sizing using the user's WindowUtils settings.
+Trade-off: no duplication, but content gets an extra indent level.
+
+
+
 
 ## Grid Snapping
 
@@ -44,6 +77,9 @@ local snapped = wu.SnapToGrid(posX, "My Window")
 local alignedMin = wu.GridAlignMin(value, "My Window")  -- round down
 local alignedMax = wu.GridAlignMax(value, "My Window")  -- round up
 ```
+
+
+
 
 ## Size Constraints
 
@@ -79,6 +115,29 @@ if wu.IsConstraintAnimating("maxWidth") then ... end
 if wu.IsAnyConstraintAnimating() then ... end
 ```
 
+
+
+
+## Collapsed Window Sizing
+
+WindowUtils automatically tracks each window's expanded size and restores it when the window is un-collapsed. This prevents the common ImGui problem where collapsing and expanding a window resets its size when managing through Window Utils.
+
+```lua
+-- Query the remembered expanded size (even while collapsed)
+local w, h = wu.GetExpandedSize("My Window")
+
+-- Collapsed windows can still snap to grid (enabled by default)
+-- Disable per-window if needed:
+wu.SetWindowConfig("My Window", { snapCollapsed = false })
+```
+
+The `snapCollapsed` setting (default: `true`) controls whether collapsed windows snap when dragged. When enabled, grid snapping uses the remembered expanded size for alignment — so the window lands on a correct grid position for when it's expanded again, not based on the narrow collapsed title bar width.
+
+`Update()` handles all of this automatically — no extra code needed beyond the standard call.
+
+
+
+
 ## Animations
 
 ### Easing Functions
@@ -104,6 +163,9 @@ end
 wu.CompleteAnimation("My Window")  -- skip to end
 wu.ResetWindow("My Window")       -- clear all tracking data
 ```
+
+
+
 
 ## UI Controls
 
@@ -227,6 +289,9 @@ controls.Separator(4, 4)                -- spacing before/after
 controls.SectionHeader("Section", 8, 4) -- labeled separator
 ```
 
+
+
+
 ## Tooltips
 
 Tooltip helpers that handle `IsItemHovered()` checks internally. Call after any ImGui widget.
@@ -275,6 +340,9 @@ tips.ShowBullets("Options:", {"First", "Second", "Third"})
 ```lua
 tips.ShowIf("Only when true", someCondition)
 ```
+
+
+
 
 ## Styles
 
@@ -345,6 +413,9 @@ styles.spacing.framePaddingY  -- 6
 styles.spacing.itemSpacingX   -- 6
 styles.spacing.itemSpacingY   -- 8
 ```
+
+
+
 
 ## Settings API
 
@@ -421,6 +492,9 @@ wu.Configure(mySettingsObject)
 --   tooltipsEnabled  -> "tooltipsEnabled"
 ```
 
+
+
+
 ## Per-Window Configuration
 
 Override settings for specific windows:
@@ -450,6 +524,9 @@ wu.SetGlobalDefaults({
     animationDuration = 0.15
 })
 ```
+
+
+
 
 ## Settings Reference
 
@@ -489,6 +566,9 @@ wu.SetGlobalDefaults({
 | `batchAutoRemove` | boolean | true | Check all windows at once vs round-robin |
 | `excludedWindows` | table | {} | Window names excluded from external management |
 | `windowPOpen` | table | {} | Per-window close button overrides |
+
+
+
 
 ## Right-Click Reset
 
