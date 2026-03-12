@@ -3,71 +3,11 @@
 -- Handles persistence and configuration management
 ------------------------------------------------------
 
----@class WindowUtilsSettingsValues
----@field gridUnits number Grid size multiplier (gridUnits * GRID_UNIT_SIZE = pixels)
----@field gridEnabled boolean Enable grid snapping
----@field snapCollapsed boolean Snap collapsed windows when dragged
----@field gridVisualizationEnabled boolean Show grid overlay
----@field gridLineThickness number Grid line thickness in pixels
----@field gridLineColor number[] RGBA color {r, g, b, a} values 0-1
----@field gridShowOnDragOnly boolean Only show grid while dragging
----@field animationEnabled boolean Enable snap animations
----@field animationDuration number Animation duration in seconds
----@field easeFunction string Easing function name
----@field tooltipsEnabled boolean Show tooltips
----@field debugOutput boolean Print debug messages to console
----@field overrideAllWindows boolean Apply to all CET windows
----@field gridFeatherEnabled boolean Enable grid feathering
----@field gridFeatherRadius number Feather radius in pixels
----@field gridFeatherPadding number Feather padding in pixels
----@field gridFeatherCurve number Feather curve exponent
----@field gridGuidesEnabled boolean Show alignment guide lines at window edges
----@field gridGuidesDimming number Grid opacity multiplier when guides active (0-1)
----@field gridDimBackground boolean Dim background behind grid and windows
----@field gridDimBackgroundOnDragOnly boolean Only dim background while dragging windows
----@field gridDimBackgroundOpacity number Background dimming opacity (0-1)
----@field showSettingsWindow boolean Show the settings window
----@field blurOnOverlayOpen boolean Blur background when CET overlay opens
----@field blurOnDragOnly boolean Only blur while dragging windows
----@field blurIntensity number Blur intensity (0.0-0.02)
----@field blurFadeInDuration number Blur fade-in duration in seconds
----@field blurFadeOutDuration number Blur fade-out duration in seconds
----@field probeInterval number Seconds between periodic window re-probes (0.1-5.0)
----@field autoRemoveEmptyWindows boolean Auto-remove windows that fail re-probe
----@field autoRemoveInterval number Seconds between batch auto-remove checks (0.1-5.0)
----@field batchAutoRemove boolean Use batch mode for auto-remove checks (all windows at once vs one-at-a-time)
----@field excludedWindows string[] Window names excluded from external management
----@field windowPOpen table<string, boolean> Per-window p_open (close button) overrides
+local settings = {}
 
----@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
----@field enabled boolean Master override enabled
-
----@class WindowUtilsSettings
----@field GRID_UNIT_SIZE number Base grid unit in pixels
----@field defaults WindowUtilsSettingsValues Global default settings
----@field master WindowUtilsMasterSettings Master override settings
----@field windowConfigs table<string, table> Per-window configuration overrides
----@field external table|nil External settings reference
----@field KEY_MAP table<string, string> Internal to external key mapping
----@field easingNames string[] Available easing function names
----@field load fun(): boolean Load settings from file
----@field save fun(): boolean Save settings to file
----@field reset fun() Reset settings to defaults
----@field reload fun() Reload settings from file
----@field setDefaults fun(config: table) Set global defaults
----@field configure fun(settingsObj: table) Configure with external settings
----@field setWindowConfig fun(windowName: string, config: table) Set per-window config
----@field clearWindowConfig fun(windowName: string) Clear per-window config
----@field getValidGridUnits fun(maxUnits?: number): number[] Get valid grid units
----@field getConfig fun(windowName: string|nil, key: string): any Get effective config value
-local settings = {} ---@type WindowUtilsSettings
-
--- Settings file path
 local settingsPath = "data/settings.json"
 
---------------------------------------------------------------------------------
 -- Mod Identity
---------------------------------------------------------------------------------
 
 settings.NAME = "Window Utils"
 settings.ICON = IconGlyphs.WindowMaximize
@@ -79,16 +19,11 @@ function settings.debugPrint(message, forced)
     end
 end
 
---------------------------------------------------------------------------------
 -- Grid Constants
---------------------------------------------------------------------------------
 
--- Grid unit size in pixels (hardcoded base unit)
 settings.GRID_UNIT_SIZE = 20
 
---------------------------------------------------------------------------------
 -- Default Settings Factory
---------------------------------------------------------------------------------
 
 local function createDefaultSettings()
     return {
@@ -129,21 +64,15 @@ local function createDefaultSettings()
     }
 end
 
--- Global defaults (can be changed via SetGlobalDefaults)
 settings.defaults = createDefaultSettings()
 
--- Master settings (highest priority when enabled, persisted to JSON)
--- Note: 'enabled' is a master-only control flag, not a setting value
 settings.master = createDefaultSettings()
-settings.master.enabled = false
+settings.master.enabled = false -- control flag, not a persisted setting
 
--- Per-window configuration overrides
 settings.windowConfigs = {}
 
--- External settings reference (set via configure())
 settings.external = nil
 
--- Map from internal keys to external setting keys
 settings.KEY_MAP = {
     gridUnits = "windowGridUnits",
     gridEnabled = "windowGridEnabled",
@@ -153,18 +82,11 @@ settings.KEY_MAP = {
     tooltipsEnabled = "tooltipsEnabled"
 }
 
--- Easing function keys (internal, for function lookup)
 settings.easingKeys = {"linear", "easeIn", "easeOut", "easeInOut", "bounce"}
-
--- Easing display names (for UI dropdown)
 settings.easingNames = {"Linear", "Ease In", "Ease Out", "Ease In-Out", "Bounce"}
 
---------------------------------------------------------------------------------
 -- Persistence
---------------------------------------------------------------------------------
 
---- Load settings from file.
--- @return boolean: True if settings were loaded successfully
 function settings.load()
     local file = io.open(settingsPath, "r")
     if not file then
@@ -196,8 +118,6 @@ function settings.load()
     return true
 end
 
---- Save settings to file.
--- @return boolean: True if settings were saved successfully
 function settings.save()
     if not settings.master then
         settings.debugPrint("Cannot save: master settings not initialized", true)
@@ -221,7 +141,6 @@ function settings.save()
     return true
 end
 
---- Reset settings to defaults.
 function settings.reset()
     settings.master = createDefaultSettings()
     settings.master.enabled = false
@@ -229,17 +148,13 @@ function settings.reset()
     settings.debugPrint("Settings reset to defaults", true)
 end
 
---- Reload settings from file.
 function settings.reload()
     settings.load()
     settings.debugPrint("Settings reloaded")
 end
 
---------------------------------------------------------------------------------
 -- Configuration API
---------------------------------------------------------------------------------
 
---- Set global default configuration.
 function settings.setDefaults(config)
     for key, value in pairs(config) do
         if settings.defaults[key] ~= nil then
@@ -254,7 +169,6 @@ function settings.configure(settingsObj)
     settings.debugPrint("Configured", true)
 end
 
---- Set configuration for a specific window.
 function settings.setWindowConfig(windowName, config)
     if not settings.windowConfigs[windowName] then
         settings.windowConfigs[windowName] = {}
@@ -264,7 +178,6 @@ function settings.setWindowConfig(windowName, config)
     end
 end
 
---- Clear configuration for a specific window.
 function settings.clearWindowConfig(windowName)
     settings.windowConfigs[windowName] = nil
 end
@@ -289,22 +202,18 @@ end
 --- Get effective configuration value for a window.
 -- Priority: master settings (if enabled) > per-window override > external settings > global defaults
 function settings.getConfig(windowName, key)
-    -- Master settings take highest priority when enabled
     if settings.master.enabled and settings.master[key] ~= nil then
         return settings.master[key]
     end
-    -- Per-window override takes next priority
     if settings.windowConfigs[windowName] and settings.windowConfigs[windowName][key] ~= nil then
         return settings.windowConfigs[windowName][key]
     end
-    -- External settings (via configure()) take next priority
     if settings.external and settings.external.Current then
         local externalKey = settings.KEY_MAP[key]
         if externalKey and settings.external.Current[externalKey] ~= nil then
             return settings.external.Current[externalKey]
         end
     end
-    -- Fall back to defaults
     return settings.defaults[key]
 end
 
