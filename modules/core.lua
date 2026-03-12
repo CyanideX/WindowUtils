@@ -305,8 +305,8 @@ local function getWindowState(windowName)
             targetSizeX = 0,
             targetSizeY = 0,
             isDragging = false,
-            expandedSizeX = nil,
-            expandedSizeY = nil,
+            expandedSizeX = windowCache[windowName] and windowCache[windowName].width or nil,
+            expandedSizeY = windowCache[windowName] and windowCache[windowName].height or nil,
             wasCollapsed = false,
             -- Pending drag check (detects child element drags vs window drags)
             pendingDragCheck = false,
@@ -412,6 +412,12 @@ function core.update(windowName, options)
     if not isCollapsed then
         state.expandedSizeX = currentSizeX
         state.expandedSizeY = currentSizeY
+        if not windowCache[windowName]
+            or windowCache[windowName].width ~= currentSizeX
+            or windowCache[windowName].height ~= currentSizeY
+        then
+            windowCache[windowName] = { width = currentSizeX, height = currentSizeY }
+        end
     end
 
     -- Restore size when expanding from collapsed state
