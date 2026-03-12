@@ -63,8 +63,10 @@ local gridSizeCache = {}
 -- Exclusion set (hash table for fast lookup, rebuilt from settings.master.excludedWindows)
 local excludedWindowSet = {}
 
--- Re-probe state (batch BLOCKED re-probe for fast detection)
+-- Re-probe state
 local blockedReprobeTimer = 0  -- Timer for batch BLOCKED re-probe
+local activeReprobeTimer = 0   -- Timer for one-at-a-time ACTIVE re-probe (auto-removal)
+local activeReprobeIndex = 0   -- Round-robin index for active re-probe
 local lastFrameTime = 0
 
 -- Core exclusion list: known CET/ImGui internal windows that should never be managed
@@ -1205,7 +1207,7 @@ function core.updateExternalWindows()
         end
     end
 
-    -- Timekeeping for batch BLOCKED re-probe
+    -- Timekeeping (shared by re-probe timers below)
     local now = os.clock()
     local deltaTime = lastFrameTime > 0 and (now - lastFrameTime) or 0
     lastFrameTime = now
@@ -1223,6 +1225,42 @@ function core.updateExternalWindows()
             if state.probePhase == PROBE_BLOCKED then
                 state.probePhase = PROBE_SKIP
                 state.skipFrames = 0
+            end
+        end
+    end
+
+    -- One-at-a-time re-probe of ACTIVE windows: detects empty shells (windows
+    -- a mod stopped drawing). Uses wasActive approach for minimal disruption:
+    -- 1 SKIP frame (mod keeps window alive) + 1 visible CHECK frame (no Alpha=0).
+    -- With N active windows and interval=0.5s, each window is checked once every
+    -- N*0.5s — imperceptible since the overlay toggle does the same for ALL at once.
+    if settings.master.autoRemoveEmptyWindows then
+        activeReprobeTimer = activeReprobeTimer + deltaTime
+        if activeReprobeTimer >= interval then
+            activeReprobeTimer = activeReprobeTimer - interval
+
+            -- Collect idle ACTIVE windows (skip busy ones)
+            local activeList = {}
+            for name, state in pairs(externalWindowStates) do
+                if state.probePhase == PROBE_ACTIVE
+                    and not state.isDragging
+                    and not state.animating
+                    and not state.pendingDragCheck
+                then
+                    activeList[#activeList + 1] = name
+                end
+            end
+
+            if #activeList > 0 then
+                activeReprobeIndex = (activeReprobeIndex % #activeList) + 1
+                local name = activeList[activeReprobeIndex]
+                local state = externalWindowStates[name]
+                if state then
+                    state.probePhase = PROBE_SKIP
+                    state.skipFrames = 1   -- wasActive: only 1 skip frame needed
+                    state.wasActive = true
+                    state.pendingDragCheck = false
+                end
             end
         end
     end
@@ -1271,6 +1309,7 @@ function core.resetExternalProbes()
         end
     end
     blockedReprobeTimer = 0
+    activeReprobeTimer = 0
     lastFrameTime = 0
 end
 
