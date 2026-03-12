@@ -65,8 +65,7 @@ local excludedWindowSet = {}
 
 -- Re-probe state
 local blockedReprobeTimer = 0  -- Timer for batch BLOCKED re-probe
-local activeReprobeTimer = 0   -- Timer for one-at-a-time ACTIVE re-probe (auto-removal)
-local activeReprobeIndex = 0   -- Round-robin index for active re-probe
+local activeReprobeTimer = 0   -- Timer for batch ACTIVE re-probe (auto-removal)
 local lastFrameTime = 0
 
 -- Core exclusion list: known CET/ImGui internal windows that should never be managed
@@ -826,6 +825,7 @@ local function getExternalWindowState(windowName)
             blockedSizeX = 0,
             blockedSizeY = 0,
             wasActive = false,
+            wasFocused = false,
         }
     end
     return externalWindowStates[windowName]
@@ -1070,6 +1070,16 @@ local function manageExternalWindow(windowName, state)
         draggingWindowName = nil
     end
 
+    -- Click-to-clean: when user focuses a window, trigger immediate re-probe
+    -- to detect empty shells. Real windows seamlessly return to ACTIVE.
+    if isFocused and not state.wasFocused then
+        state.probePhase = PROBE_SKIP
+        state.skipFrames = 1
+        state.wasActive = true
+        state.pendingDragCheck = false
+    end
+    state.wasFocused = isFocused
+
     ImGui.End()
 end
 
@@ -1229,33 +1239,22 @@ function core.updateExternalWindows()
         end
     end
 
-    -- One-at-a-time re-probe of ACTIVE windows: detects empty shells (windows
+    -- Batch re-probe of ALL idle ACTIVE windows: detects empty shells (windows
     -- a mod stopped drawing). Uses wasActive approach for minimal disruption:
     -- 1 SKIP frame (mod keeps window alive) + 1 visible CHECK frame (no Alpha=0).
-    -- With N active windows and interval=0.5s, each window is checked once every
-    -- N*0.5s — imperceptible since the overlay toggle does the same for ALL at once.
+    -- Same mechanism as overlay toggle, which is confirmed flicker-free.
+    -- Busy windows (dragging, animating) are skipped.
     if settings.master.autoRemoveEmptyWindows then
+        local autoRemoveInterval = settings.master.autoRemoveInterval or 0.5
         activeReprobeTimer = activeReprobeTimer + deltaTime
-        if activeReprobeTimer >= interval then
-            activeReprobeTimer = activeReprobeTimer - interval
-
-            -- Collect idle ACTIVE windows (skip busy ones)
-            local activeList = {}
-            for name, state in pairs(externalWindowStates) do
+        if activeReprobeTimer >= autoRemoveInterval then
+            activeReprobeTimer = activeReprobeTimer - autoRemoveInterval
+            for _, state in pairs(externalWindowStates) do
                 if state.probePhase == PROBE_ACTIVE
                     and not state.isDragging
                     and not state.animating
                     and not state.pendingDragCheck
                 then
-                    activeList[#activeList + 1] = name
-                end
-            end
-
-            if #activeList > 0 then
-                activeReprobeIndex = (activeReprobeIndex % #activeList) + 1
-                local name = activeList[activeReprobeIndex]
-                local state = externalWindowStates[name]
-                if state then
                     state.probePhase = PROBE_SKIP
                     state.skipFrames = 1   -- wasActive: only 1 skip frame needed
                     state.wasActive = true

@@ -782,7 +782,7 @@ function ui.drawSettingsWindow()
             IconGlyphs.TimerSand, "probeInterval",
             interval, 0.1, 5.0, "%.1f s", nil,
             settings.defaults.probeInterval,
-            "Re-Probe Interval\nHow often to check if managed windows are still being drawn"
+            "Re-Probe Interval\nHow often to scan for newly-drawn windows"
         )
         if changed then
             settings.master.probeInterval = interval
@@ -793,10 +793,24 @@ function ui.drawSettingsWindow()
             "Auto-Remove Empty Windows",
             settings.master.autoRemoveEmptyWindows,
             settings.defaults.autoRemoveEmptyWindows,
-            "Automatically stop managing windows that are no longer drawn by any mod",
+            "Automatically stop managing windows that are no longer drawn by any mod\nAlso removes empty shells instantly when clicked",
             true
         )
         if changed then settings.save() end
+
+        if settings.master.autoRemoveEmptyWindows then
+            local arInterval = settings.master.autoRemoveInterval
+            arInterval, changed = controls.SliderFloat(
+                IconGlyphs.TimerSand, "autoRemoveInterval",
+                arInterval, 0.1, 5.0, "%.1f s", nil,
+                settings.defaults.autoRemoveInterval,
+                "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing"
+            )
+            if changed then
+                settings.master.autoRemoveInterval = arInterval
+                settings.save()
+            end
+        end
 
         if controls.Button("Window Browser", "inactive", ImGui.GetContentRegionAvail(), 0) then
             browser.toggle()

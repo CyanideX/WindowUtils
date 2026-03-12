@@ -34,6 +34,7 @@
 ---@field blurFadeOutDuration number Blur fade-out duration in seconds
 ---@field probeInterval number Seconds between periodic window re-probes (0.1-5.0)
 ---@field autoRemoveEmptyWindows boolean Auto-remove windows that fail re-probe
+---@field autoRemoveInterval number Seconds between batch auto-remove checks (0.1-5.0)
 ---@field excludedWindows string[] Window names excluded from external management
 ---@field windowPOpen table<string, boolean> Per-window p_open (close button) overrides
 
@@ -126,6 +127,7 @@ local function createDefaultSettings()
         blurFadeOutDuration = 0.05,
         probeInterval = 0.5,
         autoRemoveEmptyWindows = true,
+        autoRemoveInterval = 0.5,
         excludedWindows = {},
         windowPOpen = {}
     }
