@@ -551,7 +551,7 @@ function ui.drawSettingsWindow()
 
         if settings.master.gridShowOnDragOnly then
             ImGui.SameLine()
-            settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid")
+            settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis")
             if changed then settings.save() end
 
             if settings.master.gridGuidesEnabled then
@@ -630,54 +630,61 @@ function ui.drawSettingsWindow()
     end
 
     -- Blur settings
-    if not ui.isBlurAvailable() then
-        controls.TextWarning("BlurUtils Not Installed")
-    else
-        settings.master.blurOnOverlayOpen, changed = controls.Checkbox("Blur on Overlay Open", settings.master.blurOnOverlayOpen, settings.defaults.blurOnOverlayOpen, "Blur Game Background When CET Overlay Opens")
+    local blurAvailable = ui.isBlurAvailable()
+
+    if not blurAvailable then
+        ImGui.BeginDisabled()
+    end
+
+    local blurValue = blurAvailable and settings.master.blurOnOverlayOpen or false
+    blurValue, changed = controls.Checkbox("Blur on Overlay Open", blurValue, settings.defaults.blurOnOverlayOpen, blurAvailable and "Blur Game Background When CET Overlay Opens" or "Download the required library files")
+    if changed and blurAvailable then
+        settings.master.blurOnOverlayOpen = blurValue
+        settings.save()
+        if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
+            ui.enableBlur()
+        elseif not settings.master.blurOnOverlayOpen then
+            ui.disableBlur()
+        end
+    end
+
+    if not blurAvailable then
+        ImGui.EndDisabled()
+        controls.TextWarning("XUtils Not Installed")
+    end
+
+    if settings.master.blurOnOverlayOpen and blurAvailable then
+        ImGui.SameLine()
+        settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
         if changed then
             settings.save()
-            -- Apply or remove blur immediately based on new setting
-            if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
+            if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
                 ui.enableBlur()
-            elseif not settings.master.blurOnOverlayOpen then
+            elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
                 ui.disableBlur()
             end
         end
 
-        if settings.master.blurOnOverlayOpen then
-            ImGui.SameLine()
-            settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
-            if changed then
-                settings.save()
-                -- If turning off drag-only while overlay is open, enable blur now
-                if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
-                    ui.enableBlur()
-                elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
-                    ui.disableBlur()
-                end
-            end
+        local intensity = settings.master.blurIntensity
+        intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
+        if changed then
+            settings.master.blurIntensity = intensity
+            settings.save()
+            ui.updateBlurIntensity(intensity)
+        end
 
-            local intensity = settings.master.blurIntensity
-            intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
-            if changed then
-                settings.master.blurIntensity = intensity
-                settings.save()
-                ui.updateBlurIntensity(intensity)
-            end
+        local fadeIn = settings.master.blurFadeInDuration
+        fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
+        if changed then
+            settings.master.blurFadeInDuration = fadeIn
+            settings.save()
+        end
 
-            local fadeIn = settings.master.blurFadeInDuration
-            fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
-            if changed then
-                settings.master.blurFadeInDuration = fadeIn
-                settings.save()
-            end
-
-            local fadeOut = settings.master.blurFadeOutDuration
-            fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
-            if changed then
-                settings.master.blurFadeOutDuration = fadeOut
-                settings.save()
-            end
+        local fadeOut = settings.master.blurFadeOutDuration
+        fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
+        if changed then
+            settings.master.blurFadeOutDuration = fadeOut
+            settings.save()
         end
     end
 
