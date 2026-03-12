@@ -766,17 +766,20 @@ function ui.drawSettingsWindow()
 
     -- Experimental settings
     controls.SectionHeader("Experimental", 10, 0)
-    settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nDoes not work with collapsed windows and may break the grid.\nMay conflict with windows using older versions of WindowUtils.", true)
-    if changed then
-        settings.save()
-        core.invalidateGridCache()  -- Clear cached grid sizes when override changes
-    end
 
-    if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
+    local discoveryAvailable = core.isDiscoveryAvailable()
+
+    if discoveryAvailable then
+        settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nDoes not work with collapsed windows and may break the grid.\nMay conflict with windows using older versions of WindowUtils.", true)
+        if changed then
+            settings.save()
+            core.invalidateGridCache()  -- Clear cached grid sizes when override changes
+        end
+    else
         controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
     end
 
-    if settings.master.overrideAllWindows then
+    if settings.master.overrideAllWindows and discoveryAvailable then
         local interval = settings.master.probeInterval
         interval, changed = controls.SliderFloat(
             IconGlyphs.TimerSand, "probeInterval",
