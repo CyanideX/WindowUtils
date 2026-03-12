@@ -32,6 +32,10 @@
 ---@field blurIntensity number Blur intensity (0.0-0.02)
 ---@field blurFadeInDuration number Blur fade-in duration in seconds
 ---@field blurFadeOutDuration number Blur fade-out duration in seconds
+---@field probeInterval number Seconds between periodic window re-probes (0.1-5.0)
+---@field autoRemoveEmptyWindows boolean Auto-remove windows that fail re-probe
+---@field excludedWindows string[] Window names excluded from external management
+---@field windowPOpen table<string, boolean> Per-window p_open (close button) overrides
 
 ---@class WindowUtilsMasterSettings : WindowUtilsSettingsValues
 ---@field enabled boolean Master override enabled
@@ -119,7 +123,11 @@ local function createDefaultSettings()
         blurOnDragOnly = true,
         blurIntensity = 0.0028,
         blurFadeInDuration = 0.25,
-        blurFadeOutDuration = 0.05
+        blurFadeOutDuration = 0.05,
+        probeInterval = 0.5,
+        autoRemoveEmptyWindows = true,
+        excludedWindows = {},
+        windowPOpen = {}
     }
 end
 

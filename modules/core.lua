@@ -60,6 +60,18 @@ local dragStartPos = {
 -- Grid size cache (avoids recalculating every frame)
 local gridSizeCache = {}
 
+-- Exclusion set (hash table for fast lookup, rebuilt from settings.master.excludedWindows)
+local excludedWindowSet = {}
+
+-- Re-probe state (batch BLOCKED re-probe for fast detection)
+local blockedReprobeTimer = 0  -- Timer for batch BLOCKED re-probe
+local lastFrameTime = 0
+
+-- Core exclusion list: known CET/ImGui internal windows that should never be managed
+local coreExcludedWindows = {
+    ["Debug##Default"] = true,
+}
+
 --------------------------------------------------------------------------------
 -- Drag Helper Functions
 --------------------------------------------------------------------------------
@@ -416,6 +428,8 @@ function core.update(windowName, options)
         if state.expandedSizeX and state.expandedSizeY then
             ImGui.SetWindowSize(windowName, state.expandedSizeX, state.expandedSizeY)
         end
+        -- Reset drag baseline so the next drag captures the new expanded size
+        state.pendingDragCheck = false
     end
     state.wasCollapsed = isCollapsed
 
@@ -484,6 +498,12 @@ function core.update(windowName, options)
                 end
             end
             -- else: was a child element drag (splitter, etc.) - do nothing
+        elseif state.pendingDragCheck and not isFocused then
+            -- Focus lost mid-drag — reset drag state to prevent getting stuck
+            state.pendingDragCheck = false
+            state.isDragging = false
+            axisLock.active = false
+            axisLock.axis = nil
         end
     end
 
@@ -790,18 +810,43 @@ local function getExternalWindowState(windowName)
             targetSizeX = 0,
             targetSizeY = 0,
             probePhase = PROBE_SKIP,
+            skipFrames = 0,
             expandedSizeX = windowCache[windowName] and windowCache[windowName].width or nil,
             expandedSizeY = windowCache[windowName] and windowCache[windowName].height or nil,
-            wasCollapsed = false
+            wasCollapsed = false,
+            pendingDragCheck = false,
+            dragCheckPosX = 0,
+            dragCheckPosY = 0,
+            dragCheckSizeX = 0,
+            dragCheckSizeY = 0,
+            blockedPosX = 0,
+            blockedPosY = 0,
+            blockedSizeX = 0,
+            blockedSizeY = 0,
+            wasActive = false,
         }
     end
     return externalWindowStates[windowName]
 end
 
+--- Rebuild the exclusion set from settings for fast lookup.
+function core.rebuildExclusionSet()
+    excludedWindowSet = {}
+    if settings.master.excludedWindows then
+        for _, name in ipairs(settings.master.excludedWindows) do
+            excludedWindowSet[name] = true
+        end
+    end
+end
+
 --- Check if a window should be managed externally.
 local function shouldManageWindow(windowName)
-    -- Skip windows with ## (ImGui hidden/ID windows)
-    if windowName:find("##", 1, true) then
+    -- Skip known CET/ImGui internal windows
+    if coreExcludedWindows[windowName] then
+        return false
+    end
+    -- Skip windows on the user exclusion list
+    if excludedWindowSet[windowName] then
         return false
     end
     -- Skip windows already managed internally
@@ -819,28 +864,58 @@ local function shouldManageWindow(windowName)
     return true
 end
 
+--- Flags for invisible probe: prevent the probe window from stealing focus,
+--- changing Z-order, or capturing input from the user's active window.
+local PROBE_FLAGS = ImGuiWindowFlags.NoFocusOnAppearing
+    + ImGuiWindowFlags.NoBringToFrontOnFocus
+    + ImGuiWindowFlags.NoInputs
+    + ImGuiWindowFlags.NoNav
+
 --- Invisible probe: call Begin with Alpha=0, check IsWindowAppearing().
 -- Returns true if window is active (another mod rendered it), false if inactive.
+-- Uses PROBE_FLAGS to prevent focus stealing and Z-order disruption.
+-- Note: Begin() returns false for collapsed windows, but IsWindowAppearing()
+-- still works inside the Begin/End block regardless of collapse state.
 local function probeWindowActivity(windowName)
     ImGui.PushStyleVar(ImGuiStyleVar.Alpha, 0)
     ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0)
-    local began = ImGui.Begin(windowName, true)
-    local active = false
-    if began then
-        active = not ImGui.IsWindowAppearing()
-        ImGui.End()
-    end
+    ImGui.Begin(windowName, true, PROBE_FLAGS)
+    local active = not ImGui.IsWindowAppearing()
+    ImGui.End()
     ImGui.PopStyleVar(2)
     return active
 end
 
 --- Manage a confirmed-active external window: drag detection, snap, animation.
+-- Uses per-window p_open setting: when enabled, passes true to Begin() so the
+-- close button is preserved for windows that use it. Default is no p_open.
 local function manageExternalWindow(windowName, state)
-    if not ImGui.Begin(windowName, true) then
-        return
-    end
+    local usePOpen = settings.master.windowPOpen and settings.master.windowPOpen[windowName]
+    local visible
+    if usePOpen then
+        local open
+        visible, open = ImGui.Begin(windowName, true)
+        if not open then
+            -- User closed via X button — transition to blocked
+            ImGui.End()
+            state.probePhase = PROBE_BLOCKED
+            state.blockedPosX = 0
+            state.blockedPosY = 0
+            state.blockedSizeX = 0
+            state.blockedSizeY = 0
+            state.isDragging = false
+            state.pendingDragCheck = false
 
-    local isCollapsed = ImGui.IsWindowCollapsed()
+            return
+        end
+    else
+        visible = ImGui.Begin(windowName)
+    end
+    -- NOTE: Don't return early when not visible (collapsed windows) — we still
+    -- need drag detection, grid snapping, collapse tracking, and size restoration.
+    -- All ImGui state queries work inside Begin/End regardless of collapse state.
+
+    local isCollapsed = not visible
     local currentPosX, currentPosY = ImGui.GetWindowPos()
 
     -- Skip windows at extreme offscreen positions (likely hidden by another mod)
@@ -866,6 +941,8 @@ local function manageExternalWindow(windowName, state)
             currentSizeX = state.expandedSizeX
             currentSizeY = state.expandedSizeY
         end
+        -- Reset drag baseline so the next drag captures the new expanded size
+        state.pendingDragCheck = false
     end
     state.wasCollapsed = isCollapsed
 
@@ -889,21 +966,47 @@ local function manageExternalWindow(windowName, state)
     local allowSnapCollapsed = settings.master.snapCollapsed
 
     if isFocused and isDragging then
-        if not state.isDragging then
+        -- Record baseline position/size when any drag starts in focused window
+        if not state.pendingDragCheck then
+            state.pendingDragCheck = true
+            state.dragCheckPosX = currentPosX
+            state.dragCheckPosY = currentPosY
+            state.dragCheckSizeX = currentSizeX
+            state.dragCheckSizeY = currentSizeY
             dragStartPos.x = currentPosX
             dragStartPos.y = currentPosY
         end
 
-        state.isDragging = true
-        state.animating = false
+        -- Check if window is actually moving/resizing (not a child element drag like a slider)
+        local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
+        local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
 
-        currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
-        updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
+        if posChanged or sizeChanged then
+            state.isDragging = true
+            state.animating = false
 
-    elseif state.isDragging and isReleased then
+            currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
+            updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
+        end
+
+    elseif state.pendingDragCheck and isReleased then
+        -- Mouse released - check if window position/size changed from baseline
+        local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
+        local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
+
+        state.pendingDragCheck = false
         state.isDragging = false
         axisLock.active = false
         axisLock.axis = nil
+
+        if not posChanged and not sizeChanged then
+            -- Was a child element drag (slider, color picker, etc.) - do nothing
+            draggingWindowBoundsValid = false
+            draggingWindowName = nil
+            ImGui.End()
+            return
+        end
+
         core.saveWindowCache()
 
         local gridEnabled = settings.master.gridEnabled
@@ -923,10 +1026,10 @@ local function manageExternalWindow(windowName, state)
                 targetSizeY = core.snapToGrid(currentSizeY, windowName)
             end
 
-            local posChanged = targetX ~= currentPosX or targetY ~= currentPosY
-            local sizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
+            local snapPosChanged = targetX ~= currentPosX or targetY ~= currentPosY
+            local snapSizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
 
-            if posChanged or sizeChanged then
+            if snapPosChanged or snapSizeChanged then
                 if settings.master.animationEnabled then
                     state.animating = true
                     state.animationStartTime = os.clock()
@@ -954,6 +1057,15 @@ local function manageExternalWindow(windowName, state)
                 end
             end
         end
+
+    elseif state.pendingDragCheck and not isFocused then
+        -- Focus lost mid-drag — reset drag state to prevent getting stuck
+        state.pendingDragCheck = false
+        state.isDragging = false
+        axisLock.active = false
+        axisLock.axis = nil
+        draggingWindowBoundsValid = false
+        draggingWindowName = nil
     end
 
     ImGui.End()
@@ -986,15 +1098,45 @@ function core.updateExternalWindows()
 
             if state.probePhase == PROBE_SKIP then
                 -- Don't call Begin — let window go inactive if no mod renders it.
-                state.probePhase = PROBE_CHECK
+                -- Wait 2 frames before probing for more reliable IsWindowAppearing().
+                state.skipFrames = (state.skipFrames or 0) + 1
+                if state.skipFrames >= 2 then
+                    state.probePhase = PROBE_CHECK
+                end
 
             elseif state.probePhase == PROBE_CHECK then
-                -- Invisible probe: Alpha=0, check if another mod rendered last frame
-                if probeWindowActivity(windowName) then
+                -- Probe: check if another mod rendered last frame
+                local active
+                if state.wasActive then
+                    -- Visible probe for previously-active windows (avoids Alpha=0 flicker)
+                    ImGui.Begin(windowName)
+                    active = not ImGui.IsWindowAppearing()
+                    ImGui.End()
+                    state.wasActive = false
+                else
+                    -- Invisible probe for previously-blocked (avoids ghost windows)
+                    active = probeWindowActivity(windowName)
+                end
+
+                if active then
                     state.probePhase = PROBE_ACTIVE
                 else
                     state.probePhase = PROBE_BLOCKED
                     state.animating = false
+                    -- Store discovery snapshot for change tracking
+                    state.blockedPosX = windowInfo.posX
+                    state.blockedPosY = windowInfo.posY
+                    state.blockedSizeX = windowInfo.sizeX
+                    state.blockedSizeY = windowInfo.sizeY
+
+                    -- Clean up drag state for blocked windows
+                    if state.isDragging then
+                        state.isDragging = false
+                        draggingWindowBoundsValid = false
+                        draggingWindowName = nil
+                    end
+                    state.pendingDragCheck = false
+                    settings.debugPrint("Window no longer active: " .. windowName)
                 end
 
             elseif state.probePhase == PROBE_ACTIVE then
@@ -1032,10 +1174,8 @@ function core.updateExternalWindows()
                     end
                 end
 
-                -- No periodic re-check — re-probed on overlay reopen via resetExternalProbes()
-
             end
-            -- PROBE_BLOCKED: do nothing — re-probed on overlay reopen via resetExternalProbes()
+            -- PROBE_BLOCKED: do nothing — detected via discovery change tracking or overlay reopen
         else
             -- Clean up stale external state for windows we're no longer managing
             local staleState = externalWindowStates[windowName]
@@ -1045,6 +1185,44 @@ function core.updateExternalWindows()
                     draggingWindowName = nil
                 end
                 externalWindowStates[windowName] = nil
+            end
+        end
+    end
+
+    -- Discovery change tracking: fast-track BLOCKED windows whose position/size
+    -- changed in discovery data (a mod started drawing them). No Begin() calls
+    -- needed — purely passive comparison. Detects newly-active windows within
+    -- 1-2 frames instead of the old N*interval round-robin.
+    for _, windowInfo in ipairs(windows) do
+        local state = externalWindowStates[windowInfo.name]
+        if state and state.probePhase == PROBE_BLOCKED then
+            local posChanged = windowInfo.posX ~= state.blockedPosX or windowInfo.posY ~= state.blockedPosY
+            local sizeChanged = windowInfo.sizeX ~= state.blockedSizeX or windowInfo.sizeY ~= state.blockedSizeY
+            if posChanged or sizeChanged then
+                state.probePhase = PROBE_SKIP
+                state.skipFrames = 0
+            end
+        end
+    end
+
+    -- Timekeeping for batch BLOCKED re-probe
+    local now = os.clock()
+    local deltaTime = lastFrameTime > 0 and (now - lastFrameTime) or 0
+    lastFrameTime = now
+
+    local interval = settings.master.probeInterval or 0.5
+
+    -- Batch re-probe of ALL BLOCKED windows every probeInterval.
+    -- Safe: BLOCKED windows aren't rendered (no Begin() calls), so resetting
+    -- them causes zero visual disruption. Detects newly-drawn windows within
+    -- probeInterval + 3 frames regardless of blocked window count.
+    blockedReprobeTimer = blockedReprobeTimer + deltaTime
+    if blockedReprobeTimer >= interval then
+        blockedReprobeTimer = blockedReprobeTimer - interval
+        for _, state in pairs(externalWindowStates) do
+            if state.probePhase == PROBE_BLOCKED then
+                state.probePhase = PROBE_SKIP
+                state.skipFrames = 0
             end
         end
     end
@@ -1069,14 +1247,31 @@ function core.isDiscoveryAvailable()
     return discovery.isAvailable()
 end
 
---- Reset blocked/active external probes so they re-check on next frame.
---- Called on overlay open to pick up windows whose state changed while overlay was closed.
+--- Reset all external probes so they re-check on next overlay open.
+--- Resets BOTH ACTIVE and BLOCKED windows to PROBE_SKIP for cleanup.
+--- Previously-ACTIVE windows use wasActive flag for flicker-free probing:
+---   - skipFrames=1 (only 1 skip frame needed) + visible Begin() during CHECK
+--- Previously-BLOCKED windows use standard 2-frame skip + Alpha=0 probe.
+--- Drag state (isDragging, bounds) is PRESERVED across the probe cycle so grid
+--- visualization continues smoothly if the user is mid-drag on overlay toggle.
 function core.resetExternalProbes()
     for _, state in pairs(externalWindowStates) do
-        if state.probePhase == PROBE_BLOCKED or state.probePhase == PROBE_ACTIVE then
+        if state.probePhase == PROBE_ACTIVE then
             state.probePhase = PROBE_SKIP
+            state.skipFrames = 1   -- only 1 skip frame needed (was active last frame)
+            state.wasActive = true
+            -- Preserve isDragging and bounds across the probe cycle so grid
+            -- visualization doesn't fall back to mouse position mid-drag.
+            -- Only reset pendingDragCheck so a fresh baseline is recorded on resume.
+            state.pendingDragCheck = false
+        elseif state.probePhase == PROBE_BLOCKED then
+            state.probePhase = PROBE_SKIP
+            state.skipFrames = 0   -- 2 skip frames (standard)
+            state.wasActive = false
         end
     end
+    blockedReprobeTimer = 0
+    lastFrameTime = 0
 end
 
 --- Check if any external window is being dragged.
@@ -1109,6 +1304,69 @@ function core.saveWindowCache()
     if not file then return end
     file:write(content)
     file:close()
+end
+
+--------------------------------------------------------------------------------
+-- Probe Constants & Browser API
+--------------------------------------------------------------------------------
+
+-- Expose probe phase constants for external modules (browser, API)
+core.PROBE_SKIP = PROBE_SKIP
+core.PROBE_CHECK = PROBE_CHECK
+core.PROBE_ACTIVE = PROBE_ACTIVE
+core.PROBE_BLOCKED = PROBE_BLOCKED
+
+--- Get summary of all external window states for the browser.
+-- @return table: {windowName = {probePhase, isDragging, animating}, ...}
+function core.getExternalWindowStates()
+    local result = {}
+    for name, state in pairs(externalWindowStates) do
+        result[name] = {
+            probePhase = state.probePhase,
+            isDragging = state.isDragging,
+            animating = state.animating,
+        }
+    end
+    return result
+end
+
+--- Add a window to the exclusion list.
+-- @param windowName string: Window name to exclude
+function core.addExclusion(windowName)
+    if not settings.master.excludedWindows then
+        settings.master.excludedWindows = {}
+    end
+    for _, name in ipairs(settings.master.excludedWindows) do
+        if name == windowName then return end
+    end
+    settings.master.excludedWindows[#settings.master.excludedWindows + 1] = windowName
+    core.rebuildExclusionSet()
+    settings.save()
+end
+
+--- Remove a window from the exclusion list.
+-- @param windowName string: Window name to re-include
+function core.removeExclusion(windowName)
+    if not settings.master.excludedWindows then return end
+    for i, name in ipairs(settings.master.excludedWindows) do
+        if name == windowName then
+            table.remove(settings.master.excludedWindows, i)
+            core.rebuildExclusionSet()
+            settings.save()
+            return
+        end
+    end
+end
+
+--- Set or clear the p_open (close button) override for a window.
+-- @param windowName string: Window name
+-- @param value boolean|nil: true to enable close button, nil to clear override
+function core.setPOpen(windowName, value)
+    if not settings.master.windowPOpen then
+        settings.master.windowPOpen = {}
+    end
+    settings.master.windowPOpen[windowName] = value or nil
+    settings.save()
 end
 
 return core

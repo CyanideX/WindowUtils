@@ -6,6 +6,7 @@
 local settings = require("modules/settings")
 local core = require("modules/core")
 local controls = require("modules/controls")
+local browser = require("modules/browser")
 
 local ui = {}
 
@@ -773,6 +774,33 @@ function ui.drawSettingsWindow()
 
     if settings.master.overrideAllWindows and not core.isDiscoveryAvailable() then
         controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
+    end
+
+    if settings.master.overrideAllWindows then
+        local interval = settings.master.probeInterval
+        interval, changed = controls.SliderFloat(
+            IconGlyphs.TimerSand, "probeInterval",
+            interval, 0.1, 5.0, "%.1f s", nil,
+            settings.defaults.probeInterval,
+            "Re-Probe Interval\nHow often to check if managed windows are still being drawn"
+        )
+        if changed then
+            settings.master.probeInterval = interval
+            settings.save()
+        end
+
+        settings.master.autoRemoveEmptyWindows, changed = controls.Checkbox(
+            "Auto-Remove Empty Windows",
+            settings.master.autoRemoveEmptyWindows,
+            settings.defaults.autoRemoveEmptyWindows,
+            "Automatically stop managing windows that are no longer drawn by any mod",
+            true
+        )
+        if changed then settings.save() end
+
+        if controls.Button("Window Browser", "inactive", ImGui.GetContentRegionAvail(), 0) then
+            browser.toggle()
+        end
     end
 
     if not settings.master.enabled then
