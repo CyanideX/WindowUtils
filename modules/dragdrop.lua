@@ -40,14 +40,16 @@ end
 --------------------------------------------------------------------------------
 
 --- Get context for current item (call at start of each list item)
+-- Returns a reusable table — do not store the reference across frames
+local reusableCtx = { isDragged = false, isHoverTarget = false, dropAbove = false, dropBelow = false }
+
 function dragdrop.getItemContext(index, state)
     local isDragging = state.draggingIndex ~= nil
-    return {
-        isDragged = state.draggingIndex == index,
-        isHoverTarget = isDragging and state.hoverIndex == index and state.draggingIndex ~= index,
-        dropAbove = isDragging and state.hoverIndex == index and state.dropPosition == "above" and state.draggingIndex ~= index,
-        dropBelow = isDragging and state.hoverIndex == index and state.dropPosition == "below" and state.draggingIndex ~= index,
-    }
+    reusableCtx.isDragged = state.draggingIndex == index
+    reusableCtx.isHoverTarget = isDragging and state.hoverIndex == index and state.draggingIndex ~= index
+    reusableCtx.dropAbove = isDragging and state.hoverIndex == index and state.dropPosition == "above" and state.draggingIndex ~= index
+    reusableCtx.dropBelow = isDragging and state.hoverIndex == index and state.dropPosition == "below" and state.draggingIndex ~= index
+    return reusableCtx
 end
 
 --- Handle drag interaction for an ImGui item (call AFTER the draggable ImGui element)

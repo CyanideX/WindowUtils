@@ -371,7 +371,7 @@ function styles.PushButton(styleNameOrTable)
         ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
         pushColor(ImGuiCol.Button, c.bg or styles.colors.blue)
         pushColor(ImGuiCol.ButtonHovered, c.hover or styles.colors.blueHover)
-        pushColor(ImGuiCol.ButtonActive, c.hover or styles.colors.blueActive)
+        pushColor(ImGuiCol.ButtonActive, c.active or c.hover or styles.colors.blueActive)
         pushColor(ImGuiCol.Text, c.text or styles.colors.textWhite)
     else
         local style = styleMap[styleNameOrTable]

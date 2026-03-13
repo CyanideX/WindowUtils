@@ -37,6 +37,7 @@ end
 
 local _grabIcon = nil
 local _grabIconV = nil
+local iconSizeCache = {}
 
 local function getGrabIcon()
     if not _grabIcon then
@@ -87,9 +88,12 @@ local function drawGrabBar(id, state, isVertical)
 
     local grabFlags = ImGuiWindowFlags.NoMove + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
     if ImGui.BeginChild("##splitter_grab_" .. id, childW, childH, false, grabFlags) then
-        -- Center the icon
+        -- Center the icon (cache text size per icon string)
         local winW, winH = ImGui.GetWindowSize()
-        local textW, textH = ImGui.CalcTextSize(icon)
+        if not iconSizeCache[icon] then
+            iconSizeCache[icon] = { ImGui.CalcTextSize(icon) }
+        end
+        local textW, textH = iconSizeCache[icon][1], iconSizeCache[icon][2]
         ImGui.SetCursorPosX((winW - textW) / 2)
         ImGui.SetCursorPosY((winH - textH) / 2)
 
@@ -191,12 +195,10 @@ function splitter.vertical(id, topFn, bottomFn, opts)
     local grabH = state.grabWidth
     local spacingY = ImGui.GetStyle().ItemSpacing.y
 
-    local _, availH = ImGui.GetContentRegionAvail()
+    local availW, availH = ImGui.GetContentRegionAvail()
     local usableH = availH - grabH
     local topH = math.floor(usableH * state.pct)
     local bottomH = usableH - topH
-
-    local availW = ImGui.GetContentRegionAvail()
 
     -- Top panel
     ImGui.BeginChild("##splitter_top_" .. id, availW, topH, false)

@@ -14,6 +14,11 @@ local tabs = {}
 
 local tabStates = {} -- [id] = { selected = 1 }
 
+-- Cached badge colors (computed once on first use)
+local cachedBadgeColor = nil
+local cachedTextColor = nil
+local cachedDotColor = nil
+
 --------------------------------------------------------------------------------
 -- Public API
 --------------------------------------------------------------------------------
@@ -49,40 +54,30 @@ function tabs.bar(id, tabDefs, opts)
 
             -- Badge rendering (small colored dot or number after the tab label)
             if tab.badge and not disabled then
+                if not cachedBadgeColor then
+                    cachedBadgeColor = styles.ToColor(styles.colors.red)
+                    cachedTextColor = styles.ToColor(styles.colors.textWhite)
+                    cachedDotColor = styles.ToColor(styles.colors.green)
+                end
+
                 local maxX, minY = ImGui.GetItemRectMax()
                 local drawList = ImGui.GetWindowDrawList()
 
                 if type(tab.badge) == "number" and tab.badge > 0 then
-                    -- Number badge: small colored circle with text
                     local badgeText = tostring(tab.badge)
                     local textW, textH = ImGui.CalcTextSize(badgeText)
                     local radius = math.max(textH * 0.5 + 2, textW * 0.5 + 4)
                     local cx = maxX - 2
                     local cy = minY + radius + 2
 
-                    local badgeColor = ImGui.GetColorU32(
-                        styles.colors.red[1], styles.colors.red[2],
-                        styles.colors.red[3], styles.colors.red[4]
-                    )
-                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, radius, badgeColor, 12)
-
-                    -- Badge text (centered in circle)
-                    local textColor = ImGui.GetColorU32(
-                        styles.colors.textWhite[1], styles.colors.textWhite[2],
-                        styles.colors.textWhite[3], styles.colors.textWhite[4]
-                    )
-                    ImGui.ImDrawListAddText(drawList, ImGui.GetFontSize(), cx - textW * 0.5, cy - textH * 0.5, textColor, badgeText)
+                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, radius, cachedBadgeColor, 12)
+                    ImGui.ImDrawListAddText(drawList, ImGui.GetFontSize(), cx - textW * 0.5, cy - textH * 0.5, cachedTextColor, badgeText)
                 elseif tab.badge == true then
-                    -- Simple dot indicator
                     local dotRadius = 3
                     local cx = maxX - 2
                     local cy = minY + dotRadius + 4
 
-                    local dotColor = ImGui.GetColorU32(
-                        styles.colors.green[1], styles.colors.green[2],
-                        styles.colors.green[3], styles.colors.green[4]
-                    )
-                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, dotRadius, dotColor, 8)
+                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, dotRadius, cachedDotColor, 8)
                 end
             end
 

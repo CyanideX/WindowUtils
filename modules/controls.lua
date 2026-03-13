@@ -116,85 +116,58 @@ function controls.DisabledButton(label, width, height)
 end
 
 --------------------------------------------------------------------------------
+-- Helpers: icon prefix + width calculation (shared by sliders, inputs, combo)
+--------------------------------------------------------------------------------
+
+local function iconPrefix(icon, tooltip, alwaysShow)
+    if not icon or icon == "" then return false end
+    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
+    controls.IconButton(icon, false)
+    if tooltip then
+        if alwaysShow then tooltips.ShowAlways(tooltip)
+        else tooltips.Show(tooltip) end
+    end
+    ImGui.SameLine()
+    ImGui.PopStyleVar()
+    return true
+end
+
+local function calcControlWidth(cols, hasIcon)
+    if cols then return controls.ColWidth(cols, nil, hasIcon) end
+    return ImGui.GetContentRegionAvail()
+end
+
+--------------------------------------------------------------------------------
 -- Sliders with Icon (Shift-style: icon on left, slider fills remaining width)
 --------------------------------------------------------------------------------
 
 --- Create a float slider with icon on left, fills remaining width
 function controls.SliderFloat(icon, id, value, min, max, format, cols, defaultValue, tooltip)
     format = format or "%.2f"
-
-    local hasIcon = icon ~= nil and icon ~= ""
-    if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
-        controls.IconButton(icon, false)
-
-        -- Icon tooltips always show (serve as labels)
-        if tooltip then
-            tooltips.ShowAlways(tooltip)
-        end
-
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-    end
-
-    -- Calculate width: either column-based or fill remaining
-    local width
-    if cols then
-        width = controls.ColWidth(cols, nil, hasIcon)
-    else
-        width = ImGui.GetContentRegionAvail()
-    end
-
-    ImGui.SetNextItemWidth(width)
+    local hasIcon = iconPrefix(icon, tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.SliderFloat("##" .. id, value, min, max, format)
     styles.PopOutlined()
-
-    -- Right-click to reset to default
     if defaultValue ~= nil and ImGui.IsItemClicked(1) then
         newValue = defaultValue
         changed = true
     end
-
     return newValue, changed
 end
 
 --- Create an integer slider with icon on left
 function controls.SliderInt(icon, id, value, min, max, format, cols, defaultValue, tooltip)
     format = format or "%d"
-
-    local hasIcon = icon ~= nil and icon ~= ""
-    if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
-        controls.IconButton(icon, false)
-
-        -- Icon tooltips always show (serve as labels)
-        if tooltip then
-            tooltips.ShowAlways(tooltip)
-        end
-
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-    end
-
-    local width
-    if cols then
-        width = controls.ColWidth(cols, nil, hasIcon)
-    else
-        width = ImGui.GetContentRegionAvail()
-    end
-
-    ImGui.SetNextItemWidth(width)
+    local hasIcon = iconPrefix(icon, tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.SliderInt("##" .. id, value, min, max, format)
     styles.PopOutlined()
-
-    -- Right-click to reset to default
     if defaultValue ~= nil and ImGui.IsItemClicked(1) then
         newValue = defaultValue
         changed = true
     end
-
     return newValue, changed
 end
 
@@ -242,31 +215,15 @@ end
 
 --- Create a checkbox with icon prefix
 function controls.CheckboxWithIcon(icon, label, value, defaultValue, tooltip, alwaysShowTooltip)
-    if alwaysShowTooltip == nil then alwaysShowTooltip = false end
+    iconPrefix(icon, tooltip, alwaysShowTooltip)
 
-    controls.IconButton(icon, false)
-
-    if tooltip then
-        if alwaysShowTooltip then
-            tooltips.ShowAlways(tooltip)
-        else
-            tooltips.Show(tooltip)
-        end
-    end
-
-    ImGui.SameLine()
     local newValue, changed = ImGui.Checkbox(label, value)
 
-    -- Tooltip on checkbox too
     if tooltip then
-        if alwaysShowTooltip then
-            tooltips.ShowAlways(tooltip)
-        else
-            tooltips.Show(tooltip)
-        end
+        if alwaysShowTooltip then tooltips.ShowAlways(tooltip)
+        else tooltips.Show(tooltip) end
     end
 
-    -- Right-click to reset to default
     if defaultValue ~= nil and ImGui.IsItemClicked(1) then
         newValue = defaultValue
         changed = true
@@ -311,27 +268,13 @@ end
 
 --- Create a color picker with icon on left
 function controls.ColorEdit4(icon, id, color, label, defaultColor, tooltip)
-    local hasIcon = icon ~= nil
-
-    if hasIcon then
-        controls.IconButton(icon, false)
-
-        if tooltip then
-            tooltips.ShowAlways(tooltip)
-        end
-
-        ImGui.SameLine()
-    end
-
+    iconPrefix(icon, tooltip, true)
     ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
     local newColor, changed = ImGui.ColorEdit4(label or ("##" .. id), color, ImGuiColorEditFlags.NoOptions)
-
-    -- Right-click to reset to default
     if defaultColor and ImGui.IsItemClicked(1) then
         newColor = {defaultColor[1], defaultColor[2], defaultColor[3], defaultColor[4]}
         changed = true
     end
-
     return newColor, changed
 end
 
@@ -373,39 +316,15 @@ end
 
 --- Create a combo dropdown with icon on left
 function controls.Combo(icon, id, currentIndex, items, cols, defaultIndex, tooltip)
-    local hasIcon = icon ~= nil
-
-    if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
-        controls.IconButton(icon, false)
-
-        -- Icon tooltips always show (serve as labels)
-        if tooltip then
-            tooltips.ShowAlways(tooltip)
-        end
-
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-    end
-
-    local width
-    if cols then
-        width = controls.ColWidth(cols, nil, hasIcon)
-    else
-        width = ImGui.GetContentRegionAvail()
-    end
-
-    ImGui.SetNextItemWidth(width)
+    local hasIcon = iconPrefix(icon, tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
     styles.PushOutlined()
     local newIndex, changed = ImGui.Combo("##" .. id, currentIndex, items, #items)
     styles.PopOutlined()
-
-    -- Right-click to reset to default
     if defaultIndex ~= nil and ImGui.IsItemClicked(1) then
         newIndex = defaultIndex
         changed = true
     end
-
     return newIndex, changed
 end
 
@@ -416,37 +335,11 @@ end
 --- Create an input text field with icon on left
 function controls.InputText(icon, id, text, maxLength, cols, tooltip, alwaysShowTooltip)
     maxLength = maxLength or 256
-    if alwaysShowTooltip == nil then alwaysShowTooltip = false end
-    local hasIcon = icon ~= nil
-
-    if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
-        controls.IconButton(icon, false)
-
-        if tooltip then
-            if alwaysShowTooltip then
-                tooltips.ShowAlways(tooltip)
-            else
-                tooltips.Show(tooltip)
-            end
-        end
-
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-    end
-
-    local width
-    if cols then
-        width = controls.ColWidth(cols, nil, hasIcon)
-    else
-        width = ImGui.GetContentRegionAvail()
-    end
-
-    ImGui.SetNextItemWidth(width)
+    local hasIcon = iconPrefix(icon, tooltip, alwaysShowTooltip)
+    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
     styles.PushOutlined()
     local newText, changed = ImGui.InputText("##" .. id, text, maxLength)
     styles.PopOutlined()
-
     return newText, changed
 end
 
@@ -455,37 +348,11 @@ function controls.InputFloat(icon, id, value, step, stepFast, format, cols, tool
     step = step or 0.1
     stepFast = stepFast or 1.0
     format = format or "%.2f"
-    if alwaysShowTooltip == nil then alwaysShowTooltip = false end
-    local hasIcon = icon ~= nil
-
-    if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
-        controls.IconButton(icon, false)
-
-        if tooltip then
-            if alwaysShowTooltip then
-                tooltips.ShowAlways(tooltip)
-            else
-                tooltips.Show(tooltip)
-            end
-        end
-
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-    end
-
-    local width
-    if cols then
-        width = controls.ColWidth(cols, nil, hasIcon)
-    else
-        width = ImGui.GetContentRegionAvail()
-    end
-
-    ImGui.SetNextItemWidth(width)
+    local hasIcon = iconPrefix(icon, tooltip, alwaysShowTooltip)
+    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.InputFloat("##" .. id, value, step, stepFast, format)
     styles.PopOutlined()
-
     return newValue, changed
 end
 
@@ -493,37 +360,11 @@ end
 function controls.InputInt(icon, id, value, step, stepFast, cols, tooltip, alwaysShowTooltip)
     step = step or 1
     stepFast = stepFast or 10
-    if alwaysShowTooltip == nil then alwaysShowTooltip = false end
-    local hasIcon = icon ~= nil
-
-    if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
-        controls.IconButton(icon, false)
-
-        if tooltip then
-            if alwaysShowTooltip then
-                tooltips.ShowAlways(tooltip)
-            else
-                tooltips.Show(tooltip)
-            end
-        end
-
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-    end
-
-    local width
-    if cols then
-        width = controls.ColWidth(cols, nil, hasIcon)
-    else
-        width = ImGui.GetContentRegionAvail()
-    end
-
-    ImGui.SetNextItemWidth(width)
+    local hasIcon = iconPrefix(icon, tooltip, alwaysShowTooltip)
+    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.InputInt("##" .. id, value, step, stepFast)
     styles.PopOutlined()
-
     return newValue, changed
 end
 
@@ -560,6 +401,7 @@ end
 
 -- State for hold buttons: [id] = { holding, startTime, holdDuration, progress, lastTime }
 local holdStates = {}
+local HOLD_OVERLAY_COLOR = nil
 
 --- Create a hold-to-confirm button with progress fill overlay
 function controls.HoldButton(id, label, opts)
@@ -664,8 +506,10 @@ function controls.HoldButton(id, label, opts)
         local fillX = minX + (maxX - minX) * state.progress
 
         local drawList = ImGui.GetWindowDrawList()
-        local overlayColor = ImGui.GetColorU32(1.0, 1.0, 1.0, 0.2)
-        ImGui.ImDrawListAddRectFilled(drawList, minX, minY, fillX, maxY, overlayColor, 2.0)
+        if not HOLD_OVERLAY_COLOR then
+            HOLD_OVERLAY_COLOR = ImGui.GetColorU32(1.0, 1.0, 1.0, 0.2)
+        end
+        ImGui.ImDrawListAddRectFilled(drawList, minX, minY, fillX, maxY, HOLD_OVERLAY_COLOR, 2.0)
     end
     -- "external" mode: no visual — other elements read via getHoldProgress()
 
@@ -909,12 +753,13 @@ function controls.Row(id, defs, opts)
     local fixedW = 0
     local totalFlex = 0
 
-    for _, def in ipairs(defs) do
+    local calcWidths = {}
+    for i, def in ipairs(defs) do
         if def.width then
             fixedW = fixedW + def.width
         elseif def.cols then
-            def._calcWidth = controls.ColWidth(def.cols, gap)
-            fixedW = fixedW + def._calcWidth
+            calcWidths[i] = controls.ColWidth(def.cols, gap)
+            fixedW = fixedW + calcWidths[i]
         else
             totalFlex = totalFlex + (def.flex or 1)
         end
@@ -927,9 +772,8 @@ function controls.Row(id, defs, opts)
         local childW
         if def.width then
             childW = def.width
-        elseif def._calcWidth then
-            childW = def._calcWidth
-            def._calcWidth = nil
+        elseif calcWidths[i] then
+            childW = calcWidths[i]
         else
             childW = totalFlex > 0
                 and math.floor(remainingW * (def.flex or 1) / totalFlex)

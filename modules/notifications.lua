@@ -33,6 +33,7 @@ local config = {
 
 local queue = {}  -- { message, level, spawnTime, ttl, fadeOut }
 local nextId = 1
+local toRemove = {}  -- reused each frame to avoid per-frame allocation
 
 -- Level colors mapped to styles.colors
 local levelColors = {
@@ -68,9 +69,10 @@ end
 
 local function getToastPosition(index)
     local screenW, screenH = getScreenSize()
+    local lineH = ImGui.GetTextLineHeightWithSpacing()
+    local toastH = lineH + config.toastPadding * 2
+    local totalHeight = (index - 1) * (toastH + config.spacing)
     local x, y
-
-    local totalHeight = (index - 1) * (ImGui.GetTextLineHeightWithSpacing() + config.toastPadding * 2 + config.spacing)
 
     if config.position == "topRight" then
         x = screenW - config.toastWidth - config.offsetX
@@ -80,10 +82,10 @@ local function getToastPosition(index)
         y = config.offsetY + totalHeight
     elseif config.position == "bottomRight" then
         x = screenW - config.toastWidth - config.offsetX
-        y = screenH - config.offsetY - totalHeight - (ImGui.GetTextLineHeightWithSpacing() + config.toastPadding * 2)
+        y = screenH - config.offsetY - totalHeight - toastH
     elseif config.position == "bottomLeft" then
         x = config.offsetX
-        y = screenH - config.offsetY - totalHeight - (ImGui.GetTextLineHeightWithSpacing() + config.toastPadding * 2)
+        y = screenH - config.offsetY - totalHeight - toastH
     else
         x = screenW - config.toastWidth - config.offsetX
         y = config.offsetY + totalHeight
@@ -144,7 +146,7 @@ function notifications.draw()
 
     local now = os.clock()
     local visibleIndex = 0
-    local toRemove = {}
+    for k in pairs(toRemove) do toRemove[k] = nil end
 
     for i, toast in ipairs(queue) do
         local elapsed = now - toast.spawnTime
