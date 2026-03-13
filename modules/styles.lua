@@ -64,7 +64,13 @@ styles.colors = {
     splitterHover = { 0.3, 0.5, 0.7, 0.5 },
     splitterDrag = { 0.0, 1.0, 0.7, 0.6 },
     splitterIcon = { 0.6, 0.6, 0.7, 1.0 },
-    splitterIconHi = { 1.0, 1.0, 1.0, 1.0 }
+    splitterIconHi = { 1.0, 1.0, 1.0, 1.0 },
+
+    -- Scrollbar
+    scrollbarBg = { 0, 0, 0, 0 },
+    scrollbarGrab = { 0.8, 0.8, 1.0, 0.4 },
+    scrollbarHover = { 0.8, 0.8, 1.0, 0.6 },
+    scrollbarActive = { 0.8, 0.8, 1.0, 0.8 }
 }
 
 --------------------------------------------------------------------------------
@@ -319,6 +325,29 @@ end
 
 function styles.PopCheckboxActive()
     ImGui.PopStyleColor(1)
+end
+
+--------------------------------------------------------------------------------
+-- Scrollbar Styles
+--------------------------------------------------------------------------------
+
+--- Scrollbar styling (transparent bg, themed thumb)
+function styles.PushScrollbar(opts)
+    opts = opts or {}
+    local size = opts.size or ImGui.GetStyle().ScrollbarSize
+    ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, size)
+    if opts.rounding then
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarRounding, opts.rounding)
+    end
+    pushColor(ImGuiCol.ScrollbarBg, opts.bg or styles.colors.scrollbarBg)
+    pushColor(ImGuiCol.ScrollbarGrab, opts.grab or styles.colors.scrollbarGrab)
+    pushColor(ImGuiCol.ScrollbarGrabHovered, opts.hover or styles.colors.scrollbarHover)
+    pushColor(ImGuiCol.ScrollbarGrabActive, opts.active or styles.colors.scrollbarActive)
+end
+
+function styles.PopScrollbar(opts)
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar(opts and opts.rounding and 2 or 1)
 end
 
 --------------------------------------------------------------------------------

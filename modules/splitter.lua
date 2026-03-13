@@ -23,7 +23,7 @@ local function getState(id, opts)
             defaultPct = opts.defaultPct or 0.5,
             minPct = opts.minPct or 0.1,
             maxPct = opts.maxPct or 0.9,
-            grabWidth = opts.grabWidth or math.ceil((ImGui.GetStyle().ItemSpacing.y + ImGui.GetTextLineHeight()) / 2),
+            grabWidth = opts.grabWidth or ImGui.GetStyle().ItemSpacing.x,
             hovering = false,
             dragging = false
         }

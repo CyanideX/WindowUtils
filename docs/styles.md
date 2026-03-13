@@ -106,6 +106,37 @@ For sliders, progress bars, and other framed elements.
 | `PushSliderDisabled()` | `PopSliderDisabled()` | Grey slider grab + faded frame |
 | `PushCheckboxActive()` | `PopCheckboxActive()` | Green checkmark |
 
+### Scrollbar Styles
+
+`PushScrollbar(opts?)` / `PopScrollbar(opts?)`
+
+Themed scrollbar with transparent track and styled thumb. Call before any scrollable region.
+
+```lua
+-- Simple (uses defaults)
+styles.PushScrollbar()
+ImGui.BeginChild("scroll", 0, 200)
+-- scrollable content
+ImGui.EndChild()
+styles.PopScrollbar()
+
+-- Customized
+styles.PushScrollbar({ size = 5, rounding = 4, grab = { 0, 1, 0.7, 0.4 } })
+-- scrollable content
+styles.PopScrollbar({ rounding = 4 })
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| size | number | current ScrollbarSize | Scrollbar thickness |
+| rounding | number\|nil | nil | Thumb corner rounding (pass same to Pop) |
+| bg | table | scrollbarBg | Track background color |
+| grab | table | scrollbarGrab | Thumb color |
+| hover | table | scrollbarHover | Thumb hover color |
+| active | table | scrollbarActive | Thumb drag color |
+
+Default colors: transparent background, light blue-white thumb (0.8, 0.8, 1.0) at increasing opacity for rest/hover/active.
+
 ### `ToColor(c)`
 
 Convert a `{r, g, b, a}` table to an ImGui U32 color value.
