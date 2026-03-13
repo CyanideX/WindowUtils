@@ -7,6 +7,8 @@ local styles = require("modules/styles")
 
 local splitter = {}
 
+local TRANSPARENT = { 0, 0, 0, 0 }
+
 --------------------------------------------------------------------------------
 -- State
 --------------------------------------------------------------------------------
@@ -58,7 +60,7 @@ local function drawGrabBar(id, state, isVertical)
     elseif state.hovering then
         bgColor = styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 }
     else
-        bgColor = { 0, 0, 0, 0 }
+        bgColor = TRANSPARENT
     end
 
     local iconColor
@@ -156,11 +158,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Horizontal split (left | right)
--- @param id string: Unique splitter ID
--- @param leftFn function: Renders left panel content
--- @param rightFn function: Renders right panel content
--- @param opts table|nil: { defaultPct=0.5, minPct=0.1, maxPct=0.9, grabWidth=6 }
--- @return number: Current split percentage
 function splitter.horizontal(id, leftFn, rightFn, opts)
     local state = getState(id, opts)
     local grabW = state.grabWidth
@@ -188,11 +185,6 @@ function splitter.horizontal(id, leftFn, rightFn, opts)
 end
 
 --- Vertical split (top / bottom)
--- @param id string: Unique splitter ID
--- @param topFn function: Renders top panel content
--- @param bottomFn function: Renders bottom panel content
--- @param opts table|nil: { defaultPct=0.5, minPct=0.1, maxPct=0.9, grabWidth=6 }
--- @return number: Current split percentage
 function splitter.vertical(id, topFn, bottomFn, opts)
     local state = getState(id, opts)
     local grabH = state.grabWidth
@@ -221,16 +213,12 @@ function splitter.vertical(id, topFn, bottomFn, opts)
 end
 
 --- Get current split percentage for an ID
--- @param id string: Splitter ID
--- @return number|nil: Current percentage, or nil if not initialized
 function splitter.getSplitPct(id)
     local state = splitStates[id]
     return state and state.pct or nil
 end
 
 --- Set split percentage programmatically
--- @param id string: Splitter ID
--- @param pct number: New percentage (will be clamped to min/max)
 function splitter.setSplitPct(id, pct)
     local state = splitStates[id]
     if state then
@@ -239,7 +227,6 @@ function splitter.setSplitPct(id, pct)
 end
 
 --- Reset to default percentage
--- @param id string: Splitter ID
 function splitter.reset(id)
     local state = splitStates[id]
     if state then

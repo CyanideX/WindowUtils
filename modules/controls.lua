@@ -9,6 +9,20 @@ local tooltips = require("modules/tooltips")
 local controls = {}
 
 --------------------------------------------------------------------------------
+-- Per-frame style cache (call controls.cacheFrameState() once per onDraw)
+--------------------------------------------------------------------------------
+
+local frameCache = {}
+
+function controls.cacheFrameState()
+    local style = ImGui.GetStyle()
+    frameCache.itemSpacingX = style.ItemSpacing.x
+    frameCache.itemSpacingY = style.ItemSpacing.y
+    frameCache.framePaddingX = style.FramePadding.x
+    frameCache.windowPaddingY = style.WindowPadding.y
+end
+
+--------------------------------------------------------------------------------
 -- Grid System (Bootstrap-style columns)
 --------------------------------------------------------------------------------
 
@@ -16,13 +30,9 @@ local controls = {}
 local ICON_WIDTH = 24
 
 --- Calculate width for a column ratio (1-12 out of 12 columns)
--- @param cols number: Number of columns (1-12)
--- @param gap number: Gap between elements in pixels (optional, defaults to ImGui ItemSpacing.x)
--- @param hasIcon boolean: Whether an icon precedes this control (optional, default false)
--- @return number: Width in pixels
 function controls.ColWidth(cols, gap, hasIcon)
     cols = math.max(1, math.min(12, cols or 12))
-    gap = gap or ImGui.GetStyle().ItemSpacing.x
+    gap = gap or frameCache.itemSpacingX
     local availWidth = ImGui.GetContentRegionAvail()
     -- If called after icon placement, add icon width back for accurate column calculation
     if hasIcon then
@@ -38,8 +48,6 @@ function controls.ColWidth(cols, gap, hasIcon)
 end
 
 --- Get remaining width after current cursor position
--- @param offset number: Additional offset to subtract (optional)
--- @return number: Available width
 function controls.RemainingWidth(offset)
     offset = offset or 0
     return ImGui.GetContentRegionAvail() - offset
@@ -50,9 +58,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Create an invisible button with an icon (for use as slider/input labels)
--- @param icon string: IconGlyph to display
--- @param clickable boolean: If true, returns click state; if false, just displays
--- @return boolean: True if clicked (only meaningful if clickable=true)
 function controls.IconButton(icon, clickable)
     clickable = clickable or false
 
@@ -71,11 +76,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a styled button with automatic push/pop
--- @param label string: Button label
--- @param styleName string: Style name ("active", "inactive", "danger", "warning", "update", "disabled", "transparent")
--- @param width number: Button width (optional, 0 = auto)
--- @param height number: Button height (optional)
--- @return boolean: True if clicked
 function controls.Button(label, styleName, width, height)
     styleName = styleName or "inactive"
     width = width or 0
@@ -89,28 +89,17 @@ function controls.Button(label, styleName, width, height)
 end
 
 --- Create a toggle button that switches between active/inactive styles
--- @param label string: Button label
--- @param isActive boolean: Current toggle state
--- @param width number: Button width (optional)
--- @param height number: Button height (optional)
--- @return boolean: True if clicked
 function controls.ToggleButton(label, isActive, width, height)
     local styleName = isActive and "active" or "inactive"
     return controls.Button(label, styleName, width, height)
 end
 
 --- Create a full-width button (fills available width)
--- @param label string: Button label
--- @param styleName string: Style name (optional, default "inactive")
--- @return boolean: True if clicked
 function controls.FullWidthButton(label, styleName)
     return controls.Button(label, styleName, ImGui.GetContentRegionAvail())
 end
 
 --- Create a disabled button that cannot be clicked
--- @param label string: Button label
--- @param width number: Button width (optional)
--- @param height number: Button height (optional)
 function controls.DisabledButton(label, width, height)
     width = width or 0
     height = height or 0
@@ -125,23 +114,12 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a float slider with icon on left, fills remaining width
--- Pattern: [Icon] [=====Slider=====]
--- @param icon string: IconGlyph to display on left
--- @param id string: Unique ID for the slider (used with ## prefix)
--- @param value number: Current value
--- @param min number: Minimum value
--- @param max number: Maximum value
--- @param format string: Display format (optional, default "%.2f")
--- @param cols number: Grid columns 1-12 (optional, nil = fill remaining width)
--- @param defaultValue number: Default value for right-click reset (optional)
--- @param tooltip string: Tooltip text shown on icon hover (optional, always shows)
--- @return number, boolean: New value and whether changed
 function controls.SliderFloat(icon, id, value, min, max, format, cols, defaultValue, tooltip)
     format = format or "%.2f"
 
     local hasIcon = icon ~= nil and icon ~= ""
     if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
         controls.IconButton(icon, false)
 
         -- Icon tooltips always show (serve as labels)
@@ -176,22 +154,12 @@ function controls.SliderFloat(icon, id, value, min, max, format, cols, defaultVa
 end
 
 --- Create an integer slider with icon on left
--- @param icon string: IconGlyph to display on left
--- @param id string: Unique ID for the slider
--- @param value number: Current value
--- @param min number: Minimum value
--- @param max number: Maximum value
--- @param format string: Display format (optional, default "%d")
--- @param cols number: Grid columns 1-12 (optional)
--- @param defaultValue number: Default value for right-click reset (optional)
--- @param tooltip string: Tooltip text shown on icon hover (optional, always shows)
--- @return number, boolean: New value and whether changed
 function controls.SliderInt(icon, id, value, min, max, format, cols, defaultValue, tooltip)
     format = format or "%d"
 
     local hasIcon = icon ~= nil and icon ~= ""
     if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
         controls.IconButton(icon, false)
 
         -- Icon tooltips always show (serve as labels)
@@ -225,8 +193,6 @@ function controls.SliderInt(icon, id, value, min, max, format, cols, defaultValu
 end
 
 --- Create a disabled slider appearance (greyed out)
--- @param icon string: IconGlyph (optional)
--- @param label string: Display label/placeholder
 function controls.SliderDisabled(icon, label)
     if icon then
         controls.IconButton(icon, false)
@@ -246,12 +212,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a standard checkbox with optional tooltip
--- @param label string: Checkbox label
--- @param value boolean: Current value
--- @param defaultValue boolean: Default value for right-click reset (optional)
--- @param tooltip string: Tooltip text (optional, shows on checkbox hover)
--- @param alwaysShowTooltip boolean: Always show tooltip (optional, default false)
--- @return boolean, boolean: New value and whether changed
 function controls.Checkbox(label, value, defaultValue, tooltip, alwaysShowTooltip)
     if alwaysShowTooltip == nil then alwaysShowTooltip = false end
 
@@ -275,13 +235,6 @@ function controls.Checkbox(label, value, defaultValue, tooltip, alwaysShowToolti
 end
 
 --- Create a checkbox with icon prefix
--- @param icon string: IconGlyph to display before checkbox
--- @param label string: Checkbox label
--- @param value boolean: Current value
--- @param defaultValue boolean: Default value for right-click reset (optional)
--- @param tooltip string: Tooltip text (optional, shows on icon and checkbox hover)
--- @param alwaysShowTooltip boolean: Always show tooltip (optional, default false)
--- @return boolean, boolean: New value and whether changed
 function controls.CheckboxWithIcon(icon, label, value, defaultValue, tooltip, alwaysShowTooltip)
     if alwaysShowTooltip == nil then alwaysShowTooltip = false end
 
@@ -321,11 +274,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a styled progress bar
--- @param fraction number: Progress value (0-1)
--- @param width number: Bar width (nil for full width)
--- @param height number: Bar height (optional)
--- @param overlay string: Overlay text (optional)
--- @param styleName string: Style ("default", "danger", "success")
 function controls.ProgressBar(fraction, width, height, overlay, styleName)
     width = width or ImGui.GetContentRegionAvail()
     height = height or 0
@@ -356,13 +304,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a color picker with icon on left
--- @param icon string: IconGlyph to display on left (optional, pass nil for no icon)
--- @param id string: Unique ID for the color picker
--- @param color table: Current color as {r, g, b, a} (values 0-1)
--- @param label string: Label text (optional)
--- @param defaultColor table: Default color for right-click reset (optional)
--- @param tooltip string: Tooltip text (optional, always shows on icon)
--- @return table, boolean: New color and whether changed
 function controls.ColorEdit4(icon, id, color, label, defaultColor, tooltip)
     local hasIcon = icon ~= nil
 
@@ -425,19 +366,11 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a combo dropdown with icon on left
--- @param icon string: IconGlyph to display on left (optional, pass nil for no icon)
--- @param id string: Unique ID for the combo
--- @param currentIndex number: Current selected index (0-based)
--- @param items table: Array of item strings
--- @param cols number: Grid columns 1-12 (optional)
--- @param defaultIndex number: Default index for right-click reset (optional)
--- @param tooltip string: Tooltip text shown on icon hover (optional, always shows)
--- @return number, boolean: New index and whether changed
 function controls.Combo(icon, id, currentIndex, items, cols, defaultIndex, tooltip)
     local hasIcon = icon ~= nil
 
     if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
         controls.IconButton(icon, false)
 
         -- Icon tooltips always show (serve as labels)
@@ -475,21 +408,13 @@ end
 --------------------------------------------------------------------------------
 
 --- Create an input text field with icon on left
--- @param icon string: IconGlyph (optional, pass nil for no icon)
--- @param id string: Unique ID
--- @param text string: Current text
--- @param maxLength number: Maximum text length (optional, default 256)
--- @param cols number: Grid columns 1-12 (optional)
--- @param tooltip string: Tooltip text (optional)
--- @param alwaysShowTooltip boolean: Always show tooltip (optional, default false)
--- @return string, boolean: New text and whether changed
 function controls.InputText(icon, id, text, maxLength, cols, tooltip, alwaysShowTooltip)
     maxLength = maxLength or 256
     if alwaysShowTooltip == nil then alwaysShowTooltip = false end
     local hasIcon = icon ~= nil
 
     if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
         controls.IconButton(icon, false)
 
         if tooltip then
@@ -520,16 +445,6 @@ function controls.InputText(icon, id, text, maxLength, cols, tooltip, alwaysShow
 end
 
 --- Create an input float field with icon on left
--- @param icon string: IconGlyph (optional)
--- @param id string: Unique ID
--- @param value number: Current value
--- @param step number: Step amount (optional)
--- @param stepFast number: Fast step amount (optional)
--- @param format string: Display format (optional)
--- @param cols number: Grid columns 1-12 (optional)
--- @param tooltip string: Tooltip text (optional)
--- @param alwaysShowTooltip boolean: Always show tooltip (optional, default false)
--- @return number, boolean: New value and whether changed
 function controls.InputFloat(icon, id, value, step, stepFast, format, cols, tooltip, alwaysShowTooltip)
     step = step or 0.1
     stepFast = stepFast or 1.0
@@ -538,7 +453,7 @@ function controls.InputFloat(icon, id, value, step, stepFast, format, cols, tool
     local hasIcon = icon ~= nil
 
     if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
         controls.IconButton(icon, false)
 
         if tooltip then
@@ -569,15 +484,6 @@ function controls.InputFloat(icon, id, value, step, stepFast, format, cols, tool
 end
 
 --- Create an input int field with icon on left
--- @param icon string: IconGlyph (optional)
--- @param id string: Unique ID
--- @param value number: Current value
--- @param step number: Step amount (optional)
--- @param stepFast number: Fast step amount (optional)
--- @param cols number: Grid columns 1-12 (optional)
--- @param tooltip string: Tooltip text (optional)
--- @param alwaysShowTooltip boolean: Always show tooltip (optional, default false)
--- @return number, boolean: New value and whether changed
 function controls.InputInt(icon, id, value, step, stepFast, cols, tooltip, alwaysShowTooltip)
     step = step or 1
     stepFast = stepFast or 10
@@ -585,7 +491,7 @@ function controls.InputInt(icon, id, value, step, stepFast, cols, tooltip, alway
     local hasIcon = icon ~= nil
 
     if hasIcon then
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
         controls.IconButton(icon, false)
 
         if tooltip then
@@ -649,28 +555,16 @@ end
 -- State for hold buttons: [id] = { holding, startTime, holdDuration, progress, lastTime }
 local holdStates = {}
 
---- Create a hold-to-confirm button with progress fill overlay.
--- New API: HoldButton(id, label, opts?)
--- Legacy API: HoldButton(label, duration, styleName, width) — auto-detected
--- @param id string: Unique button ID
--- @param label string: Button display label
--- @param opts table|nil: { duration, style, width, progressDisplay, progressStyle }
--- @return boolean: True only when hold completes
+--- Create a hold-to-confirm button with progress fill overlay
 function controls.HoldButton(id, label, opts)
     -- Backward compatibility: detect old HoldButton(label, duration, styleName, width)
     if type(label) == "number" or label == nil then
         local oldLabel = id
         local oldDuration = label
-        local oldStyle, oldWidth
-        if type(opts) == "string" then
-            oldStyle = opts
-            oldWidth = select(4, id, label, opts) -- 4th positional arg
-        end
-        -- Repack as new API: use label as ID
+        local oldStyle = type(opts) == "string" and opts or nil
         return controls.HoldButton(oldLabel, oldLabel, {
             duration = oldDuration,
             style = oldStyle,
-            width = oldWidth,
         })
     end
 
@@ -690,6 +584,7 @@ function controls.HoldButton(id, label, opts)
             holdDuration = duration,
             progress = 0,
             lastTime = os.clock(),
+            displayLabel = label .. "##hold_" .. id,
         }
     end
     local state = holdStates[id]
@@ -722,8 +617,8 @@ function controls.HoldButton(id, label, opts)
         return triggered
     end
 
-    -- Draw the button (append ##id to make ImGui widget ID unique per hold button)
-    local displayLabel = label .. "##hold_" .. id
+    -- Draw the button
+    local displayLabel = state.displayLabel
     styles.PushButton(styleName)
     ImGui.Button(displayLabel, width, 0)
     local isActive = ImGui.IsItemActive()
@@ -771,22 +666,14 @@ function controls.HoldButton(id, label, opts)
     return triggered
 end
 
---- Get the current hold progress for a button ID.
--- @param id string: Button ID
--- @return number|nil: Progress 0-1, or nil if not holding
+--- Get the current hold progress for a button ID
 function controls.getHoldProgress(id)
     local state = holdStates[id]
     if not state or not state.holding then return nil end
     return math.min((os.clock() - state.startTime) / state.holdDuration, 1.0)
 end
 
---- Display a progress bar showing another button's hold progress.
--- Call this where you would normally render content; if the source button
--- is being held, this replaces your content with a progress bar.
--- @param sourceId string: ID of the button being held
--- @param width number|nil: Progress bar width (nil = full available)
--- @param progressStyle string|nil: Style name ("danger", "success", "default")
--- @return boolean: True if progress is being shown (caller should skip normal content)
+--- Display a progress bar showing another button's hold progress
 function controls.ShowHoldProgress(sourceId, width, progressStyle)
     local progress = controls.getHoldProgress(sourceId)
     if not progress then return false end
@@ -797,12 +684,7 @@ function controls.ShowHoldProgress(sourceId, width, progressStyle)
     return true
 end
 
---- Compound action button: primary label + secondary icon with cross-element progress.
--- When the secondary button is held, the primary label is replaced with a progress bar.
--- @param id string: Unique ID for this compound widget
--- @param label string: Primary button label
--- @param opts table|nil: Options table
--- @return table: { primaryClicked, secondaryTriggered }
+--- Compound action button: primary label + secondary icon with cross-element progress
 function controls.ActionButton(id, label, opts)
     opts = opts or {}
     local onPrimary = opts.onPrimary
@@ -819,8 +701,8 @@ function controls.ActionButton(id, label, opts)
     local secondaryWidth = 0
     if onSecondary then
         local iconWidth = ImGui.CalcTextSize(secondaryIcon)
-        local framePadX = ImGui.GetStyle().FramePadding.x * 2
-        local spacing = ImGui.GetStyle().ItemSpacing.x
+        local framePadX = frameCache.framePaddingX * 2
+        local spacing = frameCache.itemSpacingX
         secondaryWidth = iconWidth + framePadX + spacing
     end
     local mainWidth = (totalWidth or ImGui.GetContentRegionAvail()) - secondaryWidth
@@ -862,8 +744,7 @@ function controls.ActionButton(id, label, opts)
     }
 end
 
---- Reset hold state for a specific button ID.
--- @param id string: Button ID to reset
+--- Reset hold state for a specific button ID
 function controls.resetHoldState(id)
     holdStates[id] = nil
 end
@@ -890,11 +771,6 @@ local function ensureArrows()
 end
 
 --- Begin an animated collapsible section
--- Content between CollapsingSection and EndCollapsingSection will be shown/hidden with animation.
--- @param label string: Section header label
--- @param id string|nil: Unique ID (defaults to label)
--- @param defaultOpen boolean|nil: Default open state (default true)
--- @return boolean: Whether the section is currently open (content should be rendered)
 function controls.CollapsingSection(label, id, defaultOpen)
     ensureArrows()
 
@@ -908,13 +784,15 @@ function controls.CollapsingSection(label, id, defaultOpen)
             measuredHeight = 0,
             animProgress = defaultOpen and 1.0 or 0.0,
             lastTime = os.clock(),
+            childId = "##collapse_" .. id,
+            label = label,
         }
     end
     local state = collapseStates[id]
 
     -- Draw header button
     local arrow = state.open and _arrowDown or _arrowRight
-    local headerLabel = arrow .. "  " .. label
+    local headerLabel = arrow .. "  " .. state.label
 
     styles.PushButtonTransparent()
     if ImGui.Button(headerLabel, ImGui.GetContentRegionAvail(), 0) then
@@ -924,7 +802,7 @@ function controls.CollapsingSection(label, id, defaultOpen)
 
     -- Animate progress toward target
     local target = state.open and 1.0 or 0.0
-    local speed = 8.0  -- animation speed factor
+    local speed = 8.0
     local now = os.clock()
     local dt = now - state.lastTime
     state.lastTime = now
@@ -941,12 +819,10 @@ function controls.CollapsingSection(label, id, defaultOpen)
 
     -- Begin content region with animated height
     if state.measuredHeight > 0 and state.animProgress < 1.0 then
-        -- Animated: use interpolated height
         local height = state.measuredHeight * state.animProgress
-        ImGui.BeginChild("##collapse_" .. id, 0, height, false, ImGuiWindowFlags.NoScrollbar)
+        ImGui.BeginChild(state.childId, 0, height, false, ImGuiWindowFlags.NoScrollbar)
     else
-        -- Fully open or first frame (measure): auto-height
-        ImGui.BeginChild("##collapse_" .. id, 0, 0, false,
+        ImGui.BeginChild(state.childId, 0, 0, false,
             ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.AlwaysAutoResize)
     end
 
@@ -973,10 +849,7 @@ end
 -- Fill-Available-Space Child Region
 --------------------------------------------------------------------------------
 
---- Begin a child region that fills remaining vertical space in the window.
--- @param id string: Child window ID
--- @param opts table|nil: { footerHeight, border, flags, bg }
--- @return boolean: Result of ImGui.BeginChild
+--- Begin a child region that fills remaining vertical space in the window
 function controls.BeginFillChild(id, opts)
     opts = opts or {}
     local footerHeight = opts.footerHeight or 0
@@ -995,7 +868,7 @@ function controls.BeginFillChild(id, opts)
 
     local windowHeight = ImGui.GetWindowHeight()
     local _, cursorY = ImGui.GetCursorPos()
-    local paddingY = ImGui.GetStyle().WindowPadding.y
+    local paddingY = frameCache.windowPaddingY
     local childHeight = math.max(windowHeight - cursorY - paddingY - footerHeight, 1)
 
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + extraFlags
@@ -1004,8 +877,7 @@ function controls.BeginFillChild(id, opts)
     return ImGui.BeginChild(childId, width, childHeight, border, flags)
 end
 
---- End a fill child region.
--- @param opts table|nil: { bg = true } if background color was pushed
+--- End a fill child region
 function controls.EndFillChild(opts)
     ImGui.EndChild()
     opts = opts or {}

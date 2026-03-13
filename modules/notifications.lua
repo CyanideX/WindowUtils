@@ -7,6 +7,8 @@ local styles = require("modules/styles")
 
 local notifications = {}
 
+local TOAST_FLAGS = nil
+
 --------------------------------------------------------------------------------
 -- Configuration
 --------------------------------------------------------------------------------
@@ -95,37 +97,26 @@ end
 --------------------------------------------------------------------------------
 
 --- Show an info notification
--- @param message string: Notification text
--- @param opts table|nil: { ttl, fadeOut }
 function notifications.info(message, opts)
     notifications.show(message, "info", opts)
 end
 
 --- Show a success notification
--- @param message string: Notification text
--- @param opts table|nil: { ttl, fadeOut }
 function notifications.success(message, opts)
     notifications.show(message, "success", opts)
 end
 
 --- Show a warning notification
--- @param message string: Notification text
--- @param opts table|nil: { ttl, fadeOut }
 function notifications.warn(message, opts)
     notifications.show(message, "warn", opts)
 end
 
 --- Show an error notification
--- @param message string: Notification text
--- @param opts table|nil: { ttl, fadeOut }
 function notifications.error(message, opts)
     notifications.show(message, "error", opts)
 end
 
 --- Show a notification with a specific level
--- @param message string: Notification text
--- @param level string: "info", "success", "warn", "error"
--- @param opts table|nil: { ttl, fadeOut }
 function notifications.show(message, level, opts)
     opts = opts or {}
     local toast = {
@@ -193,16 +184,18 @@ function notifications.draw()
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, config.windowBorderSize)
                 ImGui.PushStyleColor(ImGuiCol.Border, ImGui.GetColorU32(color[1], color[2], color[3], 0.6 * alpha))
 
-                local flags = ImGuiWindowFlags.NoTitleBar
-                    + ImGuiWindowFlags.NoResize
-                    + ImGuiWindowFlags.NoMove
-                    + ImGuiWindowFlags.NoScrollbar
-                    + ImGuiWindowFlags.NoInputs
-                    + ImGuiWindowFlags.NoFocusOnAppearing
-                    + ImGuiWindowFlags.AlwaysAutoResize
-                    + ImGuiWindowFlags.NoSavedSettings
+                if not TOAST_FLAGS then
+                    TOAST_FLAGS = ImGuiWindowFlags.NoTitleBar
+                        + ImGuiWindowFlags.NoResize
+                        + ImGuiWindowFlags.NoMove
+                        + ImGuiWindowFlags.NoScrollbar
+                        + ImGuiWindowFlags.NoInputs
+                        + ImGuiWindowFlags.NoFocusOnAppearing
+                        + ImGuiWindowFlags.AlwaysAutoResize
+                        + ImGuiWindowFlags.NoSavedSettings
+                end
 
-                if ImGui.Begin(windowName, flags) then
+                if ImGui.Begin(windowName, TOAST_FLAGS) then
                     -- Icon + message on same line
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(color[1], color[2], color[3], alpha))
                     ImGui.Text(icon)
@@ -229,7 +222,6 @@ function notifications.draw()
 end
 
 --- Configure notification defaults
--- @param opts table: { position, maxVisible, ttl, fadeOut, offsetX, offsetY, toastWidth }
 function notifications.configure(opts)
     if not opts then return end
     for k, v in pairs(opts) do
@@ -245,7 +237,6 @@ function notifications.clear()
 end
 
 --- Get current notification count
--- @return number
 function notifications.count()
     return #queue
 end

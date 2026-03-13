@@ -68,32 +68,17 @@ styles.colors = {
 }
 
 --------------------------------------------------------------------------------
--- Helper: Convert color table to ImGui color
+-- Helpers
 --------------------------------------------------------------------------------
 
-local function toColor(c)
+--- Convert {r,g,b,a} table to ImGui u32 color
+function styles.ToColor(c)
     return ImGui.GetColorU32(c[1], c[2], c[3], c[4])
 end
 
---- Public helper: Convert {r,g,b,a} table to ImGui u32 color
--- @param c table: Color as {r, g, b, a} with values 0-1
--- @return number: ImGui u32 color value
-styles.toColor = toColor
-
---------------------------------------------------------------------------------
--- Color Caching (pre-compute u32 values once per frame for hot loops)
---------------------------------------------------------------------------------
-
-styles.colorsU32 = {}
-
---- Pre-compute all styles.colors entries as ImGui u32 values.
--- Call once per frame from init.lua onDraw for hot-loop performance.
-function styles.ensureCache()
-    for key, c in pairs(styles.colors) do
-        if type(c) == "table" and #c >= 4 then
-            styles.colorsU32[key] = toColor(c)
-        end
-    end
+--- Push a style color from an RGBA table
+local function pushColor(col, c)
+    ImGui.PushStyleColor(col, c[1], c[2], c[3], c[4])
 end
 
 --------------------------------------------------------------------------------
@@ -103,10 +88,10 @@ end
 --- Active/Success button (green with black text)
 function styles.PushButtonActive()
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.green))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.greenHover))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.greenActive))
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.textBlack))
+    pushColor(ImGuiCol.Button, styles.colors.green)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.greenHover)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.greenActive)
+    pushColor(ImGuiCol.Text, styles.colors.textBlack)
 end
 
 function styles.PopButtonActive()
@@ -117,10 +102,10 @@ end
 --- Inactive/Default button (blue with white text)
 function styles.PushButtonInactive()
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.blue))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.blueHover))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.blueActive))
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.textWhite))
+    pushColor(ImGuiCol.Button, styles.colors.blue)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.blueHover)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.blueActive)
+    pushColor(ImGuiCol.Text, styles.colors.textWhite)
 end
 
 function styles.PopButtonInactive()
@@ -131,10 +116,10 @@ end
 --- Danger/Delete button (red with black text)
 function styles.PushButtonDanger()
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.red))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.redHover))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.redActive))
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.textBlack))
+    pushColor(ImGuiCol.Button, styles.colors.red)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.redHover)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.redActive)
+    pushColor(ImGuiCol.Text, styles.colors.textBlack)
 end
 
 function styles.PopButtonDanger()
@@ -145,10 +130,10 @@ end
 --- Warning button (yellow with black text)
 function styles.PushButtonWarning()
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.yellow))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.yellowHover))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.yellowActive))
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.textBlack))
+    pushColor(ImGuiCol.Button, styles.colors.yellow)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.yellowHover)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.yellowActive)
+    pushColor(ImGuiCol.Text, styles.colors.textBlack)
 end
 
 function styles.PopButtonWarning()
@@ -159,10 +144,10 @@ end
 --- Update button (orange with black text)
 function styles.PushButtonUpdate()
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.orange))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.orangeHover))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.orangeActive))
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.textBlack))
+    pushColor(ImGuiCol.Button, styles.colors.orange)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.orangeHover)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.orangeActive)
+    pushColor(ImGuiCol.Text, styles.colors.textBlack)
 end
 
 function styles.PopButtonUpdate()
@@ -173,10 +158,10 @@ end
 --- Disabled button (grey with grey text)
 function styles.PushButtonDisabled()
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.grey))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.grey))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.grey))
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.greyText))
+    pushColor(ImGuiCol.Button, styles.colors.grey)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.grey)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.grey)
+    pushColor(ImGuiCol.Text, styles.colors.greyText)
 end
 
 function styles.PopButtonDisabled()
@@ -188,9 +173,9 @@ end
 function styles.PushButtonTransparent()
     ImGui.PushStyleVar(ImGuiStyleVar.ItemInnerSpacing, 0, 0)
     ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    ImGui.PushStyleColor(ImGuiCol.Button, toColor(styles.colors.transparent))
-    ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(styles.colors.transparent))
-    ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(styles.colors.transparent))
+    pushColor(ImGuiCol.Button, styles.colors.transparent)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.transparent)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.transparent)
 end
 
 function styles.PopButtonTransparent()
@@ -232,8 +217,8 @@ end
 
 --- Blue outlined element
 function styles.PushOutlined()
-    ImGui.PushStyleColor(ImGuiCol.FrameBg, ImGui.GetColorU32(0.12, 0.26, 0.42, 0.3))
-    ImGui.PushStyleColor(ImGuiCol.Border, ImGui.GetColorU32(0.24, 0.59, 1.0, 0.35))
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.12, 0.26, 0.42, 0.3)
+    ImGui.PushStyleColor(ImGuiCol.Border, 0.24, 0.59, 1.0, 0.35)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
 end
 
@@ -244,9 +229,9 @@ end
 
 --- Red outlined element (for danger/delete progress)
 function styles.PushOutlinedDanger()
-    ImGui.PushStyleColor(ImGuiCol.PlotHistogram, toColor(styles.colors.red))
-    ImGui.PushStyleColor(ImGuiCol.FrameBg, ImGui.GetColorU32(0.12, 0.26, 0.42, 0.1))
-    ImGui.PushStyleColor(ImGuiCol.Border, ImGui.GetColorU32(0.8, 0.2, 0.2, 0.3))
+    pushColor(ImGuiCol.PlotHistogram, styles.colors.red)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.12, 0.26, 0.42, 0.1)
+    ImGui.PushStyleColor(ImGuiCol.Border, 0.8, 0.2, 0.2, 0.3)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
 end
 
@@ -257,9 +242,9 @@ end
 
 --- Green outlined element (for success/active progress)
 function styles.PushOutlinedSuccess()
-    ImGui.PushStyleColor(ImGuiCol.PlotHistogram, toColor(styles.colors.green))
-    ImGui.PushStyleColor(ImGuiCol.FrameBg, ImGui.GetColorU32(0.0, 1.0, 0.7, 0.1))
-    ImGui.PushStyleColor(ImGuiCol.Border, ImGui.GetColorU32(0.0, 1.0, 0.7, 0.3))
+    pushColor(ImGuiCol.PlotHistogram, styles.colors.green)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.0, 1.0, 0.7, 0.1)
+    ImGui.PushStyleColor(ImGuiCol.Border, 0.0, 1.0, 0.7, 0.3)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
 end
 
@@ -274,7 +259,7 @@ end
 
 --- Grey/muted text
 function styles.PushTextMuted()
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.greyLight))
+    pushColor(ImGuiCol.Text, styles.colors.greyLight)
 end
 
 function styles.PopTextMuted()
@@ -283,7 +268,7 @@ end
 
 --- Success/green text
 function styles.PushTextSuccess()
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.green))
+    pushColor(ImGuiCol.Text, styles.colors.green)
 end
 
 function styles.PopTextSuccess()
@@ -292,7 +277,7 @@ end
 
 --- Danger/red text
 function styles.PushTextDanger()
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.red))
+    pushColor(ImGuiCol.Text, styles.colors.red)
 end
 
 function styles.PopTextDanger()
@@ -301,7 +286,7 @@ end
 
 --- Warning/yellow text
 function styles.PushTextWarning()
-    ImGui.PushStyleColor(ImGuiCol.Text, toColor(styles.colors.yellow))
+    pushColor(ImGuiCol.Text, styles.colors.yellow)
 end
 
 function styles.PopTextWarning()
@@ -314,9 +299,9 @@ end
 
 --- Disabled slider appearance
 function styles.PushSliderDisabled()
-    ImGui.PushStyleColor(ImGuiCol.SliderGrab, toColor(styles.colors.grey))
-    ImGui.PushStyleColor(ImGuiCol.SliderGrabActive, toColor(styles.colors.grey))
-    ImGui.PushStyleColor(ImGuiCol.FrameBg, ImGui.GetColorU32(0.65, 0.7, 1.0, 0.045))
+    pushColor(ImGuiCol.SliderGrab, styles.colors.grey)
+    pushColor(ImGuiCol.SliderGrabActive, styles.colors.grey)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.65, 0.7, 1.0, 0.045)
 end
 
 function styles.PopSliderDisabled()
@@ -329,7 +314,7 @@ end
 
 --- Active/checked checkbox (green checkmark)
 function styles.PushCheckboxActive()
-    ImGui.PushStyleColor(ImGuiCol.CheckMark, toColor(styles.colors.green))
+    pushColor(ImGuiCol.CheckMark, styles.colors.green)
 end
 
 function styles.PopCheckboxActive()
@@ -351,16 +336,14 @@ local styleMap = {
 }
 
 --- Push a button style by name or by custom color table
--- @param styleNameOrTable string|table: Style name ("active", etc.) or { bg={r,g,b,a}, hover={r,g,b,a}, text={r,g,b,a} }
 function styles.PushButton(styleNameOrTable)
     if type(styleNameOrTable) == "table" then
-        -- Custom color table: { bg, hover, text }
         local c = styleNameOrTable
         ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-        ImGui.PushStyleColor(ImGuiCol.Button, toColor(c.bg or styles.colors.blue))
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(c.hover or styles.colors.blueHover))
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(c.hover or styles.colors.blueActive))
-        ImGui.PushStyleColor(ImGuiCol.Text, toColor(c.text or styles.colors.textWhite))
+        pushColor(ImGuiCol.Button, c.bg or styles.colors.blue)
+        pushColor(ImGuiCol.ButtonHovered, c.hover or styles.colors.blueHover)
+        pushColor(ImGuiCol.ButtonActive, c.hover or styles.colors.blueActive)
+        pushColor(ImGuiCol.Text, c.text or styles.colors.textWhite)
     else
         local style = styleMap[styleNameOrTable]
         if style then
@@ -370,10 +353,8 @@ function styles.PushButton(styleNameOrTable)
 end
 
 --- Pop a button style by name or table
--- @param styleNameOrTable string|table: Must match what was pushed
 function styles.PopButton(styleNameOrTable)
     if type(styleNameOrTable) == "table" then
-        -- Custom table always pushes 4 colors + 1 var
         ImGui.PopStyleColor(4)
         ImGui.PopStyleVar()
     else

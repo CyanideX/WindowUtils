@@ -121,8 +121,8 @@ registerForEvent("onInit", function()
 end)
 
 registerForEvent("onDraw", function()
-    -- Pre-compute cached color values for hot-loop performance
-    styles.ensureCache()
+    -- Cache style values for controls (GetStyle() once per frame)
+    controls.cacheFrameState()
 
     -- Draw toast notifications (visible even when overlay is closing)
     notifications.draw()

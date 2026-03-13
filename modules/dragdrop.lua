@@ -7,12 +7,19 @@ local styles = require("modules/styles")
 
 local dragdrop = {}
 
+local defaultHoverColor = nil
+local function getDefaultHoverColor()
+    if not defaultHoverColor then
+        defaultHoverColor = { styles.colors.blueHover[1], styles.colors.blueHover[2], styles.colors.blueHover[3], 0.3 }
+    end
+    return defaultHoverColor
+end
+
 --------------------------------------------------------------------------------
 -- State Management
 --------------------------------------------------------------------------------
 
 --- Create a new drag-drop state for a list
--- @return table: State object for use with the advanced API
 function dragdrop.createState()
     return {
         draggingIndex = nil,     -- Index being dragged (1-based, nil if not dragging)
@@ -22,7 +29,6 @@ function dragdrop.createState()
 end
 
 --- Reset drag state
--- @param state table: State to reset
 function dragdrop.resetState(state)
     state.draggingIndex = nil
     state.hoverIndex = nil
@@ -34,9 +40,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Get context for current item (call at start of each list item)
--- @param index number: Current item index (1-based)
--- @param state table: State from createState()
--- @return table: { isDragged, isHoverTarget, dropAbove, dropBelow }
 function dragdrop.getItemContext(index, state)
     local isDragging = state.draggingIndex ~= nil
     return {
@@ -48,10 +51,6 @@ function dragdrop.getItemContext(index, state)
 end
 
 --- Handle drag interaction for an ImGui item (call AFTER the draggable ImGui element)
--- @param index number: Current item index (1-based)
--- @param totalCount number: Total items in list
--- @param state table: State from createState()
--- @return boolean, number|nil, number|nil: shouldReorder, fromIndex, toIndex
 function dragdrop.handleDrag(index, totalCount, state)
     local shouldReorder = false
     local fromIndex, toIndex = nil, nil
@@ -99,15 +98,11 @@ function dragdrop.handleDrag(index, totalCount, state)
 end
 
 --- Check if currently dragging any item
--- @param state table: State from createState()
--- @return boolean
 function dragdrop.isDragging(state)
     return state.draggingIndex ~= nil
 end
 
 --- Get the index being dragged (or nil)
--- @param state table: State from createState()
--- @return number|nil
 function dragdrop.getDraggingIndex(state)
     return state.draggingIndex
 end
@@ -117,12 +112,10 @@ end
 --------------------------------------------------------------------------------
 
 --- Push visual styles for dragged/hover state
--- @param ctx table: Context from getItemContext()
--- @param colors table|nil: Optional { drag={r,g,b,a}, hover={r,g,b,a} }
 function dragdrop.pushItemStyles(ctx, colors)
     colors = colors or {}
     local dragAlpha = 0.4
-    local hoverColor = colors.hover or { styles.colors.blueHover[1], styles.colors.blueHover[2], styles.colors.blueHover[3], 0.3 }
+    local hoverColor = colors.hover or getDefaultHoverColor()
 
     if ctx.isDragged then
         ImGui.PushStyleVar(ImGuiStyleVar.Alpha, dragAlpha)
@@ -133,7 +126,6 @@ function dragdrop.pushItemStyles(ctx, colors)
 end
 
 --- Pop visual styles (must match pushItemStyles)
--- @param ctx table: Context from getItemContext()
 function dragdrop.popItemStyles(ctx)
     if ctx.isHoverTarget then
         ImGui.PopStyleColor()
@@ -144,8 +136,6 @@ function dragdrop.popItemStyles(ctx)
 end
 
 --- Draw drop indicator separator
--- @param show boolean: Whether to show the separator
--- @param color table|nil: Optional {r,g,b,a}, defaults to accent blue
 function dragdrop.drawSeparator(show, color)
     if not show then return end
     color = color or styles.colors.blueHover
@@ -155,7 +145,6 @@ function dragdrop.drawSeparator(show, color)
 end
 
 --- Update cursor feedback (call once after the list loop)
--- @param state table: State from createState()
 function dragdrop.updateCursor(state)
     if state.draggingIndex and state.hoverIndex and state.dropPosition then
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
@@ -167,9 +156,6 @@ end
 --------------------------------------------------------------------------------
 
 --- Reorder an array by moving item from one index to another
--- @param array table: The array to reorder (mutated in-place)
--- @param fromIndex number: Source index (1-based)
--- @param toIndex number: Destination index (1-based)
 function dragdrop.reorderArray(array, fromIndex, toIndex)
     if fromIndex < 1 or fromIndex > #array then return end
     if toIndex < 1 or toIndex > #array then return end
@@ -187,12 +173,6 @@ end
 local listStates = {}
 
 --- Render a reorderable list with minimal boilerplate
--- Handles all state management, visual feedback, and array mutation internally.
--- @param id string: Unique list ID
--- @param items table: Array to reorder in-place on drop
--- @param renderFn function(item, index, ctx): Render each item (must include a Selectable or similar interactive element)
--- @param onReorder function|nil: Optional callback(fromIndex, toIndex) called after reorder
--- @param opts table|nil: { colors={hover,drag}, itemHeight=nil }
 function dragdrop.list(id, items, renderFn, onReorder, opts)
     if not items or #items == 0 then return end
 

@@ -19,10 +19,6 @@ local tabStates = {} -- [id] = { selected = 1 }
 --------------------------------------------------------------------------------
 
 --- Render a tab bar with content callbacks
--- @param id string: Tab bar ID
--- @param tabDefs table: Array of { label, content, badge?, disabled?, tooltip? }
--- @param opts table|nil: { flags=0 }
--- @return number: Index of the currently active tab (1-based)
 function tabs.bar(id, tabDefs, opts)
     if not tabDefs or #tabDefs == 0 then return 0 end
 
@@ -54,7 +50,6 @@ function tabs.bar(id, tabDefs, opts)
             -- Badge rendering (small colored dot or number after the tab label)
             if tab.badge and not disabled then
                 local maxX, minY = ImGui.GetItemRectMax()
-                local _, _ = ImGui.GetItemRectMin()
                 local drawList = ImGui.GetWindowDrawList()
 
                 if type(tab.badge) == "number" and tab.badge > 0 then
@@ -119,8 +114,6 @@ function tabs.bar(id, tabDefs, opts)
 end
 
 --- Programmatically select a tab by index (1-based)
--- @param id string: Tab bar ID
--- @param index number: Tab index to select
 function tabs.select(id, index)
     if not tabStates[id] then
         tabStates[id] = { selected = 1 }
@@ -129,8 +122,6 @@ function tabs.select(id, index)
 end
 
 --- Get currently selected tab index (1-based)
--- @param id string: Tab bar ID
--- @return number: Selected tab index, or 1 if not initialized
 function tabs.getSelected(id)
     local state = tabStates[id]
     return state and state.selected or 1
