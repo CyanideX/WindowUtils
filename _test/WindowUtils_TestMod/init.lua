@@ -11,6 +11,22 @@ local demoDefaults = { slider = 0.5, checkbox = true, combo = 0, input = "Hello,
 local demoState = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
 local notifCounter = 0
 
+-- Phase 3 demo state
+local p3Defaults = {
+    opacity = 0.75, quality = 12, speed = 5,
+    featureA = true, featureB = false, featureC = true, featureD = false,
+    easeFunction = "easeInOut",
+}
+local p3State = {
+    opacity = 0.75, quality = 12, speed = 5,
+    featureA = true, featureB = false, featureC = true, featureD = false,
+    easeFunction = "easeInOut",
+}
+local easingNames = { "Linear", "Ease In", "Ease In Out", "Ease Out" }
+local easingKeys  = { "linear", "easeIn", "easeInOut", "easeOut" }
+local p3Log = {}
+local p3Playing = false
+
 -- Scrollbar customization state (applied to entire window)
 local scrollState = { size = nil, rounding = nil }
 local scrollColors = {
@@ -396,6 +412,7 @@ local function drawDragDropDemo()
     controls.TextMuted("Drag items to reorder the list:")
     ImGui.Dummy(0, 4)
 
+    ImGui.BeginChild("##dd_container_1", 0, 160, true)
     dragdrop.list("##demo_dd_list", dragItems, function(item, index, ctx)
         local label = item.icon .. ".  " .. item.name
         ImGui.Selectable(label, ctx.isDragged, 0, 0, 0)
@@ -403,6 +420,7 @@ local function drawDragDropDemo()
         notifCounter = notifCounter + 1
         wu.Notify.info("Moved item from " .. from .. " to " .. to)
     end)
+    ImGui.EndChild()
 
     ImGui.Dummy(0, 8)
     controls.Separator(4, 4)
@@ -410,6 +428,7 @@ local function drawDragDropDemo()
     controls.TextMuted("With drag handle and custom colors:")
     ImGui.Dummy(0, 4)
 
+    ImGui.BeginChild("##dd_container_2", 0, 160, true)
     dragdrop.list("##demo_dd_handle", dragItems, function(item, index, ctx)
         local label = item.icon .. ".  " .. item.name
         ImGui.Selectable(label, ctx.isDragged, 0, 0, 0)
@@ -425,6 +444,7 @@ local function drawDragDropDemo()
             dragAlpha = 0.3,
         },
     })
+    ImGui.EndChild()
 
     ImGui.Dummy(0, 8)
     controls.Separator(4, 4)
@@ -777,6 +797,343 @@ local function drawLayoutDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 8: Multi-Splitter Demo
+--------------------------------------------------------------------------------
+
+local function drawMultiSplitterDemo()
+    local controls = wu.Controls
+    local splitter = wu.Splitter
+
+    -- Use vertical splitter to divide the full height into 3 rows
+    splitter.vertical("##ms_rows_outer", function()
+
+        -- Row 1: 3 horizontal panels
+        splitter.vertical("##ms_rows_inner", function()
+
+            splitter.multi("ms_3panel", {
+                { content = function()
+                    controls.Panel("ms3_p1", function()
+                        ImGui.Text("Panel 1")
+                        ImGui.Separator()
+                        controls.TextMuted("3-panel row")
+                        controls.TextMuted("Drag dividers ->")
+                    end)
+                end },
+                { content = function()
+                    controls.Panel("ms3_p2", function()
+                        ImGui.Text("Panel 2")
+                        ImGui.Separator()
+                        controls.TextMuted("Independent dividers")
+                    end)
+                end },
+                { content = function()
+                    controls.Panel("ms3_p3", function()
+                        ImGui.Text("Panel 3")
+                        ImGui.Separator()
+                        controls.TextMuted("<- Drag dividers")
+                    end)
+                end },
+            }, { direction = "horizontal", defaultPcts = { 0.33, 0.34, 0.33 } })
+
+        end, function()
+
+            -- Row 2: 2 horizontal panels
+            splitter.multi("ms_2panel", {
+                { content = function()
+                    controls.Panel("ms2_p1", function()
+                        ImGui.Text("Left")
+                        ImGui.Separator()
+                        controls.TextMuted("2-panel row")
+                        controls.TextMuted("Single divider")
+                    end)
+                end },
+                { content = function()
+                    controls.Panel("ms2_p2", function()
+                        ImGui.Text("Right")
+                        ImGui.Separator()
+                        controls.TextMuted("Resizable")
+                    end)
+                end },
+            }, { direction = "horizontal", defaultPcts = { 0.5, 0.5 } })
+
+        end, { defaultPct = 0.5, minPct = 0.15, maxPct = 0.85 })
+
+    end, function()
+
+        -- Row 3: 4 horizontal panels
+        splitter.multi("ms_4panel", {
+            { content = function()
+                controls.Panel("ms4_p1", function()
+                    ImGui.Text("Col 1")
+                    ImGui.Separator()
+                    controls.TextMuted("4-panel row")
+                end)
+            end },
+            { content = function()
+                controls.Panel("ms4_p2", function()
+                    ImGui.Text("Col 2")
+                    ImGui.Separator()
+                    controls.TextMuted("Each divider")
+                end)
+            end },
+            { content = function()
+                controls.Panel("ms4_p3", function()
+                    ImGui.Text("Col 3")
+                    ImGui.Separator()
+                    controls.TextMuted("is independent")
+                end)
+            end },
+            { content = function()
+                controls.Panel("ms4_p4", function()
+                    ImGui.Text("Col 4")
+                    ImGui.Separator()
+                    controls.TextMuted("of the others")
+                end)
+            end },
+        }, { direction = "horizontal", defaultPcts = { 0.25, 0.25, 0.25, 0.25 } })
+
+    end, { defaultPct = 0.65, minPct = 0.2, maxPct = 0.85 })
+end
+
+--------------------------------------------------------------------------------
+-- Phase 3 Demo
+--------------------------------------------------------------------------------
+
+local function p3log(msg)
+    table.insert(p3Log, os.date("%H:%M:%S") .. " " .. msg)
+    if #p3Log > 50 then table.remove(p3Log, 1) end
+end
+
+local function drawPhase3Demo()
+    local controls = wu.Controls
+
+    ImGui.Dummy(0, 4)
+    controls.TextMuted("Phase 3 features: percent sliders, transforms, ButtonRow, ToggleButtonRow, HoldButton, multi-splitter.")
+    ImGui.Dummy(0, 4)
+
+    -- Section 1: Percent Sliders
+    if controls.CollapsingSection("Percent Sliders", "p3_percent", false) then
+        local c = controls.bind(p3State, p3Defaults)
+
+        controls.TextMuted("percent = true (0-1 float, no icon)")
+        c:SliderFloat(nil, "opacity", 0, 1, { percent = true, tooltip = "Opacity as percentage" })
+
+        ImGui.Dummy(0, 4)
+        controls.TextMuted("percent = true (0-1 float, with icon)")
+        c:SliderFloat("Brightness6", "opacity", 0, 1, { percent = true, tooltip = "Opacity with icon" })
+
+        ImGui.Dummy(0, 4)
+        controls.TextMuted("percent = true (integer 1-23, no icon)")
+        c:SliderInt(nil, "quality", 1, 23, { percent = true, tooltip = "Quality as percentage of range" })
+
+        ImGui.Dummy(0, 4)
+        controls.TextMuted("percent = true (integer 1-23, with icon)")
+        c:SliderInt("TuneVariant", "quality", 1, 23, { percent = true, tooltip = "Quality with icon" })
+
+        ImGui.Dummy(0, 4)
+        controls.TextMuted("Normal slider with icon (no percent, for comparison)")
+        c:SliderInt("Speedometer", "speed", 0, 10, { tooltip = "Speed value" })
+
+        controls.EndCollapsingSection("p3_percent")
+    end
+
+    -- Section 2: Transform (Combo)
+    if controls.CollapsingSection("Transform (Combo)", "p3_transform", false) then
+        local c = controls.bind(p3State, p3Defaults)
+
+        local findIdx = function(key)
+            for i, k in ipairs(easingKeys) do if k == key then return i - 1 end end
+            return 0
+        end
+
+        controls.TextMuted("Combo with transform: stored as string, displayed as index")
+        c:Combo("SineWave", "easeFunction", easingNames, {
+            tooltip = "Easing Function",
+            transform = {
+                read  = function(v) return findIdx(v) end,
+                write = function(v) return easingKeys[v + 1] end,
+            },
+        })
+        controls.TextMuted("Stored value: " .. tostring(p3State.easeFunction))
+
+        controls.EndCollapsingSection("p3_transform")
+    end
+
+    -- Section 3: Button Fill (-1 width)
+    if controls.CollapsingSection("Button Fill Width", "p3_fill", false) then
+        controls.TextMuted("Normal button (width=0, auto)")
+        controls.Button("  Normal (width=0)  ", "inactive")
+
+        ImGui.Dummy(0, 4)
+        controls.TextMuted("Full-width button (width=-1)")
+        controls.Button("  Full Width (width=-1)  ", "active", -1)
+
+        controls.EndCollapsingSection("p3_fill")
+    end
+
+    -- Section 4: ButtonRow — Multiple Layouts
+    if controls.CollapsingSection("ButtonRow Layouts", "p3_btnrow", false) then
+        -- Layout A: Equal text buttons
+        controls.TextMuted("A: Equal text buttons")
+        controls.ButtonRow({
+            { label = "  Select A  ", style = "active",   onClick = function() p3log("Clicked A") end },
+            { label = "  Select B  ", style = "inactive", onClick = function() p3log("Clicked B") end },
+            { label = "  Select C  ", style = "inactive", onClick = function() p3log("Clicked C") end },
+        })
+
+        ImGui.Dummy(0, 6)
+
+        -- Layout B: Text + auto-sized icon buttons (with cross-element progress)
+        controls.TextMuted("B: Text + icons, hold delete to see progress on text button")
+        controls.ButtonRow({
+            { label = "My Preset Name", style = "active", onClick = function() p3log("Load preset") end,
+              progressFrom = "p3_del_b", progressStyle = "danger" },
+            { icon = "Undo",   style = "inactive", onClick = function() p3log("Reset") end, tooltip = "Reset preset" },
+            { icon = "Delete", style = "danger",   onHold = function() p3log("Deleted!") end,
+              holdDuration = 1.0, id = "p3_del_b", progressDisplay = "external" },
+        })
+
+        ImGui.Dummy(0, 6)
+
+        -- Layout C: Weighted text + icon
+        controls.TextMuted("C: Weighted text (2:1) + icon")
+        controls.ButtonRow({
+            { label = "Primary Action", style = "active", weight = 2, onClick = function() p3log("Primary") end },
+            { label = "Cancel",         style = "inactive",           onClick = function() p3log("Cancel") end },
+            { icon = "ContentSave",     style = "active",             onClick = function() p3log("Quick save") end, tooltip = "Quick save" },
+        })
+
+        ImGui.Dummy(0, 6)
+
+        -- Layout D: All icons (with play/pause state toggle)
+        controls.TextMuted("D: All icon buttons (auto-sized, play/pause swap, stop disabled until playing)")
+        local playIcon = p3Playing and "Pause" or "Play"
+        controls.ButtonRow({
+            { icon = playIcon, style = "active", tooltip = playIcon,
+              onClick = function() p3Playing = not p3Playing; p3log(p3Playing and "Playing" or "Paused") end },
+            { icon = "Stop", style = "danger", disabled = not p3Playing, tooltip = "Stop",
+              onClick = function() p3Playing = false; p3log("Stopped") end },
+            { icon = "SkipNext", style = "inactive", tooltip = "Next",
+              onClick = function() p3log("Next") end },
+        })
+
+        ImGui.Dummy(0, 6)
+
+        -- Layout D2: All icons filling remaining space with weight
+        controls.TextMuted("D2: All icons filling width (weighted, Seek has weight=2)")
+        controls.ButtonRow({
+            { icon = "Play",         style = "active",   weight = 1, onClick = function() p3log("Play") end,      tooltip = "Play" },
+            { icon = "Pause",        style = "inactive", weight = 1, onClick = function() p3log("Pause") end,     tooltip = "Pause" },
+            { icon = "SkipPrevious", style = "inactive", weight = 2, onClick = function() p3log("Seek back") end, tooltip = "Seek Back" },
+            { icon = "SkipNext",     style = "inactive", weight = 2, onClick = function() p3log("Seek fwd") end,  tooltip = "Seek Forward" },
+            { icon = "Stop",         style = "danger",   weight = 1, onClick = function() p3log("Stop") end,      tooltip = "Stop" },
+        })
+
+        ImGui.Dummy(0, 6)
+
+        -- Layout E: Single text + single icon (with cross-element progress)
+        controls.TextMuted("E: Text + hold-delete with progress on text button")
+        controls.ButtonRow({
+            { label = "Save Current Profile", style = "active", onClick = function() p3log("Saved profile") end,
+              progressFrom = "p3_del_e", progressStyle = "danger" },
+            { icon = "Delete", style = "danger", onHold = function() p3log("Profile deleted!") end,
+              holdDuration = 1.5, id = "p3_del_e", progressDisplay = "external" },
+        })
+
+        ImGui.Dummy(0, 6)
+
+        -- Layout F: Disabled buttons
+        controls.TextMuted("F: With disabled buttons")
+        controls.ButtonRow({
+            { label = "Available",   style = "active",   onClick = function() p3log("OK") end },
+            { label = "Unavailable", style = "inactive", disabled = true },
+            { icon = "Lock",         style = "inactive", disabled = true, tooltip = "Locked" },
+        })
+
+        controls.EndCollapsingSection("p3_btnrow")
+    end
+
+    -- Section 5: ToggleButtonRow
+    if controls.CollapsingSection("ToggleButtonRow", "p3_toggle", false) then
+        local tc = controls.bind(p3State, p3Defaults)
+
+        controls.TextMuted("Icon toggles (auto-sized, left-click toggle, right-click reset)")
+        tc:ToggleButtonRow({
+            { key = "featureA", icon = "AngleAcute",    tooltip = "Feature A" },
+            { key = "featureB", icon = "SineWave",      tooltip = "Feature B" },
+            { key = "featureC", icon = "Motorbike",     tooltip = "Feature C" },
+            { key = "featureD", icon = "Car",           tooltip = "Feature D" },
+        })
+        controls.TextMuted("A=" .. tostring(p3State.featureA) .. "  B=" .. tostring(p3State.featureB)
+            .. "  C=" .. tostring(p3State.featureC) .. "  D=" .. tostring(p3State.featureD))
+
+        ImGui.Dummy(0, 6)
+
+        controls.TextMuted("Icon toggles filling remaining space (even distribution)")
+        tc:ToggleButtonRow({
+            { key = "featureA", icon = "AngleAcute", weight = 1, tooltip = "Feature A (fill)" },
+            { key = "featureB", icon = "SineWave",   weight = 1, tooltip = "Feature B (fill)" },
+            { key = "featureC", icon = "Motorbike",  weight = 1, tooltip = "Feature C (fill)" },
+            { key = "featureD", icon = "Car",        weight = 1, tooltip = "Feature D (fill)" },
+        })
+
+        controls.EndCollapsingSection("p3_toggle")
+    end
+
+    -- Section 6: HoldButton Enhancements
+    if controls.CollapsingSection("HoldButton Enhancements", "p3_hold", false) then
+        controls.TextMuted("Click or hold with tooltip (width=-1)")
+        controls.HoldButton("p3_save", "  Save Settings  ", {
+            style = "active", width = -1,
+            onClick = function() wu.Notify.success("Settings saved!") end,
+            onHold = function() wu.Notify.success("Settings force-saved!") end,
+            tooltip = "Click to save, hold to force-save",
+        })
+
+        ImGui.Dummy(0, 6)
+
+        controls.TextMuted("Hold-only with warning message")
+        controls.HoldButton("p3_delete", "  Delete All Data  ", {
+            duration = 2.0, style = "danger", width = -1,
+            onHold = function() wu.Notify.success("All data deleted!") end,
+            onClick = function() wu.Notify.info("Hold to confirm deletion") end,
+            warningMessage = "Hold to confirm deletion",
+            tooltip = "Permanently delete all data",
+        })
+
+        ImGui.Dummy(0, 6)
+
+        controls.TextMuted("Disabled button")
+        controls.HoldButton("p3_locked", "  Cannot Click  ", {
+            style = "inactive", width = -1,
+            disabled = true,
+            tooltip = "This action is not available",
+        })
+
+        controls.EndCollapsingSection("p3_hold")
+    end
+
+    -- Section 7: Event Log
+    if controls.CollapsingSection("Event Log", "p3_log", false) then
+        if #p3Log == 0 then
+            controls.TextMuted("Click buttons above to see events here.")
+        else
+            for i = math.max(1, #p3Log - 14), #p3Log do
+                controls.TextMuted(p3Log[i])
+            end
+        end
+        if #p3Log > 0 then
+            ImGui.Dummy(0, 4)
+            if controls.Button("  Clear Log  ", "inactive", -1) then
+                p3Log = {}
+            end
+        end
+
+        controls.EndCollapsingSection("p3_log")
+    end
+end
+
+--------------------------------------------------------------------------------
 -- Main Draw
 --------------------------------------------------------------------------------
 
@@ -824,6 +1181,8 @@ registerForEvent("onDraw", function()
             { label = "Notifications", content = drawNotificationsDemo, badge = notifCounter > 0 and notifCounter or nil },
             { label = "Styles",        content = drawStylesDemo },
             { label = "Layout",        content = drawLayoutDemo },
+            { label = "Multi-Split",   content = drawMultiSplitterDemo },
+            { label = "Phase 3",       content = drawPhase3Demo },
         })
         if changed and selected == 5 then notifCounter = 0 end
     end
