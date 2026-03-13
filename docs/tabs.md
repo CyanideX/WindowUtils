@@ -30,7 +30,7 @@ Render a tab bar with content callbacks.
 | tabDefs | table | — | Array of tab definitions (see below) |
 | opts.flags | number | 0 | ImGuiTabBarFlags |
 
-**Returns:** `number` — index of the currently active tab (1-based), or 0 if tabDefs is empty
+**Returns:** `number, boolean` — `selected` (1-based active tab index, or 0 if empty), `changed` (true on the frame the user clicked a different tab)
 
 #### Tab Definition
 
@@ -72,6 +72,18 @@ tabs.bar("settings", {
       content = drawDebug },
     { label = "Status", badge = isConnected, content = drawStatus },
 })
+```
+
+### Clearing Badges on Tab Select
+
+```lua
+local selected, changed = tabs.bar("settings", {
+    { label = "General", content = drawGeneral },
+    { label = "Inbox", badge = unreadCount > 0 and unreadCount or nil, content = drawInbox },
+})
+if changed and selected == 2 then
+    unreadCount = 0  -- clear badge when user clicks the tab
+end
 ```
 
 ### Programmatic Tab Selection

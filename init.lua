@@ -124,9 +124,6 @@ registerForEvent("onDraw", function()
     -- Cache style values for controls (GetStyle() once per frame)
     controls.cacheFrameState()
 
-    -- Draw toast notifications (visible even when overlay is closing)
-    notifications.draw()
-
     -- Update blur animation (runs even when overlay might be closing)
     ui.updateBlurAnimation()
 
@@ -145,6 +142,9 @@ registerForEvent("onDraw", function()
         -- Execute deferred snap operations
         core.processDeferred()
     end
+
+    -- Draw toast notifications LAST so they render on top of all other windows
+    notifications.draw()
 end)
 
 registerForEvent("onOverlayOpen", function()

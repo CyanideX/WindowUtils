@@ -241,24 +241,37 @@ function controls.ProgressBar(fraction, width, height, overlay, styleName)
     width = width or ImGui.GetContentRegionAvail()
     height = height or 0
     overlay = overlay or ""
-    styleName = styleName or "default"
 
-    if styleName == "danger" then
-        styles.PushOutlinedDanger()
-    elseif styleName == "success" then
-        styles.PushOutlinedSuccess()
+    if type(styleName) == "table" then
+        local s = styleName
+        if s.fill then
+            ImGui.PushStyleColor(ImGuiCol.PlotHistogram, s.fill[1], s.fill[2], s.fill[3], s.fill[4])
+        end
+        ImGui.PushStyleColor(ImGuiCol.FrameBg, s.frameBg[1], s.frameBg[2], s.frameBg[3], s.frameBg[4])
+        ImGui.PushStyleColor(ImGuiCol.Border, s.border[1], s.border[2], s.border[3], s.border[4])
+        ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, s.borderSize or 2.0)
+        ImGui.ProgressBar(fraction, width, height, overlay)
+        ImGui.PopStyleVar(1)
+        ImGui.PopStyleColor(s.fill and 3 or 2)
     else
-        styles.PushOutlined()
-    end
+        styleName = styleName or "default"
+        if styleName == "danger" then
+            styles.PushOutlinedDanger()
+        elseif styleName == "success" then
+            styles.PushOutlinedSuccess()
+        else
+            styles.PushOutlined()
+        end
 
-    ImGui.ProgressBar(fraction, width, height, overlay)
+        ImGui.ProgressBar(fraction, width, height, overlay)
 
-    if styleName == "danger" then
-        styles.PopOutlinedDanger()
-    elseif styleName == "success" then
-        styles.PopOutlinedSuccess()
-    else
-        styles.PopOutlined()
+        if styleName == "danger" then
+            styles.PopOutlinedDanger()
+        elseif styleName == "success" then
+            styles.PopOutlinedSuccess()
+        else
+            styles.PopOutlined()
+        end
     end
 end
 
@@ -269,8 +282,12 @@ end
 --- Create a color picker with icon on left
 function controls.ColorEdit4(icon, id, color, label, defaultColor, tooltip)
     iconPrefix(icon, tooltip, true)
+    if label then
+        ImGui.Text(label)
+        ImGui.SameLine()
+    end
     ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
-    local newColor, changed = ImGui.ColorEdit4(label or ("##" .. id), color, ImGuiColorEditFlags.NoOptions)
+    local newColor, changed = ImGui.ColorEdit4("##" .. id, color, ImGuiColorEditFlags.NoOptions)
     if defaultColor and ImGui.IsItemClicked(1) then
         newColor = {defaultColor[1], defaultColor[2], defaultColor[3], defaultColor[4]}
         changed = true
@@ -442,6 +459,7 @@ function controls.HoldButton(id, label, opts)
     state.lastTime = now
 
     local triggered = false
+    local clicked = false
 
     -- Reset completed lock when mouse is fully released
     if state.completed and not ImGui.IsMouseDown(0) then
@@ -452,6 +470,7 @@ function controls.HoldButton(id, label, opts)
     if progressDisplay == "replace" and state.holding then
         controls.ProgressBar(state.progress, width > 0 and width or nil, 0, "", progressStyle)
         if not ImGui.IsMouseDown(0) then
+            clicked = state.holding
             state.holding = false
         elseif not state.completed then
             state.progress = math.min((now - state.startTime) / duration, 1.0)
@@ -462,7 +481,7 @@ function controls.HoldButton(id, label, opts)
                 triggered = true
             end
         end
-        return triggered
+        return triggered, clicked
     end
 
     -- Draw the button
@@ -489,8 +508,9 @@ function controls.HoldButton(id, label, opts)
                 triggered = true
             end
         else
-            -- Released before completion or already completed
+            -- Released before completion
             state.holding = false
+            clicked = true
         end
     end
 
@@ -506,14 +526,21 @@ function controls.HoldButton(id, label, opts)
         local fillX = minX + (maxX - minX) * state.progress
 
         local drawList = ImGui.GetWindowDrawList()
-        if not HOLD_OVERLAY_COLOR then
-            HOLD_OVERLAY_COLOR = ImGui.GetColorU32(1.0, 1.0, 1.0, 0.2)
+        local color
+        if opts.overlayColor then
+            local oc = opts.overlayColor
+            color = ImGui.GetColorU32(oc[1], oc[2], oc[3], oc[4])
+        else
+            if not HOLD_OVERLAY_COLOR then
+                HOLD_OVERLAY_COLOR = ImGui.GetColorU32(0.16, 0.16, 0.16, 0.31)
+            end
+            color = HOLD_OVERLAY_COLOR
         end
-        ImGui.ImDrawListAddRectFilled(drawList, minX, minY, fillX, maxY, HOLD_OVERLAY_COLOR, 2.0)
+        ImGui.ImDrawListAddRectFilled(drawList, minX, minY, fillX, maxY, color, 2.0)
     end
     -- "external" mode: no visual — other elements read via getHoldProgress()
 
-    return triggered
+    return triggered, clicked
 end
 
 --- Get the current hold progress for a button ID

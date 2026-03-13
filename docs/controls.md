@@ -194,7 +194,7 @@ Button that requires holding to trigger. Prevents accidental destructive actions
 | opts.progressDisplay | string | "overlay" | "overlay", "replace", or "external" |
 | opts.progressStyle | string | "danger" | Progress bar style (for replace/external) |
 
-**Returns:** `boolean` — true only when hold completes
+**Returns:** `boolean, boolean` — `triggered` (hold completed), `clicked` (released early)
 
 Progress display modes:
 - **overlay** — white rect fills over the button as you hold
@@ -202,8 +202,11 @@ Progress display modes:
 - **external** — no visual on the button itself; use `ShowHoldProgress()` elsewhere
 
 ```lua
-if c.HoldButton("delete_all", "Delete All", { duration = 1.5, style = "danger" }) then
+local held, clicked = c.HoldButton("delete_all", "Delete All", { duration = 1.5, style = "danger" })
+if held then
     deleteAll()
+elseif clicked then
+    wu.Notify.info("Hold the button to confirm")
 end
 ```
 

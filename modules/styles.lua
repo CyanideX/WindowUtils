@@ -88,92 +88,41 @@ local function pushColor(col, c)
 end
 
 --------------------------------------------------------------------------------
--- Button Styles
+-- Button Color Defaults
 --------------------------------------------------------------------------------
 
---- Active/Success button (green with black text)
-function styles.PushButtonActive()
-    ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    pushColor(ImGuiCol.Button, styles.colors.green)
-    pushColor(ImGuiCol.ButtonHovered, styles.colors.greenHover)
-    pushColor(ImGuiCol.ButtonActive, styles.colors.greenActive)
-    pushColor(ImGuiCol.Text, styles.colors.textBlack)
+styles.buttonDefaults = {
+    active   = { bg = { 0.0, 1.0, 0.70, 0.88 },  hover = { 0.26, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 1.0 },  text = { 0.0, 0.11, 0.08, 1.0 } },
+    inactive = { bg = { 0.26, 0.59, 0.98, 0.43 }, hover = { 0.26, 0.59, 0.98, 1.0 },  active = { 0.06, 0.53, 0.98, 1.0 }, text = { 1.0, 1.0, 1.0, 1.0 } },
+    danger   = { bg = { 1.0, 0.30, 0.30, 0.88 },  hover = { 1.0, 0.38, 0.38, 1.0 },  active = { 0.93, 0.27, 0.27, 1.0 }, text = { 0.17, 0.0, 0.0, 1.0 } },
+    warning  = { bg = { 1.0, 0.76, 0.24, 0.88 },  hover = { 1.0, 0.76, 0.24, 1.0 },  active = { 0.91, 0.63, 0.23, 1.0 }, text = { 0.16, 0.07, 0.0, 1.0 } },
+    update   = { bg = { 0.0, 1.0, 0.70, 0.88 },   hover = { 0.25, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 0.88 },  text = { 0.0, 0.11, 0.08, 1.0 } },
+    disabled = { bg = { 0.30, 0.30, 0.30, 0.71 }, hover = { 0.30, 0.30, 0.30, 0.71 }, active = { 0.30, 0.30, 0.30, 0.71 }, text = { 0.5, 0.5, 0.5, 1.0 } },
+}
+
+--------------------------------------------------------------------------------
+-- Button Styles (delegate to PushButton/PopButton with defaults)
+--------------------------------------------------------------------------------
+
+local function pushBtnDef(name)
+    return function() styles.PushButton(styles.buttonDefaults[name]) end
+end
+local function popBtnDef()
+    return function() ImGui.PopStyleColor(4); ImGui.PopStyleVar() end
 end
 
-function styles.PopButtonActive()
-    ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar()
-end
-
---- Inactive/Default button (blue with white text)
-function styles.PushButtonInactive()
-    ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    pushColor(ImGuiCol.Button, styles.colors.blue)
-    pushColor(ImGuiCol.ButtonHovered, styles.colors.blueHover)
-    pushColor(ImGuiCol.ButtonActive, styles.colors.blueActive)
-    pushColor(ImGuiCol.Text, styles.colors.textWhite)
-end
-
-function styles.PopButtonInactive()
-    ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar()
-end
-
---- Danger/Delete button (red with black text)
-function styles.PushButtonDanger()
-    ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    pushColor(ImGuiCol.Button, styles.colors.red)
-    pushColor(ImGuiCol.ButtonHovered, styles.colors.redHover)
-    pushColor(ImGuiCol.ButtonActive, styles.colors.redActive)
-    pushColor(ImGuiCol.Text, styles.colors.textBlack)
-end
-
-function styles.PopButtonDanger()
-    ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar()
-end
-
---- Warning button (yellow with black text)
-function styles.PushButtonWarning()
-    ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    pushColor(ImGuiCol.Button, styles.colors.yellow)
-    pushColor(ImGuiCol.ButtonHovered, styles.colors.yellowHover)
-    pushColor(ImGuiCol.ButtonActive, styles.colors.yellowActive)
-    pushColor(ImGuiCol.Text, styles.colors.textBlack)
-end
-
-function styles.PopButtonWarning()
-    ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar()
-end
-
---- Update button (orange with black text)
-function styles.PushButtonUpdate()
-    ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    pushColor(ImGuiCol.Button, styles.colors.orange)
-    pushColor(ImGuiCol.ButtonHovered, styles.colors.orangeHover)
-    pushColor(ImGuiCol.ButtonActive, styles.colors.orangeActive)
-    pushColor(ImGuiCol.Text, styles.colors.textBlack)
-end
-
-function styles.PopButtonUpdate()
-    ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar()
-end
-
---- Disabled button (grey with grey text)
-function styles.PushButtonDisabled()
-    ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
-    pushColor(ImGuiCol.Button, styles.colors.grey)
-    pushColor(ImGuiCol.ButtonHovered, styles.colors.grey)
-    pushColor(ImGuiCol.ButtonActive, styles.colors.grey)
-    pushColor(ImGuiCol.Text, styles.colors.greyText)
-end
-
-function styles.PopButtonDisabled()
-    ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar()
-end
+styles.PushButtonActive   = pushBtnDef("active")
+styles.PopButtonActive    = popBtnDef()
+styles.PushButtonInactive = pushBtnDef("inactive")
+styles.PopButtonInactive  = popBtnDef()
+styles.PushButtonDanger   = pushBtnDef("danger")
+styles.PopButtonDanger    = popBtnDef()
+styles.PushButtonWarning  = pushBtnDef("warning")
+styles.PopButtonWarning   = popBtnDef()
+styles.PushButtonUpdate   = pushBtnDef("update")
+styles.PopButtonUpdate    = popBtnDef()
+styles.PushButtonDisabled = pushBtnDef("disabled")
+styles.PopButtonDisabled  = popBtnDef()
 
 --- Transparent button (invisible background)
 function styles.PushButtonTransparent()
@@ -236,8 +185,8 @@ end
 --- Red outlined element (for danger/delete progress)
 function styles.PushOutlinedDanger()
     pushColor(ImGuiCol.PlotHistogram, styles.colors.red)
-    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.12, 0.26, 0.42, 0.1)
-    ImGui.PushStyleColor(ImGuiCol.Border, 0.8, 0.2, 0.2, 0.3)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.78, 0.19, 0.19, 0.10)
+    ImGui.PushStyleColor(ImGuiCol.Border, 0.78, 0.19, 0.19, 0.47)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
 end
 
@@ -249,8 +198,8 @@ end
 --- Green outlined element (for success/active progress)
 function styles.PushOutlinedSuccess()
     pushColor(ImGuiCol.PlotHistogram, styles.colors.green)
-    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.0, 1.0, 0.7, 0.1)
-    ImGui.PushStyleColor(ImGuiCol.Border, 0.0, 1.0, 0.7, 0.3)
+    ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.13, 0.79, 0.60, 0.10)
+    ImGui.PushStyleColor(ImGuiCol.Border, 0.13, 0.79, 0.59, 0.30)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
 end
 
@@ -334,20 +283,19 @@ end
 --- Scrollbar styling (transparent bg, themed thumb)
 function styles.PushScrollbar(opts)
     opts = opts or {}
-    local size = opts.size or ImGui.GetStyle().ScrollbarSize
+    local size = opts.size or math.max(6, math.floor(ImGui.GetFontSize() * 0.4))
+    local rounding = opts.rounding or 10
     ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, size)
-    if opts.rounding then
-        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarRounding, opts.rounding)
-    end
+    ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarRounding, rounding)
     pushColor(ImGuiCol.ScrollbarBg, opts.bg or styles.colors.scrollbarBg)
     pushColor(ImGuiCol.ScrollbarGrab, opts.grab or styles.colors.scrollbarGrab)
     pushColor(ImGuiCol.ScrollbarGrabHovered, opts.hover or styles.colors.scrollbarHover)
     pushColor(ImGuiCol.ScrollbarGrabActive, opts.active or styles.colors.scrollbarActive)
 end
 
-function styles.PopScrollbar(opts)
+function styles.PopScrollbar()
     ImGui.PopStyleColor(4)
-    ImGui.PopStyleVar(opts and opts.rounding and 2 or 1)
+    ImGui.PopStyleVar(2)
 end
 
 --------------------------------------------------------------------------------

@@ -175,12 +175,11 @@ function notifications.draw()
                 local color = styles.colors[colorKey] or styles.colors.blue
                 local icon = levelIcons[toast.level] or ""
 
-                -- Render toast as a positioned window
+                -- Render toast as a positioned window (on top of all others)
                 local windowName = "##wu_toast_" .. toast.id
                 ImGui.SetNextWindowPos(posX, posY, ImGuiCond.Always)
                 ImGui.SetNextWindowSize(config.toastWidth, 0)
                 ImGui.SetNextWindowBgAlpha(0.92 * alpha)
-
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, config.windowRounding)
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, config.toastPadding, config.toastPadding)
                 ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, config.windowBorderSize)

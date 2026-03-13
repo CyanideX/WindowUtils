@@ -35,6 +35,8 @@ function tabs.bar(id, tabDefs, opts)
     end
     local state = tabStates[id]
 
+    local prevSelected = state.selected
+
     if ImGui.BeginTabBar(id, flags) then
         for i, tab in ipairs(tabDefs) do
             local disabled = tab.disabled or false
@@ -50,7 +52,24 @@ function tabs.bar(id, tabDefs, opts)
                 ImGui.BeginDisabled()
             end
 
-            local open = ImGui.BeginTabItem(tab.label .. "##" .. id .. "_" .. i, tabFlags)
+            -- Pad the label so badges fit inside the tab
+            local label = tab.label
+            local hasBadgeNum = not disabled and type(tab.badge) == "number" and tab.badge > 0
+            local hasBadgeDot = not disabled and tab.badge == true
+            if hasBadgeNum or hasBadgeDot then
+                local spaceW = ImGui.CalcTextSize(" ")
+                if hasBadgeNum then
+                    local badgeText = tostring(tab.badge)
+                    local textW, textH = ImGui.CalcTextSize(badgeText)
+                    local radius = math.max(textH * 0.5 + 2, textW * 0.5 + 4)
+                    local padCount = math.ceil((radius * 2) / spaceW)
+                    label = label .. string.rep(" ", padCount)
+                else
+                    label = label .. string.rep(" ", math.ceil(ImGui.GetFontSize() * 0.35 / spaceW))
+                end
+            end
+
+            local open = ImGui.BeginTabItem(label .. "##" .. id .. "_" .. i, tabFlags)
 
             -- Badge rendering (small colored dot or number after the tab label)
             if tab.badge and not disabled then
@@ -60,24 +79,26 @@ function tabs.bar(id, tabDefs, opts)
                     cachedDotColor = styles.ToColor(styles.colors.green)
                 end
 
-                local maxX, minY = ImGui.GetItemRectMax()
+                local _, minY = ImGui.GetItemRectMin()
+                local maxX = ImGui.GetItemRectMax()
                 local drawList = ImGui.GetWindowDrawList()
+                local fontSize = ImGui.GetFontSize()
 
-                if type(tab.badge) == "number" and tab.badge > 0 then
+                if hasBadgeNum then
                     local badgeText = tostring(tab.badge)
                     local textW, textH = ImGui.CalcTextSize(badgeText)
                     local radius = math.max(textH * 0.5 + 2, textW * 0.5 + 4)
-                    local cx = maxX - 2
+                    local cx = maxX - radius - 2
                     local cy = minY + radius + 2
 
-                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, radius, cachedBadgeColor, 12)
-                    ImGui.ImDrawListAddText(drawList, ImGui.GetFontSize(), cx - textW * 0.5, cy - textH * 0.5, cachedTextColor, badgeText)
+                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, radius, cachedBadgeColor, 24)
+                    ImGui.ImDrawListAddText(drawList, fontSize, cx - textW * 0.5, cy - textH * 0.5, cachedTextColor, badgeText)
                 elseif tab.badge == true then
-                    local dotRadius = 3
-                    local cx = maxX - 2
-                    local cy = minY + dotRadius + 4
+                    local dotRadius = fontSize * 0.15
+                    local cx = maxX - dotRadius - fontSize * 0.2
+                    local cy = minY + dotRadius + fontSize * 0.3
 
-                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, dotRadius, cachedDotColor, 8)
+                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, dotRadius, cachedDotColor, 16)
                 end
             end
 
@@ -105,7 +126,8 @@ function tabs.bar(id, tabDefs, opts)
         ImGui.EndTabBar()
     end
 
-    return state.selected
+    local changed = state.selected ~= prevSelected
+    return state.selected, changed
 end
 
 --- Programmatically select a tab by index (1-based)
