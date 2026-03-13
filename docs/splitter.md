@@ -30,7 +30,7 @@ Create a horizontal split (left | right) with a draggable grab bar.
 | opts.defaultPct | number | 0.5 | Default split position (0–1) |
 | opts.minPct | number | 0.1 | Minimum left panel percentage |
 | opts.maxPct | number | 0.9 | Maximum left panel percentage |
-| opts.grabWidth | number | 6 | Grab bar width in pixels |
+| opts.grabWidth | number | ItemSpacing/2 | Grab bar width in pixels |
 
 **Returns:** `number` — current split percentage
 
@@ -48,7 +48,7 @@ Create a vertical split (top / bottom) with a draggable grab bar.
 | opts.defaultPct | number | 0.5 | Default split position (0–1) |
 | opts.minPct | number | 0.1 | Minimum top panel percentage |
 | opts.maxPct | number | 0.9 | Maximum top panel percentage |
-| opts.grabWidth | number | 6 | Grab bar height in pixels |
+| opts.grabWidth | number | ItemSpacing/2 | Grab bar height in pixels |
 
 **Returns:** `number` — current split percentage
 

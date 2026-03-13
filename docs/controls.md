@@ -315,6 +315,113 @@ Horizontal separator with optional spacing.
 
 Separator + label text with optional spacing.
 
+## Row Layout
+
+### `Row(id, defs, opts?)`
+
+Horizontal row of child windows that fills available width. Each child can have a fixed pixel width, a grid column width, or a flex share of remaining space.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string | — | Unique row ID |
+| defs | table | — | Array of child definitions (see below) |
+| opts.height | number\|nil | nil | Row height (nil = auto) |
+| opts.gap | number\|nil | ItemSpacing.x | Gap between children |
+
+**Child definition fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| content | function | — | Renders child content |
+| width | number\|nil | nil | Fixed width in pixels |
+| cols | number\|nil | nil | Width from ColWidth grid (1-12) |
+| flex | number\|nil | 1 | Proportional share of remaining space |
+| border | boolean | false | Show child border |
+| flags | number | 0 | Extra ImGui window flags |
+| bg | table\|nil | nil | Background color `{r,g,b,a}` |
+
+If no `width` or `cols` is specified, the child is flexible. All flexible children split remaining space proportionally by their `flex` value (default 1).
+
+```lua
+-- Two equal panels
+c.Row("myRow", {
+    { content = function() ImGui.Text("Left") end },
+    { content = function() ImGui.Text("Right") end },
+})
+
+-- Fixed sidebar + flexible content
+c.Row("layout", {
+    { width = 200, content = drawSidebar },
+    { content = drawMainContent },
+})
+
+-- Proportional: 1/4 + 2/4 + 1/4
+c.Row("triple", {
+    { flex = 1, content = drawNav },
+    { flex = 2, content = drawContent },
+    { flex = 1, content = drawProps },
+})
+```
+
+## Column Layout
+
+### `Column(id, defs, opts?)`
+
+Vertical column of child windows that fills available height. Each child can have a fixed pixel height or a flex share of remaining space.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string | — | Unique column ID |
+| defs | table | — | Array of child definitions (see below) |
+| opts.gap | number\|nil | ItemSpacing.y | Gap between children |
+
+**Child definition fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| content | function | — | Renders child content |
+| height | number\|nil | nil | Fixed height in pixels |
+| flex | number\|nil | 1 | Proportional share of remaining space |
+| border | boolean | false | Show child border |
+| flags | number | 0 | Extra ImGui window flags |
+| bg | table\|nil | nil | Background color `{r,g,b,a}` |
+
+```lua
+-- Header + scrollable content + footer (dynamic height)
+local rowH = ImGui.GetTextLineHeight() + ImGui.GetStyle().WindowPadding.y * 2
+c.Column("page", {
+    { height = rowH, content = drawHeader },
+    { content = drawScrollableContent },
+    { height = rowH, content = drawFooter },
+})
+
+-- Two equal stacked panels
+c.Column("stack", {
+    { content = drawTop },
+    { content = drawBottom },
+})
+```
+
 ## Frame Cache
 
-`controls.cacheFrameState()` is called automatically each frame by WindowUtils. It caches `ImGui.GetStyle()` values (`ItemSpacing`, `FramePadding`, `WindowPadding`) to avoid repeated lookups.
+`controls.cacheFrameState()` is called automatically each frame by WindowUtils. It caches ImGui style and metric values to avoid repeated lookups.
+
+### `getFrameCache()`
+
+Returns the cached frame metrics table. Useful for dynamic sizing that scales with font/DPI.
+
+**Returns:** `table` with fields:
+
+| Field | Source | Description |
+|-------|--------|-------------|
+| itemSpacingX | Style.ItemSpacing.x | Horizontal spacing between items |
+| itemSpacingY | Style.ItemSpacing.y | Vertical spacing between items |
+| framePaddingX | Style.FramePadding.x | Horizontal frame padding |
+| windowPaddingY | Style.WindowPadding.y | Vertical window padding |
+| frameHeight | GetFrameHeight() | Height of a framed widget (font + 2*framePadding) |
+| textLineHeight | GetTextLineHeightWithSpacing() | Text line height with spacing |
+
+```lua
+local cache = c.getFrameCache()
+local headerH = cache.frameHeight  -- scales with font/DPI
+```

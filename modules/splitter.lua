@@ -23,7 +23,7 @@ local function getState(id, opts)
             defaultPct = opts.defaultPct or 0.5,
             minPct = opts.minPct or 0.1,
             maxPct = opts.maxPct or 0.9,
-            grabWidth = opts.grabWidth or 6,
+            grabWidth = opts.grabWidth or math.ceil((ImGui.GetStyle().ItemSpacing.y + ImGui.GetTextLineHeight()) / 2),
             hovering = false,
             dragging = false
         }
@@ -73,10 +73,6 @@ local function drawGrabBar(id, state, isVertical)
     local grabW = state.grabWidth
     local icon = isVertical and getGrabIconV() or getGrabIcon()
 
-    if not isVertical then
-        ImGui.SameLine()
-    end
-
     ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bgColor[1], bgColor[2], bgColor[3], bgColor[4]))
     ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
 
@@ -89,7 +85,8 @@ local function drawGrabBar(id, state, isVertical)
         childH = 0 -- fill height (uses -1 internally via remaining)
     end
 
-    if ImGui.BeginChild("##splitter_grab_" .. id, childW, childH, false, ImGuiWindowFlags.NoMove) then
+    local grabFlags = ImGuiWindowFlags.NoMove + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+    if ImGui.BeginChild("##splitter_grab_" .. id, childW, childH, false, grabFlags) then
         -- Center the icon
         local winW, winH = ImGui.GetWindowSize()
         local textW, textH = ImGui.CalcTextSize(icon)
@@ -147,10 +144,6 @@ local function drawGrabBar(id, state, isVertical)
             ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW)
         end
     end
-
-    if not isVertical then
-        ImGui.SameLine()
-    end
 end
 
 --------------------------------------------------------------------------------
@@ -161,8 +154,8 @@ end
 function splitter.horizontal(id, leftFn, rightFn, opts)
     local state = getState(id, opts)
     local grabW = state.grabWidth
+    local spacingX = ImGui.GetStyle().ItemSpacing.x
 
-    -- Calculate panel widths from available space
     local availW = ImGui.GetContentRegionAvail()
     local usableW = availW - grabW
     local leftW = math.floor(usableW * state.pct)
@@ -173,8 +166,16 @@ function splitter.horizontal(id, leftFn, rightFn, opts)
     if leftFn then leftFn() end
     ImGui.EndChild()
 
+    -- Flush: remove SameLine spacing gap
+    ImGui.SameLine()
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacingX)
+
     -- Grab bar
     drawGrabBar(id, state, false)
+
+    -- Flush: remove SameLine spacing gap
+    ImGui.SameLine()
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacingX)
 
     -- Right panel
     ImGui.BeginChild("##splitter_right_" .. id, rightW, 0, false)
@@ -188,21 +189,28 @@ end
 function splitter.vertical(id, topFn, bottomFn, opts)
     local state = getState(id, opts)
     local grabH = state.grabWidth
+    local spacingY = ImGui.GetStyle().ItemSpacing.y
 
-    -- Calculate panel heights from available space
     local _, availH = ImGui.GetContentRegionAvail()
     local usableH = availH - grabH
     local topH = math.floor(usableH * state.pct)
     local bottomH = usableH - topH
 
-    -- Top panel
     local availW = ImGui.GetContentRegionAvail()
+
+    -- Top panel
     ImGui.BeginChild("##splitter_top_" .. id, availW, topH, false)
     if topFn then topFn() end
     ImGui.EndChild()
 
+    -- Flush: remove implicit vertical spacing
+    ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
+
     -- Grab bar
     drawGrabBar(id, state, true)
+
+    -- Flush: remove implicit vertical spacing
+    ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
 
     -- Bottom panel
     ImGui.BeginChild("##splitter_bottom_" .. id, availW, bottomH, false)

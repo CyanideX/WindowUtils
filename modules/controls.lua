@@ -20,6 +20,12 @@ function controls.cacheFrameState()
     frameCache.itemSpacingY = style.ItemSpacing.y
     frameCache.framePaddingX = style.FramePadding.x
     frameCache.windowPaddingY = style.WindowPadding.y
+    frameCache.frameHeight = ImGui.GetFrameHeight()
+    frameCache.textLineHeight = ImGui.GetTextLineHeightWithSpacing()
+end
+
+function controls.getFrameCache()
+    return frameCache
 end
 
 --------------------------------------------------------------------------------
@@ -883,6 +889,122 @@ function controls.EndFillChild(opts)
     opts = opts or {}
     if opts.bg then
         ImGui.PopStyleColor()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Layout: Row (horizontal child windows)
+--------------------------------------------------------------------------------
+
+--- Horizontal row of child windows that fills available width
+function controls.Row(id, defs, opts)
+    if not defs or #defs == 0 then return end
+    opts = opts or {}
+    local gap = opts.gap or frameCache.itemSpacingX
+    local rowHeight = opts.height or 0
+
+    -- Phase 1: calculate widths
+    local availW = ImGui.GetContentRegionAvail()
+    local totalGap = gap * (#defs - 1)
+    local fixedW = 0
+    local totalFlex = 0
+
+    for _, def in ipairs(defs) do
+        if def.width then
+            fixedW = fixedW + def.width
+        elseif def.cols then
+            def._calcWidth = controls.ColWidth(def.cols, gap)
+            fixedW = fixedW + def._calcWidth
+        else
+            totalFlex = totalFlex + (def.flex or 1)
+        end
+    end
+
+    local remainingW = math.max(availW - totalGap - fixedW, 0)
+
+    -- Phase 2: render children
+    for i, def in ipairs(defs) do
+        local childW
+        if def.width then
+            childW = def.width
+        elseif def._calcWidth then
+            childW = def._calcWidth
+            def._calcWidth = nil
+        else
+            childW = totalFlex > 0
+                and math.floor(remainingW * (def.flex or 1) / totalFlex)
+                or 0
+        end
+
+        if def.bg then
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, def.bg[1], def.bg[2], def.bg[3], def.bg[4] or 1.0)
+        end
+
+        local childId = "##row_" .. id .. "_" .. i
+        ImGui.BeginChild(childId, childW, rowHeight, def.border or false, def.flags or 0)
+        if def.content then def.content() end
+        ImGui.EndChild()
+
+        if def.bg then ImGui.PopStyleColor() end
+
+        if i < #defs then
+            ImGui.SameLine()
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Layout: Column (vertical child windows)
+--------------------------------------------------------------------------------
+
+--- Vertical column of child windows that fills available height
+function controls.Column(id, defs, opts)
+    if not defs or #defs == 0 then return end
+    opts = opts or {}
+
+    -- Phase 1: calculate heights
+    -- ImGui adds itemSpacingY between each child automatically
+    local spacingY = frameCache.itemSpacingY
+    local windowH = ImGui.GetWindowHeight()
+    local _, cursorY = ImGui.GetCursorPos()
+    local paddingY = frameCache.windowPaddingY
+    local availH = math.max(windowH - cursorY - paddingY, 1)
+    local implicitGap = spacingY * (#defs - 1)
+    local fixedH = 0
+    local totalFlex = 0
+
+    for _, def in ipairs(defs) do
+        if def.height then
+            fixedH = fixedH + def.height
+        else
+            totalFlex = totalFlex + (def.flex or 1)
+        end
+    end
+
+    local remainingH = math.max(availH - implicitGap - fixedH, 0)
+    local availW = ImGui.GetContentRegionAvail()
+
+    -- Phase 2: render children
+    for i, def in ipairs(defs) do
+        local childH
+        if def.height then
+            childH = def.height
+        else
+            childH = totalFlex > 0
+                and math.floor(remainingH * (def.flex or 1) / totalFlex)
+                or 0
+        end
+
+        if def.bg then
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, def.bg[1], def.bg[2], def.bg[3], def.bg[4] or 1.0)
+        end
+
+        local childId = "##col_" .. id .. "_" .. i
+        ImGui.BeginChild(childId, availW, childH, def.border or false, def.flags or 0)
+        if def.content then def.content() end
+        ImGui.EndChild()
+
+        if def.bg then ImGui.PopStyleColor() end
     end
 end
 
