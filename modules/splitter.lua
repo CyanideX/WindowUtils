@@ -382,10 +382,38 @@ function splitter.multi(id, panels, opts)
             local dx, dy = ImGui.GetMouseDragDelta(0, 0)
             local delta = isVertical and dy or dx
             if delta ~= 0 then
-                local newBp = ms.breakpoints[i] + (delta / totalSize)
-                local lo = (i == 1) and minGap or (ms.breakpoints[i - 1] + minGap)
-                local hi = (i == n - 1) and (1 - minGap) or (ms.breakpoints[i + 1] - minGap)
-                ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
+                local oldBp = ms.breakpoints[i]
+                local newBp = oldBp + (delta / totalSize)
+                local shiftHeld = ImGui.IsKeyDown(ImGuiKey.LeftShift)
+                              or ImGui.IsKeyDown(ImGuiKey.RightShift)
+
+                if shiftHeld then
+                    -- Shift: scale all other breakpoints proportionally
+                    newBp = math.max(minGap, math.min(1 - minGap, newBp))
+                    ms.breakpoints[i] = newBp
+
+                    -- Scale left side: remap [0, oldBp] -> [0, newBp]
+                    if oldBp > 0 then
+                        local leftScale = newBp / oldBp
+                        for j = 1, i - 1 do
+                            ms.breakpoints[j] = ms.breakpoints[j] * leftScale
+                        end
+                    end
+
+                    -- Scale right side: remap [oldBp, 1] -> [newBp, 1]
+                    if oldBp < 1 then
+                        local rightScale = (1 - newBp) / (1 - oldBp)
+                        for j = i + 1, n - 1 do
+                            ms.breakpoints[j] = newBp + (ms.breakpoints[j] - oldBp) * rightScale
+                        end
+                    end
+                else
+                    -- No shift: only affect adjacent panels
+                    local lo = (i == 1) and minGap or (ms.breakpoints[i - 1] + minGap)
+                    local hi = (i == n - 1) and (1 - minGap) or (ms.breakpoints[i + 1] - minGap)
+                    ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
+                end
+
                 ImGui.ResetMouseDragDelta()
             end
         end
