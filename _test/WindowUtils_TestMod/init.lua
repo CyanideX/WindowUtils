@@ -7,20 +7,25 @@ local wu = nil
 local visible = false
 
 -- Demo state
-local sliderValue = 0.5
-local checkboxValue = true
-local comboIndex = 0
-local inputText = "Hello, World!"
+local demoDefaults = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
+local demoState = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
 local notifCounter = 0
 
 -- Scrollbar customization state (applied to entire window)
-local scrollSize = nil
-local scrollRounding = nil
+local scrollState = { size = nil, rounding = nil }
+local scrollColors = {
+    bg = { 0, 0, 0, 0 },
+    grab = { 0.8, 0.8, 1.0, 0.4 },
+    hover = { 0.8, 0.8, 1.0, 0.6 },
+    active = { 0.8, 0.8, 1.0, 0.8 },
+}
+local scrollColorDefaults = {
+    bg = { 0, 0, 0, 0 },
+    grab = { 0.8, 0.8, 1.0, 0.4 },
+    hover = { 0.8, 0.8, 1.0, 0.6 },
+    active = { 0.8, 0.8, 1.0, 0.8 },
+}
 local scrollDefaults = nil
-local scrollBg = { 0, 0, 0, 0 }
-local scrollGrab = { 0.8, 0.8, 1.0, 0.4 }
-local scrollHover = { 0.8, 0.8, 1.0, 0.6 }
-local scrollActive = { 0.8, 0.8, 1.0, 0.8 }
 
 -- Style color customization state (mirrors styles defaults)
 local styleColors = {
@@ -200,10 +205,7 @@ local function drawControlsDemo()
         duration = 2.0, style = "danger", width = controls.ColWidth(6)
     })
     if held then
-        sliderValue = 0.5
-        checkboxValue = true
-        comboIndex = 0
-        inputText = "Hello, World!"
+        for k, v in pairs(demoDefaults) do demoState[k] = v end
         wu.Notify.success("All values reset!")
     elseif clicked then
         wu.Notify.info("Hold the button to confirm reset")
@@ -284,10 +286,11 @@ local function drawControlsDemo()
     -- Standard controls
     controls.SectionHeader("Standard Controls", 8, 4)
 
-    sliderValue = controls.SliderFloat(IconGlyphs.Reload, "demo_slider", sliderValue, 0.0, 1.0, "%.2f", nil, 0.5, "Drag to adjust value")
-    checkboxValue = controls.Checkbox("Enable Feature", checkboxValue, true, "Toggle this feature on or off")
-    comboIndex = controls.Combo(IconGlyphs.Reload, "demo_combo", comboIndex, { "Option A", "Option B", "Option C" }, nil, 0, "Select an option")
-    inputText = controls.InputText(IconGlyphs.Reload, "demo_input", inputText, 256, nil, "Type something here")
+    local c = controls.bind(demoState, demoDefaults)
+    c:SliderFloat("Reload", "slider", 0.0, 1.0, { format = "%.2f", tooltip = "Drag to adjust value" })
+    c:Checkbox("Enable Feature", "checkbox", { tooltip = "Toggle this feature on or off" })
+    c:Combo("Reload", "combo", { "Option A", "Option B", "Option C" }, { tooltip = "Select an option" })
+    c:InputText("Reload", "input", { maxLength = 256, tooltip = "Type something here" })
 
     -- CollapsingSection
     controls.SectionHeader("Collapsible Sections", 8, 4)
@@ -404,6 +407,28 @@ local function drawDragDropDemo()
     ImGui.Dummy(0, 8)
     controls.Separator(4, 4)
 
+    controls.TextMuted("With drag handle and custom colors:")
+    ImGui.Dummy(0, 4)
+
+    dragdrop.list("##demo_dd_handle", dragItems, function(item, index, ctx)
+        local label = item.icon .. ".  " .. item.name
+        ImGui.Selectable(label, ctx.isDragged, 0, 0, 0)
+    end, function(from, to)
+        notifCounter = notifCounter + 1
+        wu.Notify.info("Moved item from " .. from .. " to " .. to)
+    end, {
+        showHandle = true,
+        handleColor = { 0.2, 0.8, 0.5, 0.7 },
+        colors = {
+            hover = { 0.13, 0.79, 0.60, 0.3 },
+            separator = { 0.0, 1.0, 0.7, 1.0 },
+            dragAlpha = 0.3,
+        },
+    })
+
+    ImGui.Dummy(0, 8)
+    controls.Separator(4, 4)
+
     if controls.Button("  Reset Order  ", "inactive") then
         dragItems = {
             { name = "First Item",  icon = "1" },
@@ -473,15 +498,11 @@ local function drawStylesDemo()
 
     -- Helper: 4-picker row for a button color set
     local function buttonPickers(prefix, c, d)
-        local new, ch
-        new, ch = controls.ColorEdit4(iconBg, prefix .. "_bg", c.bg, nil, d.bg, "Background")
-        if ch then c.bg = new; stylesDirty = true end
-        new, ch = controls.ColorEdit4(iconHover, prefix .. "_hover", c.hover, nil, d.hover, "Hover")
-        if ch then c.hover = new; stylesDirty = true end
-        new, ch = controls.ColorEdit4(iconActive, prefix .. "_active", c.active, nil, d.active, "Active")
-        if ch then c.active = new; stylesDirty = true end
-        new, ch = controls.ColorEdit4(iconText, prefix .. "_text", c.text, nil, d.text, "Text color")
-        if ch then c.text = new; stylesDirty = true end
+        local ctx = controls.bind(c, d, function() stylesDirty = true end, { idPrefix = prefix .. "_" })
+        ctx:ColorEdit4(iconBg, "bg", { tooltip = "Background" })
+        ctx:ColorEdit4(iconHover, "hover", { tooltip = "Hover" })
+        ctx:ColorEdit4(iconActive, "active", { tooltip = "Active" })
+        ctx:ColorEdit4(iconText, "text", { tooltip = "Text color" })
     end
 
     -- Helper: push/pop custom progress bar colors from picker values
@@ -503,15 +524,11 @@ local function drawStylesDemo()
     local iconFrame  = iconBg
     local iconBorder = ic.BorderOutside or "R"
     local function progressPickers(prefix, p, dp)
-        local new, ch
-        new, ch = controls.ColorEdit4(iconFill, prefix .. "_fill", p.fill, nil, dp.fill, "Fill color")
-        if ch then p.fill = new; stylesDirty = true end
-        new, ch = controls.ColorEdit4(iconFrame, prefix .. "_frameBg", p.frameBg, nil, dp.frameBg, "Frame background")
-        if ch then p.frameBg = new; stylesDirty = true end
-        new, ch = controls.ColorEdit4(iconBorder, prefix .. "_border", p.border, nil, dp.border, "Border color")
-        if ch then p.border = new; stylesDirty = true end
-        local newSize = controls.SliderFloat(iconBorder, prefix .. "_borderSize", p.borderSize or 2.0, 0.0, 6.0, "%.1f", nil, dp.borderSize or 2.0, "Border thickness")
-        if newSize ~= p.borderSize then p.borderSize = newSize; stylesDirty = true end
+        local ctx = controls.bind(p, dp, function() stylesDirty = true end, { idPrefix = prefix .. "_" })
+        ctx:ColorEdit4(iconFill, "fill", { tooltip = "Fill color" })
+        ctx:ColorEdit4(iconFrame, "frameBg", { tooltip = "Frame background" })
+        ctx:ColorEdit4(iconBorder, "border", { tooltip = "Border color" })
+        ctx:SliderFloat(iconBorder, "borderSize", 0.0, 6.0, { format = "%.1f", tooltip = "Border thickness" })
     end
 
     local btnOrder = { "active", "inactive", "danger", "warning", "update" }
@@ -536,11 +553,9 @@ local function drawStylesDemo()
     styles.PushButton({ bg = dis.bg, hover = dis.bg, active = dis.bg, text = dis.text })
     ImGui.Button("  Disabled Button  ", controls.ColWidth(6), 0)
     styles.PopButton({ bg = dis.bg, hover = dis.bg, active = dis.bg, text = dis.text })
-    local newD, chD
-    newD, chD = controls.ColorEdit4(iconBg, "dis_bg", dis.bg, nil, dDis.bg, "Disabled background")
-    if chD then dis.bg = newD; stylesDirty = true end
-    newD, chD = controls.ColorEdit4(iconText, "dis_text", dis.text, nil, dDis.text, "Disabled text")
-    if chD then dis.text = newD; stylesDirty = true end
+    local disCtx = controls.bind(dis, dDis, function() stylesDirty = true end, { idPrefix = "dis_" })
+    disCtx:ColorEdit4(iconBg, "bg", { tooltip = "Disabled background" })
+    disCtx:ColorEdit4(iconText, "text", { tooltip = "Disabled text" })
 
     -- Hold Overlay: Label → Sample → Picker
     controls.SectionHeader("Hold Button — Overlay", 4, 4)
@@ -550,8 +565,8 @@ local function drawStylesDemo()
     })
     if held then wu.Notify.success("Overlay hold triggered!") end
     if clicked then wu.Notify.info("Hold the button to confirm") end
-    local newOv, chOv = controls.ColorEdit4(ic.SquareOpacity or "O", "hold_overlay", styleColors.holdOverlay, nil, styleDefaults.holdOverlay, "Overlay fill color")
-    if chOv then styleColors.holdOverlay = newOv; stylesDirty = true end
+    local topCtx = controls.bind(styleColors, styleDefaults, function() stylesDirty = true end, { idPrefix = "hold_" })
+    topCtx:ColorEdit4(ic.SquareOpacity or "O", "holdOverlay", { tooltip = "Overlay fill color" })
 
     -- Hold Replace: Label → Sample + sample bar → Pickers
     controls.SectionHeader("Hold Button — Replace", 4, 4)
@@ -595,26 +610,23 @@ local function drawStylesDemo()
         ImGui.Text(text)
         ImGui.PopStyleColor()
     end
+    local txtCtx = controls.bind(tx, dTx, function() stylesDirty = true end, { idPrefix = "txt_" })
+
     controls.SectionHeader("Text — Muted", 4, 4)
     colorText("Muted text for descriptions", tx.muted)
-    local newT, chT
-    newT, chT = controls.ColorEdit4(iconText, "txt_muted", tx.muted, nil, dTx.muted, "Muted text")
-    if chT then tx.muted = newT; stylesDirty = true end
+    txtCtx:ColorEdit4(iconText, "muted", { tooltip = "Muted text" })
 
     controls.SectionHeader("Text — Success", 4, 4)
     colorText("Success - operation completed", tx.success)
-    newT, chT = controls.ColorEdit4(iconText, "txt_success", tx.success, nil, dTx.success, "Success text")
-    if chT then tx.success = newT; stylesDirty = true end
+    txtCtx:ColorEdit4(iconText, "success", { tooltip = "Success text" })
 
     controls.SectionHeader("Text — Danger", 4, 4)
     colorText("Danger - something went wrong", tx.danger)
-    newT, chT = controls.ColorEdit4(iconText, "txt_danger", tx.danger, nil, dTx.danger, "Danger text")
-    if chT then tx.danger = newT; stylesDirty = true end
+    txtCtx:ColorEdit4(iconText, "danger", { tooltip = "Danger text" })
 
     controls.SectionHeader("Text — Warning", 4, 4)
     colorText("Warning - proceed with caution", tx.warning)
-    newT, chT = controls.ColorEdit4(iconText, "txt_warning", tx.warning, nil, dTx.warning, "Warning text")
-    if chT then tx.warning = newT; stylesDirty = true end
+    txtCtx:ColorEdit4(iconText, "warning", { tooltip = "Warning text" })
 
     -- Progress Bars — each style with live preview + pickers
     local pProg = styleColors.progress
@@ -646,18 +658,20 @@ local function drawStylesDemo()
     -- Capture defaults before any push (first frame only)
     if not scrollDefaults then
         scrollDefaults = { size = math.max(6, math.floor(ImGui.GetFontSize() * 0.4)), rounding = 10 }
-        scrollSize = scrollDefaults.size
-        scrollRounding = scrollDefaults.rounding
+        scrollState.size = scrollDefaults.size
+        scrollState.rounding = scrollDefaults.rounding
     end
 
-    scrollSize = controls.SliderFloat(nil, "scroll_size", scrollSize, 1, 40, "%.0f", 6, scrollDefaults.size, "Thickness")
+    local sc = controls.bind(scrollState, scrollDefaults, nil, { idPrefix = "scroll_" })
+    sc:SliderFloat(nil, "size", 1, 40, { format = "%.0f", cols = 6, tooltip = "Thickness" })
     ImGui.SameLine()
-    scrollRounding = controls.SliderFloat(nil, "scroll_rounding", scrollRounding, 0, 20, "%.0f", 6, scrollDefaults.rounding, "Rounding")
+    sc:SliderFloat(nil, "rounding", 0, 20, { format = "%.0f", cols = 6, tooltip = "Rounding" })
 
-    scrollBg = controls.ColorEdit4(ic.SquareRounded or "B", "scroll_bg", scrollBg, nil, { 0, 0, 0, 0 }, "Track background")
-    scrollGrab = controls.ColorEdit4(ic.GestureTapButton or "G", "scroll_grab", scrollGrab, nil, { 0.8, 0.8, 1.0, 0.4 }, "Thumb color")
-    scrollHover = controls.ColorEdit4(ic.CursorDefaultOutline or "H", "scroll_hover", scrollHover, nil, { 0.8, 0.8, 1.0, 0.6 }, "Thumb hover")
-    scrollActive = controls.ColorEdit4(ic.GestureTapButton or "A", "scroll_active", scrollActive, nil, { 0.8, 0.8, 1.0, 0.8 }, "Thumb active")
+    local scc = controls.bind(scrollColors, scrollColorDefaults, nil, { idPrefix = "scroll_" })
+    scc:ColorEdit4("SquareRounded", "bg", { tooltip = "Track background" })
+    scc:ColorEdit4("GestureTapButton", "grab", { tooltip = "Thumb color" })
+    scc:ColorEdit4("CursorDefaultOutline", "hover", { tooltip = "Thumb hover" })
+    scc:ColorEdit4("GestureTapButton", "active", { tooltip = "Thumb active" })
 
     ImGui.Dummy(0, 4)
     ImGui.Text("Preview:")
@@ -687,44 +701,35 @@ local function drawLayoutDemo()
         -- Row 1: 3 equal panels separated by horizontal splitters
         splitter.horizontal("##layout_h_outer", function()
             splitter.horizontal("##layout_h_inner", function()
-                -- Panel 1
-                ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(0.65, 0.7, 1.0, 0.045))
-                ImGui.BeginChild("##lp1", 0, 0, true)
-                ImGui.Text("Panel 1")
-                ImGui.Separator()
-                controls.TextMuted("flex = 1 (default)")
-                controls.TextMuted("Drag bars to resize.")
-                ImGui.Dummy(0, ImGui.GetStyle().ItemSpacing.y * 0.5)
-                controls.Button("  Select A  ", "active")
-                controls.Button("  Select B  ", "inactive")
-                controls.Button("  Select C  ", "inactive")
-                ImGui.EndChild()
-                ImGui.PopStyleColor()
+                controls.Panel("lp1", function()
+                    ImGui.Text("Panel 1")
+                    ImGui.Separator()
+                    controls.TextMuted("flex = 1 (default)")
+                    controls.TextMuted("Drag bars to resize.")
+                    ImGui.Dummy(0, ImGui.GetStyle().ItemSpacing.y * 0.5)
+                    controls.Button("  Select A  ", "active")
+                    controls.Button("  Select B  ", "inactive")
+                    controls.Button("  Select C  ", "inactive")
+                end)
             end, function()
-                -- Panel 2
-                ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(0.65, 0.7, 1.0, 0.045))
-                ImGui.BeginChild("##lp2", 0, 0, true)
-                ImGui.Text("Panel 2")
-                ImGui.Separator()
-                controls.TextMuted("flex = 1 (default)")
-                controls.TextMuted("Resizable from both sides.")
-                ImGui.Dummy(0, ImGui.GetStyle().ItemSpacing.y * 0.5)
-                for i = 1, 6 do
-                    ImGui.Text("  Item " .. i)
-                end
-                ImGui.EndChild()
-                ImGui.PopStyleColor()
+                controls.Panel("lp2", function()
+                    ImGui.Text("Panel 2")
+                    ImGui.Separator()
+                    controls.TextMuted("flex = 1 (default)")
+                    controls.TextMuted("Resizable from both sides.")
+                    ImGui.Dummy(0, ImGui.GetStyle().ItemSpacing.y * 0.5)
+                    for i = 1, 6 do
+                        ImGui.Text("  Item " .. i)
+                    end
+                end)
             end, { defaultPct = 0.5, minPct = 0.15, maxPct = 0.85 })
         end, function()
-            -- Panel 3
-            ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(0.65, 0.7, 1.0, 0.045))
-            ImGui.BeginChild("##lp3", 0, 0, true)
-            ImGui.Text("Panel 3")
-            ImGui.Separator()
-            controls.TextMuted("flex = 1 (default)")
-            controls.TextMuted("Properties / details.")
-            ImGui.EndChild()
-            ImGui.PopStyleColor()
+            controls.Panel("lp3", function()
+                ImGui.Text("Panel 3")
+                ImGui.Separator()
+                controls.TextMuted("flex = 1 (default)")
+                controls.TextMuted("Properties / details.")
+            end)
         end, { defaultPct = 0.66, minPct = 0.3, maxPct = 0.85 })
 
     end, function()
@@ -734,21 +739,17 @@ local function drawLayoutDemo()
 
             -- Row 2: fixed sidebar + flex content
             splitter.horizontal("##layout_h_sidebar", function()
-                ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(0.1, 0.15, 0.2, 1.0))
-                ImGui.BeginChild("##lsidebar", 0, 0, true)
-                ImGui.Text("Sidebar")
-                ImGui.Separator()
-                controls.TextMuted("width = 150")
-                ImGui.EndChild()
-                ImGui.PopStyleColor()
+                controls.Panel("lsidebar", function()
+                    ImGui.Text("Sidebar")
+                    ImGui.Separator()
+                    controls.TextMuted("width = 150")
+                end, { bg = { 0.1, 0.15, 0.2, 1.0 } })
             end, function()
-                ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(0.65, 0.7, 1.0, 0.045))
-                ImGui.BeginChild("##lmain", 0, 0, true)
-                ImGui.Text("Main Content")
-                ImGui.Separator()
-                controls.TextMuted("flex = 1 (fills remaining)")
-                ImGui.EndChild()
-                ImGui.PopStyleColor()
+                controls.Panel("lmain", function()
+                    ImGui.Text("Main Content")
+                    ImGui.Separator()
+                    controls.TextMuted("flex = 1 (fills remaining)")
+                end)
             end, { defaultPct = 0.25, minPct = 0.1, maxPct = 0.5 })
 
         end, function()
@@ -801,12 +802,12 @@ registerForEvent("onDraw", function()
 
     -- Push scrollbar customization for the entire window
     local styles = wu.Styles
-    local scrollPushed = scrollSize ~= nil
+    local scrollPushed = scrollState.size ~= nil
     if scrollPushed then
         styles.PushScrollbar({
-            size = scrollSize, rounding = scrollRounding,
-            bg = scrollBg, grab = scrollGrab,
-            hover = scrollHover, active = scrollActive,
+            size = scrollState.size, rounding = scrollState.rounding,
+            bg = scrollColors.bg, grab = scrollColors.grab,
+            hover = scrollColors.hover, active = scrollColors.active,
         })
     end
 
