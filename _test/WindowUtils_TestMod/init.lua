@@ -804,12 +804,11 @@ local function drawMultiSplitterDemo()
     local controls = wu.Controls
     local splitter = wu.Splitter
 
-    -- Use vertical splitter to divide the full height into 3 rows
-    splitter.vertical("##ms_rows_outer", function()
-
-        -- Row 1: 3 horizontal panels
-        splitter.vertical("##ms_rows_inner", function()
-
+    -- Outer vertical multi-split: 3 rows with independent dividers
+    -- Hold Shift while dragging to scale remaining panels proportionally
+    splitter.multi("ms_rows", {
+        { content = function()
+            -- Row 1: 3 horizontal panels
             splitter.multi("ms_3panel", {
                 { content = function()
                     controls.Panel("ms3_p1", function()
@@ -834,9 +833,8 @@ local function drawMultiSplitterDemo()
                     end)
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.33, 0.34, 0.33 } })
-
-        end, function()
-
+        end },
+        { content = function()
             -- Row 2: 2 horizontal panels
             splitter.multi("ms_2panel", {
                 { content = function()
@@ -855,44 +853,41 @@ local function drawMultiSplitterDemo()
                     end)
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.5, 0.5 } })
-
-        end, { defaultPct = 0.5, minPct = 0.15, maxPct = 0.85 })
-
-    end, function()
-
-        -- Row 3: 4 horizontal panels
-        splitter.multi("ms_4panel", {
-            { content = function()
-                controls.Panel("ms4_p1", function()
-                    ImGui.Text("Col 1")
-                    ImGui.Separator()
-                    controls.TextMuted("4-panel row")
-                end)
-            end },
-            { content = function()
-                controls.Panel("ms4_p2", function()
-                    ImGui.Text("Col 2")
-                    ImGui.Separator()
-                    controls.TextMuted("Each divider")
-                end)
-            end },
-            { content = function()
-                controls.Panel("ms4_p3", function()
-                    ImGui.Text("Col 3")
-                    ImGui.Separator()
-                    controls.TextMuted("is independent")
-                end)
-            end },
-            { content = function()
-                controls.Panel("ms4_p4", function()
-                    ImGui.Text("Col 4")
-                    ImGui.Separator()
-                    controls.TextMuted("of the others")
-                end)
-            end },
-        }, { direction = "horizontal", defaultPcts = { 0.25, 0.25, 0.25, 0.25 } })
-
-    end, { defaultPct = 0.65, minPct = 0.2, maxPct = 0.85 })
+        end },
+        { content = function()
+            -- Row 3: 4 horizontal panels
+            splitter.multi("ms_4panel", {
+                { content = function()
+                    controls.Panel("ms4_p1", function()
+                        ImGui.Text("Col 1")
+                        ImGui.Separator()
+                        controls.TextMuted("4-panel row")
+                    end)
+                end },
+                { content = function()
+                    controls.Panel("ms4_p2", function()
+                        ImGui.Text("Col 2")
+                        ImGui.Separator()
+                        controls.TextMuted("Each divider")
+                    end)
+                end },
+                { content = function()
+                    controls.Panel("ms4_p3", function()
+                        ImGui.Text("Col 3")
+                        ImGui.Separator()
+                        controls.TextMuted("is independent")
+                    end)
+                end },
+                { content = function()
+                    controls.Panel("ms4_p4", function()
+                        ImGui.Text("Col 4")
+                        ImGui.Separator()
+                        controls.TextMuted("of the others")
+                    end)
+                end },
+            }, { direction = "horizontal", defaultPcts = { 0.25, 0.25, 0.25, 0.25 } })
+        end },
+    }, { direction = "vertical", defaultPcts = { 0.33, 0.34, 0.33 } })
 end
 
 --------------------------------------------------------------------------------
