@@ -119,8 +119,8 @@ local function drawGrabBar(id, state, isVertical)
         state.dragging = false
     end
 
-    -- Apply drag delta
-    if state.dragging then
+    -- Apply drag delta (only for states with pct; multi handles its own)
+    if state.dragging and state.pct then
         if isVertical then
             local _, totalH = ImGui.GetContentRegionAvail()
             -- For vertical, we need the parent window height
@@ -244,8 +244,167 @@ function splitter.reset(id)
     end
 end
 
+--------------------------------------------------------------------------------
+-- Multi-panel split (flat breakpoints with independent dividers)
+--------------------------------------------------------------------------------
+
+local multiStates = {} -- [id] = { breakpoints, defaults, dividers, grabWidth, minGap }
+
+local function getMultiState(id, n, opts)
+    if not multiStates[id] then
+        opts = opts or {}
+        local grabWidth = opts.grabWidth or ImGui.GetStyle().ItemSpacing.x
+        local defaultPcts = opts.defaultPcts
+        local minGap = opts.minPct or 0.05
+
+        -- Create N-1 breakpoints as cumulative fractions (0..1)
+        local breakpoints = {}
+        if defaultPcts and #defaultPcts >= n then
+            local cumulative = 0
+            for i = 1, n - 1 do
+                cumulative = cumulative + defaultPcts[i]
+                breakpoints[i] = cumulative
+            end
+        else
+            for i = 1, n - 1 do
+                breakpoints[i] = i / n
+            end
+        end
+
+        -- Divider states (no pct — drag applied by multi() itself)
+        local dividers = {}
+        for i = 1, n - 1 do
+            dividers[i] = {
+                grabWidth = grabWidth,
+                hovering = false,
+                dragging = false
+            }
+        end
+
+        local defaults = {}
+        for i = 1, #breakpoints do defaults[i] = breakpoints[i] end
+
+        multiStates[id] = {
+            breakpoints = breakpoints,
+            defaults = defaults,
+            dividers = dividers,
+            grabWidth = grabWidth,
+            minGap = minGap
+        }
+    end
+    return multiStates[id]
+end
+
+--- Multi-panel layout with independent flat breakpoints.
+--- Each divider moves independently — dragging divider i only affects panels i and i+1.
+function splitter.multi(id, panels, opts)
+    if not panels or #panels < 2 then return end
+    opts = opts or {}
+    local n = #panels
+    local isVertical = (opts.direction or "horizontal") == "vertical"
+    local ms = getMultiState(id, n, opts)
+    local grabW = ms.grabWidth
+    local minGap = ms.minGap
+
+    -- Pre-compute all panel sizes from current breakpoints (before any drag updates)
+    local sizes = {}
+    local totalSize
+
+    if isVertical then
+        local availW, availH = ImGui.GetContentRegionAvail()
+        local spacingY = ImGui.GetStyle().ItemSpacing.y
+        local usableH = availH - (n - 1) * grabW
+        if usableH < 1 then return end
+        totalSize = usableH
+
+        local consumed = 0
+        for i = 1, n do
+            local startFrac = (i == 1) and 0 or ms.breakpoints[i - 1]
+            local endFrac = (i == n) and 1 or ms.breakpoints[i]
+            if i == n then
+                sizes[i] = usableH - consumed
+            else
+                sizes[i] = math.floor(usableH * (endFrac - startFrac))
+                consumed = consumed + sizes[i]
+            end
+        end
+
+        -- Render all panels and grab bars
+        for i = 1, n do
+            ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, availW, sizes[i], false)
+            if panels[i].content then panels[i].content() end
+            ImGui.EndChild()
+
+            if i < n then
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
+                drawGrabBar(id .. "_d" .. i, ms.dividers[i], true)
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
+            end
+        end
+    else
+        local availW = ImGui.GetContentRegionAvail()
+        local spacingX = ImGui.GetStyle().ItemSpacing.x
+        local usableW = availW - (n - 1) * grabW
+        if usableW < 1 then return end
+        totalSize = usableW
+
+        local consumed = 0
+        for i = 1, n do
+            local startFrac = (i == 1) and 0 or ms.breakpoints[i - 1]
+            local endFrac = (i == n) and 1 or ms.breakpoints[i]
+            if i == n then
+                sizes[i] = usableW - consumed
+            else
+                sizes[i] = math.floor(usableW * (endFrac - startFrac))
+                consumed = consumed + sizes[i]
+            end
+        end
+
+        -- Render all panels and grab bars
+        for i = 1, n do
+            ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, sizes[i], 0, false)
+            if panels[i].content then panels[i].content() end
+            ImGui.EndChild()
+
+            if i < n then
+                ImGui.SameLine()
+                ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacingX)
+                drawGrabBar(id .. "_d" .. i, ms.dividers[i], false)
+                ImGui.SameLine()
+                ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacingX)
+            end
+        end
+    end
+
+    -- Apply drag updates AFTER all rendering (prevents one-frame desync / rubber banding)
+    for i = 1, n - 1 do
+        if ms.dividers[i].dragging then
+            local dx, dy = ImGui.GetMouseDragDelta(0, 0)
+            local delta = isVertical and dy or dx
+            if delta ~= 0 then
+                local newBp = ms.breakpoints[i] + (delta / totalSize)
+                local lo = (i == 1) and minGap or (ms.breakpoints[i - 1] + minGap)
+                local hi = (i == n - 1) and (1 - minGap) or (ms.breakpoints[i + 1] - minGap)
+                ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
+                ImGui.ResetMouseDragDelta()
+            end
+        end
+    end
+end
+
+--- Reset a multi-splitter to default breakpoints
+function splitter.resetMulti(id)
+    local ms = multiStates[id]
+    if ms then
+        for i = 1, #ms.defaults do
+            ms.breakpoints[i] = ms.defaults[i]
+        end
+    end
+end
+
 -- Aliases for brevity
 splitter.h = splitter.horizontal
 splitter.v = splitter.vertical
+splitter.m = splitter.multi
 
 return splitter

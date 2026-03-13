@@ -540,14 +540,7 @@ function ui.drawSettingsWindow()
             c:Checkbox("Guides", "gridGuidesEnabled", { tooltip = "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis" })
 
             if settings.master.gridGuidesEnabled then
-                -- Display as 0-100%, store as 0-1 (transformed — use raw API)
-                local dimmingPercent = settings.master.gridGuidesDimming * 100
-                local newDimmingPercent
-                newDimmingPercent, changed = controls.SliderFloat("Brightness5", "gridDimming", dimmingPercent, 0, 100, { format = "%.0f%%", default = settings.defaults.gridGuidesDimming * 100, tooltip = "Grid Dimming (opacity of grid lines when guides active)" })
-                if changed then
-                    settings.master.gridGuidesDimming = newDimmingPercent / 100
-                    settings.save()
-                end
+                c:SliderFloat("Brightness5", "gridGuidesDimming", 0, 1, { percent = true, tooltip = "Grid Dimming (opacity of grid lines when guides active)" })
             end
 
             -- Grid feathering (only available when Show on Drag Only is enabled)
@@ -574,13 +567,7 @@ function ui.drawSettingsWindow()
         ImGui.SameLine()
         c:Checkbox("On Drag Only##dimBg", "gridDimBackgroundOnDragOnly", { tooltip = "Only Dim Background While Dragging Windows" })
         -- Display as 0-100%, store as 0-1 (transformed — use raw API)
-        local opacityPercent = settings.master.gridDimBackgroundOpacity * 100
-        local newOpacityPercent
-        newOpacityPercent, changed = controls.SliderFloat("Brightness4", "dimOpacity", opacityPercent, 10, 90, { format = "%.0f%%", default = settings.defaults.gridDimBackgroundOpacity * 100, tooltip = "Background Dimming Opacity" })
-        if changed then
-            settings.master.gridDimBackgroundOpacity = newOpacityPercent / 100
-            settings.save()
-        end
+        c:SliderFloat("Brightness4", "gridDimBackgroundOpacity", 0.1, 0.9, { percent = true, tooltip = "Background Dimming Opacity" })
     end
 
     -- Blur settings
@@ -678,15 +665,13 @@ function ui.drawSettingsWindow()
         if settings.master.animationEnabled then
             c:SliderFloat("TimerOutline", "animationDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Animation Duration" })
 
-            -- Easing uses index mapping — use raw API
-            local currentIndex = findEasingIndex(settings.master.easeFunction)
-            local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
-            local newIndex
-            newIndex, changed = controls.Combo("SineWave", "easing", currentIndex, settings.easingNames, { default = defaultEasingIndex, tooltip = "Easing Function" })
-            if changed then
-                settings.master.easeFunction = settings.easingKeys[newIndex + 1]
-                settings.save()
-            end
+            c:Combo("SineWave", "easeFunction", settings.easingNames, {
+                tooltip = "Easing Function",
+                transform = {
+                    read  = function(v) return findEasingIndex(v) end,
+                    write = function(v) return settings.easingKeys[v + 1] end,
+                },
+            })
         end
     end
 

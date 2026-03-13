@@ -137,7 +137,7 @@ function dragdrop.popItemStyles(ctx)
     end
 end
 
---- Draw drop indicator separator
+--- Draw drop indicator separator (only rendered when show is true)
 function dragdrop.drawSeparator(show, color)
     if not show then return end
     color = color or styles.colors.blueHover
@@ -195,16 +195,41 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
         local ctx = dragdrop.getItemContext(i, state)
 
         -- Draw drop separator above this item if dropping here
-        dragdrop.drawSeparator(ctx.dropAbove, colors and colors.separator or nil)
+        if state.draggingIndex then
+            dragdrop.drawSeparator(ctx.dropAbove, colors and colors.separator or nil)
+        end
 
         -- Push visual styles
         dragdrop.pushItemStyles(ctx, colors)
 
-        -- Render optional drag handle
+        -- Render optional drag handle (transparent button so it's interactive)
         if showHandle then
+            ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
+            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
+            ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
             ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(handleColor[1], handleColor[2], handleColor[3], handleColor[4]))
-            ImGui.Text(handleIcon)
-            ImGui.PopStyleColor()
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
+
+            ImGui.Button(handleIcon .. "##handle_" .. i)
+
+            -- Start drag from handle
+            if ImGui.IsItemActive() and ImGui.IsMouseDragging(0, 2.0) then
+                if not state.draggingIndex then state.draggingIndex = i end
+            end
+
+            -- Track hover on handle for drop targeting
+            if state.draggingIndex and state.draggingIndex ~= i then
+                if ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
+                    state.hoverIndex = i
+                    local minY = select(2, ImGui.GetItemRectMin())
+                    local maxY = select(2, ImGui.GetItemRectMax())
+                    local mouseY = select(2, ImGui.GetMousePos())
+                    state.dropPosition = mouseY < (minY + maxY) / 2 and "above" or "below"
+                end
+            end
+
+            ImGui.PopStyleVar()
+            ImGui.PopStyleColor(4)
             ImGui.SameLine()
         end
 
@@ -220,7 +245,9 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
         dragdrop.popItemStyles(ctx)
 
         -- Draw drop separator below this item if dropping here
-        dragdrop.drawSeparator(ctx.dropBelow, colors and colors.separator or nil)
+        if state.draggingIndex then
+            dragdrop.drawSeparator(ctx.dropBelow, colors and colors.separator or nil)
+        end
 
         -- Apply reorder
         if shouldReorder and fromIdx and toIdx then

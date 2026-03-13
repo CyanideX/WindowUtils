@@ -86,6 +86,7 @@ function controls.Button(label, styleName, width, height)
     styleName = styleName or "inactive"
     width = width or 0
     height = height or 0
+    if width < 0 then width = ImGui.GetContentRegionAvail() end
 
     styles.PushButton(styleName)
     local clicked = ImGui.Button(label, width, height)
@@ -436,8 +437,12 @@ function controls.HoldButton(id, label, opts)
     local duration = opts.duration or 2.0
     local styleName = opts.style or "danger"
     local width = opts.width or 0
+    if width < 0 then width = ImGui.GetContentRegionAvail() end
     local progressDisplay = opts.progressDisplay or "overlay"
     local progressStyle = opts.progressStyle or "danger"
+    local isDisabled = opts.disabled or false
+
+    if isDisabled then ImGui.BeginDisabled(true) end
 
     -- Initialize state
     if not holdStates[id] then
@@ -480,6 +485,10 @@ function controls.HoldButton(id, label, opts)
                 triggered = true
             end
         end
+        if isDisabled then ImGui.EndDisabled() end
+        if opts.tooltip then tooltips.Show(opts.tooltip) end
+        if triggered and opts.onHold then opts.onHold() end
+        if clicked and opts.onClick then opts.onClick() end
         return triggered, clicked
     end
 
@@ -538,6 +547,13 @@ function controls.HoldButton(id, label, opts)
         ImGui.ImDrawListAddRectFilled(drawList, minX, minY, fillX, maxY, color, 2.0)
     end
     -- "external" mode: no visual — other elements read via getHoldProgress()
+
+    if isDisabled then ImGui.EndDisabled() end
+    if opts.tooltip then tooltips.Show(opts.tooltip) end
+
+    -- Fire callbacks
+    if triggered and opts.onHold then opts.onHold() end
+    if clicked and opts.onClick then opts.onClick() end
 
     return triggered, clicked
 end
@@ -883,6 +899,78 @@ end
 --------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
+-- ButtonRow (two-tier width: auto-sized icons + weighted text)
+--------------------------------------------------------------------------------
+
+--- Render a row of buttons with automatic width distribution.
+--- Icon-only buttons (def.icon, no def.label) auto-size. Text buttons share remaining space by weight.
+function controls.ButtonRow(defs, opts)
+    if not defs or #defs == 0 then return end
+    opts = opts or {}
+    local gap = opts.gap or frameCache.itemSpacingX
+    local availW = ImGui.GetContentRegionAvail()
+
+    -- Phase 1: measure fixed-width buttons, sum flex weights
+    local fixedW = gap * (#defs - 1)
+    local totalWeight = 0
+    local measured = {}
+
+    for i, def in ipairs(defs) do
+        if def.width then
+            measured[i] = def.width
+            fixedW = fixedW + def.width
+        elseif def.icon and not def.label and not def.weight then
+            local icon = resolveIcon(def.icon) or def.icon
+            measured[i] = ImGui.CalcTextSize(icon) + frameCache.framePaddingX * 2
+            fixedW = fixedW + measured[i]
+        else
+            totalWeight = totalWeight + (def.weight or 1)
+        end
+    end
+
+    local remainingW = math.max(availW - fixedW, 0)
+
+    -- Phase 2: render
+    for i, def in ipairs(defs) do
+        local w = measured[i] or math.floor(remainingW * (def.weight or 1) / totalWeight)
+        local icon = def.icon and resolveIcon(def.icon)
+        local displayLabel = icon or def.label or def[1]
+        local style = def.style or def[2] or "inactive"
+
+        if def.disabled then ImGui.BeginDisabled(true) end
+
+        -- Cross-element progress: show progress bar instead of button when source is held
+        local showedProgress = false
+        if def.progressFrom then
+            local progress = controls.getHoldProgress(def.progressFrom)
+            if progress then
+                controls.ProgressBar(progress, w, 0, "", def.progressStyle or "danger")
+                showedProgress = true
+            end
+        end
+
+        if not showedProgress then
+            if def.onHold then
+                local held, clicked = controls.HoldButton(def.id or ("btnrow_" .. i), displayLabel, {
+                    duration = def.holdDuration or 2.0, style = style, width = w,
+                    warningMessage = def.warningMessage,
+                    progressDisplay = def.progressDisplay,
+                })
+                if held and def.onHold then def.onHold() end
+                if clicked and def.onClick then def.onClick() end
+            else
+                local clicked = controls.Button(displayLabel, style, w, def.height or 0)
+                if clicked and def.onClick then def.onClick() end
+            end
+        end
+
+        if def.tooltip then tooltips.Show(def.tooltip) end
+        if def.disabled then ImGui.EndDisabled() end
+        if i < #defs then ImGui.SameLine() end
+    end
+end
+
+--------------------------------------------------------------------------------
 -- Bound Controls API
 --------------------------------------------------------------------------------
 
@@ -896,12 +984,18 @@ function controls.bind(data, defaults, onSave, bindOpts)
 
     function ctx:SliderFloat(icon, key, min, max, opts)
         opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
+        local t = opts.transform
+        if opts.percent then
+            local pct = (data[key] - min) / (max - min) * 100
+            opts.format = string.format("%.0f%%%%", pct)
         end
-        local newValue, changed = controls.SliderFloat(icon, idPrefix .. key, data[key], min, max, opts)
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = t and t.read(defaults[key]) or defaults[key]
+        end
+        local displayValue = t and t.read(data[key]) or data[key]
+        local newValue, changed = controls.SliderFloat(icon, idPrefix .. key, displayValue, min, max, opts)
         if changed then
-            data[key] = newValue
+            data[key] = t and t.write(newValue) or newValue
             if onSave then onSave() end
         end
         return newValue, changed
@@ -909,12 +1003,18 @@ function controls.bind(data, defaults, onSave, bindOpts)
 
     function ctx:SliderInt(icon, key, min, max, opts)
         opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
+        local t = opts.transform
+        if opts.percent then
+            local pct = (data[key] - min) / (max - min) * 100
+            opts.format = string.format("%.0f%%%%", pct)
         end
-        local newValue, changed = controls.SliderInt(icon, idPrefix .. key, data[key], min, max, opts)
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = t and t.read(defaults[key]) or defaults[key]
+        end
+        local displayValue = t and t.read(data[key]) or data[key]
+        local newValue, changed = controls.SliderInt(icon, idPrefix .. key, displayValue, min, max, opts)
         if changed then
-            data[key] = newValue
+            data[key] = t and t.write(newValue) or newValue
             if onSave then onSave() end
         end
         return newValue, changed
@@ -948,12 +1048,14 @@ function controls.bind(data, defaults, onSave, bindOpts)
 
     function ctx:Combo(icon, key, items, opts)
         opts = opts or {}
+        local t = opts.transform
         if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
+            opts.default = t and t.read(defaults[key]) or defaults[key]
         end
-        local newValue, changed = controls.Combo(icon, idPrefix .. key, data[key], items, opts)
+        local displayValue = t and t.read(data[key]) or data[key]
+        local newValue, changed = controls.Combo(icon, idPrefix .. key, displayValue, items, opts)
         if changed then
-            data[key] = newValue
+            data[key] = t and t.write(newValue) or newValue
             if onSave then onSave() end
         end
         return newValue, changed
@@ -996,6 +1098,59 @@ function controls.bind(data, defaults, onSave, bindOpts)
             if onSave then onSave() end
         end
         return newValue, changed
+    end
+
+    --- Render a row of icon toggle buttons bound to boolean keys in data.
+    function ctx:ToggleButtonRow(defs, opts)
+        if not defs or #defs == 0 then return end
+        opts = opts or {}
+        local gap = opts.gap or frameCache.itemSpacingX
+        local availW = ImGui.GetContentRegionAvail()
+
+        -- Phase 1: measure fixed vs flex
+        local fixedW = gap * (#defs - 1)
+        local totalWeight = 0
+        local measured = {}
+
+        for i, def in ipairs(defs) do
+            if def.width then
+                measured[i] = def.width
+                fixedW = fixedW + def.width
+            elseif def.icon and not def.label and not def.weight then
+                local icon = resolveIcon(def.icon) or def.icon
+                measured[i] = ImGui.CalcTextSize(icon) + frameCache.framePaddingX * 2
+                fixedW = fixedW + measured[i]
+            else
+                totalWeight = totalWeight + (def.weight or 1)
+            end
+        end
+
+        local remainingW = math.max(availW - fixedW, 0)
+
+        -- Phase 2: render
+        for i, def in ipairs(defs) do
+            local key = def.key
+            local icon = resolveIcon(def.icon)
+            local displayLabel = icon or def.label or key
+            local isActive = data[key]
+            local w = measured[i] or math.floor(remainingW * (def.weight or 1) / totalWeight)
+
+            controls.Button(displayLabel, isActive and "active" or "inactive", w)
+
+            if ImGui.IsItemClicked(0) then
+                data[key] = not data[key]
+                if onSave then onSave() end
+                if def.onChange then def.onChange(data[key]) end
+            end
+            if ImGui.IsItemClicked(1) and defaults and defaults[key] ~= nil then
+                data[key] = defaults[key]
+                if onSave then onSave() end
+                if def.onChange then def.onChange(data[key]) end
+            end
+
+            if def.tooltip then tooltips.Show(def.tooltip) end
+            if i < #defs then ImGui.SameLine() end
+        end
     end
 
     return ctx
