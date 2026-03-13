@@ -116,7 +116,7 @@ end
 --- Push visual styles for dragged/hover state
 function dragdrop.pushItemStyles(ctx, colors)
     colors = colors or {}
-    local dragAlpha = 0.4
+    local dragAlpha = colors.dragAlpha or 0.4
     local hoverColor = colors.hover or getDefaultHoverColor()
 
     if ctx.isDragged then
@@ -186,6 +186,10 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
 
     opts = opts or {}
     local colors = opts.colors or nil
+    local showHandle = opts.showHandle or false
+    local handleIcon = opts.handleIcon or "DragVertical"
+    if IconGlyphs and IconGlyphs[handleIcon] then handleIcon = IconGlyphs[handleIcon] end
+    local handleColor = opts.handleColor or { 0.5, 0.5, 0.5, 1.0 }
 
     for i = 1, #items do
         local ctx = dragdrop.getItemContext(i, state)
@@ -195,6 +199,14 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
 
         -- Push visual styles
         dragdrop.pushItemStyles(ctx, colors)
+
+        -- Render optional drag handle
+        if showHandle then
+            ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(handleColor[1], handleColor[2], handleColor[3], handleColor[4]))
+            ImGui.Text(handleIcon)
+            ImGui.PopStyleColor()
+            ImGui.SameLine()
+        end
 
         -- Render the item
         ImGui.PushID(id .. "_item_" .. i)

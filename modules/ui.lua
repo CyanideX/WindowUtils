@@ -507,13 +507,11 @@ function ui.drawSettingsWindow()
         return
     end
 
+    local c = controls.bind(settings.master, settings.defaults, settings.save)
+
     -- Master override toggle
-    local changed
-    settings.master.enabled, changed = controls.Checkbox("Enable Master Override", settings.master.enabled)
-    if changed then
-        settings.save()
-        core.invalidateGridCache()  -- Clear cached grid sizes when override changes
-    end
+    local _, changed = c:Checkbox("Enable Master Override", "enabled")
+    if changed then core.invalidateGridCache() end
 
     if settings.master.enabled then
         controls.TextSuccess("Master Settings Active - Overriding All mods")
@@ -522,37 +520,30 @@ function ui.drawSettingsWindow()
     end
 
     controls.SectionHeader("General", 10, 0)
-    settings.master.tooltipsEnabled, changed = controls.Checkbox("Show Tooltips", settings.master.tooltipsEnabled, settings.defaults.tooltipsEnabled, "Show Tooltips on Hover", true)
-    if changed then settings.save() end
+    c:Checkbox("Show Tooltips", "tooltipsEnabled", { tooltip = "Show Tooltips on Hover", alwaysShowTooltip = true })
 
     ImGui.SameLine()
-    settings.master.debugOutput, changed = controls.Checkbox("Debug Output", settings.master.debugOutput, settings.defaults.debugOutput, "Print Debug Messages to Console", true)
-    if changed then
-        settings.save()
-        settings.debugPrint("Debug Output Enabled")
-    end
+    _, changed = c:Checkbox("Debug Output", "debugOutput", { tooltip = "Print Debug Messages to Console", alwaysShowTooltip = true })
+    if changed then settings.debugPrint("Debug Output Enabled") end
 
     -- Grid Visualization section (always enabled, independent of master override)
     controls.SectionHeader("Grid Visualization", 10, 0)
-    settings.master.gridVisualizationEnabled, changed = controls.Checkbox("Enable", settings.master.gridVisualizationEnabled, settings.defaults.gridVisualizationEnabled, "Display Grid Lines on Screen")
-    if changed then settings.save() end
+    c:Checkbox("Enable", "gridVisualizationEnabled", { tooltip = "Display Grid Lines on Screen" })
 
     -- Grid visualization sub-options (only when visualization enabled)
     if settings.master.gridVisualizationEnabled then
         ImGui.SameLine()
-        settings.master.gridShowOnDragOnly, changed = controls.Checkbox("On Drag Only ##grid", settings.master.gridShowOnDragOnly, settings.defaults.gridShowOnDragOnly, "Only Show Grid While Dragging Windows")
-        if changed then settings.save() end
+        c:Checkbox("On Drag Only ##grid", "gridShowOnDragOnly", { tooltip = "Only Show Grid While Dragging Windows" })
 
         if settings.master.gridShowOnDragOnly then
             ImGui.SameLine()
-            settings.master.gridGuidesEnabled, changed = controls.Checkbox("Guides", settings.master.gridGuidesEnabled, settings.defaults.gridGuidesEnabled, "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis")
-            if changed then settings.save() end
+            c:Checkbox("Guides", "gridGuidesEnabled", { tooltip = "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis" })
 
             if settings.master.gridGuidesEnabled then
-                -- Display as 0-100%, store as 0-1
+                -- Display as 0-100%, store as 0-1 (transformed — use raw API)
                 local dimmingPercent = settings.master.gridGuidesDimming * 100
                 local newDimmingPercent
-                newDimmingPercent, changed = controls.SliderFloat(IconGlyphs.Brightness5, "gridDimming", dimmingPercent, 0, 100, "%.0f%%", nil, settings.defaults.gridGuidesDimming * 100, "Grid Dimming (opacity of grid lines when guides active)")
+                newDimmingPercent, changed = controls.SliderFloat("Brightness5", "gridDimming", dimmingPercent, 0, 100, { format = "%.0f%%", default = settings.defaults.gridGuidesDimming * 100, tooltip = "Grid Dimming (opacity of grid lines when guides active)" })
                 if changed then
                     settings.master.gridGuidesDimming = newDimmingPercent / 100
                     settings.save()
@@ -560,63 +551,32 @@ function ui.drawSettingsWindow()
             end
 
             -- Grid feathering (only available when Show on Drag Only is enabled)
-            settings.master.gridFeatherEnabled, changed = controls.Checkbox("Feathered Grid", settings.master.gridFeatherEnabled, settings.defaults.gridFeatherEnabled, "Show Grid Only Around Active Window")
-            if changed then settings.save() end
+            c:Checkbox("Feathered Grid", "gridFeatherEnabled", { tooltip = "Show Grid Only Around Active Window" })
 
             if settings.master.gridFeatherEnabled then
-                local radius = settings.master.gridFeatherRadius
-                radius, changed = controls.SliderFloat(IconGlyphs.BlurRadial, "featherRadius", radius, 200, 1200, "%.0f px", nil, settings.defaults.gridFeatherRadius, "Feather Radius (distance where grid fades to zero)")
-                if changed then
-                    settings.master.gridFeatherRadius = radius
-                    settings.save()
-                end
-
-                local padding = settings.master.gridFeatherPadding
-                padding, changed = controls.SliderFloat(IconGlyphs.SelectionEllipse, "featherPadding", padding, 0, 120, "%.0f px", nil, settings.defaults.gridFeatherPadding, "Window Padding (area around window with full opacity)")
-                if changed then
-                    settings.master.gridFeatherPadding = padding
-                    settings.save()
-                end
-
-                local curve = settings.master.gridFeatherCurve
-                curve, changed = controls.SliderFloat(IconGlyphs.ChartBellCurveCumulative, "featherCurve", curve, 1.0, 12.0, "%.1f", nil, settings.defaults.gridFeatherCurve, "Feather Curve (higher = faster drop near window, gradual fade at edges)")
-                if changed then
-                    settings.master.gridFeatherCurve = curve
-                    settings.save()
-                end
+                c:SliderFloat("BlurRadial", "gridFeatherRadius", 200, 1200, { format = "%.0f px", tooltip = "Feather Radius (distance where grid fades to zero)" })
+                c:SliderFloat("SelectionEllipse", "gridFeatherPadding", 0, 120, { format = "%.0f px", tooltip = "Window Padding (area around window with full opacity)" })
+                c:SliderFloat("ChartBellCurveCumulative", "gridFeatherCurve", 1.0, 12.0, { format = "%.1f", tooltip = "Feather Curve (higher = faster drop near window, gradual fade at edges)" })
             end
         end
 
-        local thickness = settings.master.gridLineThickness
-        thickness, changed = controls.SliderFloat(IconGlyphs.FormatLineWeight, "gridThickness", thickness, 0.5, 5.0, "%.1f px", nil, settings.defaults.gridLineThickness, "Grid Line Thickness")
-        if changed then
-            settings.master.gridLineThickness = thickness
-            settings.save()
-        end
-
-        -- RGBA color picker
-        settings.master.gridLineColor, changed = controls.ColorEdit4(IconGlyphs.Palette, "gridColor", settings.master.gridLineColor, nil, settings.defaults.gridLineColor, "Grid Line Color")
-        if changed then
-            settings.save()
-        end
+        c:SliderFloat("FormatLineWeight", "gridLineThickness", 0.5, 5.0, { format = "%.1f px", tooltip = "Grid Line Thickness" })
+        c:ColorEdit4("Palette", "gridLineColor", { tooltip = "Grid Line Color" })
 
     end
 
     -- Background section (independent of grid visualization)
     controls.SectionHeader("Background", 10, 0)
 
-    -- Dim Background option (shown with grid overlay)
-    settings.master.gridDimBackground, changed = controls.Checkbox("Dim Background", settings.master.gridDimBackground, settings.defaults.gridDimBackground, "Darken Screen When Grid Overlay Visible")
-    if changed then settings.save() end
+    c:Checkbox("Dim Background", "gridDimBackground", { tooltip = "Darken Screen When Grid Overlay Visible" })
 
     if settings.master.gridDimBackground then
         ImGui.SameLine()
-        settings.master.gridDimBackgroundOnDragOnly, changed = controls.Checkbox("On Drag Only##dimBg", settings.master.gridDimBackgroundOnDragOnly, settings.defaults.gridDimBackgroundOnDragOnly, "Only Dim Background While Dragging Windows")
-        if changed then settings.save() end
-        -- Display as 0-100%, store as 0-1
+        c:Checkbox("On Drag Only##dimBg", "gridDimBackgroundOnDragOnly", { tooltip = "Only Dim Background While Dragging Windows" })
+        -- Display as 0-100%, store as 0-1 (transformed — use raw API)
         local opacityPercent = settings.master.gridDimBackgroundOpacity * 100
         local newOpacityPercent
-        newOpacityPercent, changed = controls.SliderFloat(IconGlyphs.Brightness4, "dimOpacity", opacityPercent, 10, 90, "%.0f%%", nil, settings.defaults.gridDimBackgroundOpacity * 100, "Background Dimming Opacity")
+        newOpacityPercent, changed = controls.SliderFloat("Brightness4", "dimOpacity", opacityPercent, 10, 90, { format = "%.0f%%", default = settings.defaults.gridDimBackgroundOpacity * 100, tooltip = "Background Dimming Opacity" })
         if changed then
             settings.master.gridDimBackgroundOpacity = newOpacityPercent / 100
             settings.save()
@@ -630,8 +590,9 @@ function ui.drawSettingsWindow()
         ImGui.BeginDisabled()
     end
 
+    -- Blur checkbox has complex side-effects — use raw API
     local blurValue = blurAvailable and settings.master.blurOnOverlayOpen or false
-    blurValue, changed = controls.Checkbox("Blur on Overlay Open", blurValue, settings.defaults.blurOnOverlayOpen, blurAvailable and "Blur Game Background When CET Overlay Opens" or "Download the required library files")
+    blurValue, changed = controls.Checkbox("Blur on Overlay Open", blurValue, { default = settings.defaults.blurOnOverlayOpen, tooltip = blurAvailable and "Blur Game Background When CET Overlay Opens" or "Download the required library files" })
     if changed and blurAvailable then
         settings.master.blurOnOverlayOpen = blurValue
         settings.save()
@@ -649,8 +610,11 @@ function ui.drawSettingsWindow()
 
     if settings.master.blurOnOverlayOpen and blurAvailable then
         ImGui.SameLine()
-        settings.master.blurOnDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, settings.defaults.blurOnDragOnly, "Only Blur While Dragging Windows")
+        -- Blur drag-only has complex side-effects — use raw API
+        local newBlurDragOnly
+        newBlurDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, { default = settings.defaults.blurOnDragOnly, tooltip = "Only Blur While Dragging Windows" })
         if changed then
+            settings.master.blurOnDragOnly = newBlurDragOnly
             settings.save()
             if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
                 ui.enableBlur()
@@ -659,27 +623,11 @@ function ui.drawSettingsWindow()
             end
         end
 
-        local intensity = settings.master.blurIntensity
-        intensity, changed = controls.SliderFloat(IconGlyphs.Blur, "blurIntensity", intensity, 0.001, 0.02, "%.4f", nil, settings.defaults.blurIntensity, "Blur Intensity")
-        if changed then
-            settings.master.blurIntensity = intensity
-            settings.save()
-            ui.updateBlurIntensity(intensity)
-        end
+        _, changed = c:SliderFloat("Blur", "blurIntensity", 0.001, 0.02, { format = "%.4f", tooltip = "Blur Intensity" })
+        if changed then ui.updateBlurIntensity(settings.master.blurIntensity) end
 
-        local fadeIn = settings.master.blurFadeInDuration
-        fadeIn, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeIn", fadeIn, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeInDuration, "Fade In Duration")
-        if changed then
-            settings.master.blurFadeInDuration = fadeIn
-            settings.save()
-        end
-
-        local fadeOut = settings.master.blurFadeOutDuration
-        fadeOut, changed = controls.SliderFloat(IconGlyphs.TransitionMasked, "blurFadeOut", fadeOut, 0.05, 1.0, "%.2f s", nil, settings.defaults.blurFadeOutDuration, "Fade Out Duration")
-        if changed then
-            settings.master.blurFadeOutDuration = fadeOut
-            settings.save()
-        end
+        c:SliderFloat("TransitionMasked", "blurFadeInDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade In Duration" })
+        c:SliderFloat("TransitionMasked", "blurFadeOutDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade Out Duration" })
     end
 
     -- Master override dependent settings
@@ -689,17 +637,15 @@ function ui.drawSettingsWindow()
 
     -- Grid settings
     controls.SectionHeader("Grid Snapping", 10, 0)
-    settings.master.gridEnabled, changed = controls.Checkbox("Enable Grid Snapping", settings.master.gridEnabled, settings.defaults.gridEnabled, "Snap Windows to Grid When Released")
-    if changed then settings.save() end
+    c:Checkbox("Enable Grid Snapping", "gridEnabled", { tooltip = "Snap Windows to Grid When Released" })
 
     if settings.master.gridEnabled then
         ImGui.SameLine()
-        settings.master.snapCollapsed, changed = controls.Checkbox("Snap Collapsed", settings.master.snapCollapsed, settings.defaults.snapCollapsed, "Snap Collapsed Windows When Dragged")
-        if changed then settings.save() end
+        c:Checkbox("Snap Collapsed", "snapCollapsed", { tooltip = "Snap Collapsed Windows When Dragged" })
 
-        -- Get valid grid units and map to scale 1-N
+        -- Grid scale uses validUnits mapping — use raw API
         local validUnits = settings.getValidGridUnits(10)
-        local maxScale = math.min(#validUnits, 5)  -- Cap at 5 scales
+        local maxScale = math.min(#validUnits, 5)
         local currentScale = 1
         local defaultScale = 1
 
@@ -716,32 +662,27 @@ function ui.drawSettingsWindow()
 
         local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
         local newScale
-        newScale, changed = controls.SliderInt(IconGlyphs.Grid, "gridScale", currentScale, 1, maxScale, "Scale %d (" .. gridSize .. "px)", nil, defaultScale, "Grid Scale (maps to valid grid sizes for your resolution)")
+        newScale, changed = controls.SliderInt("Grid", "gridScale", currentScale, 1, maxScale, { format = "Scale %d (" .. gridSize .. "px)", default = defaultScale, tooltip = "Grid Scale (maps to valid grid sizes for your resolution)" })
         if changed then
             settings.master.gridUnits = validUnits[newScale]
             settings.save()
-            core.invalidateGridCache()  -- Clear cached grid sizes
+            core.invalidateGridCache()
         end
     end
 
     -- Animation settings (only meaningful when grid snapping is on)
     if settings.master.gridEnabled then
         controls.SectionHeader("Animation", 10, 0)
-        settings.master.animationEnabled, changed = controls.Checkbox("Snap Animation", settings.master.animationEnabled, settings.defaults.animationEnabled, "Animate Window Snapping")
-        if changed then settings.save() end
+        c:Checkbox("Snap Animation", "animationEnabled", { tooltip = "Animate Window Snapping" })
 
         if settings.master.animationEnabled then
-            local duration = settings.master.animationDuration
-            duration, changed = controls.SliderFloat(IconGlyphs.TimerOutline, "animDuration", duration, 0.05, 1.0, "%.2f s", nil, settings.defaults.animationDuration, "Animation Duration")
-            if changed then
-                settings.master.animationDuration = duration
-                settings.save()
-            end
+            c:SliderFloat("TimerOutline", "animationDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Animation Duration" })
 
+            -- Easing uses index mapping — use raw API
             local currentIndex = findEasingIndex(settings.master.easeFunction)
             local defaultEasingIndex = findEasingIndex(settings.defaults.easeFunction)
             local newIndex
-            newIndex, changed = controls.Combo(IconGlyphs.SineWave, "easing", currentIndex, settings.easingNames, nil, defaultEasingIndex, "Easing Function")
+            newIndex, changed = controls.Combo("SineWave", "easing", currentIndex, settings.easingNames, { default = defaultEasingIndex, tooltip = "Easing Function" })
             if changed then
                 settings.master.easeFunction = settings.easingKeys[newIndex + 1]
                 settings.save()
@@ -755,57 +696,21 @@ function ui.drawSettingsWindow()
     local discoveryAvailable = core.isDiscoveryAvailable()
 
     if discoveryAvailable then
-        settings.master.overrideAllWindows, changed = controls.Checkbox("Override All Windows", settings.master.overrideAllWindows, settings.defaults.overrideAllWindows, "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nDoes not work with collapsed windows and may break the grid.\nMay conflict with windows using older versions of WindowUtils.", true)
-        if changed then
-            settings.save()
-            core.invalidateGridCache()  -- Clear cached grid sizes when override changes
-        end
+        _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", { tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nDoes not work with collapsed windows and may break the grid.\nMay conflict with windows using older versions of WindowUtils.", alwaysShowTooltip = true })
+        if changed then core.invalidateGridCache() end
     else
         controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
     end
 
     if settings.master.overrideAllWindows and discoveryAvailable then
-        local interval = settings.master.probeInterval
-        interval, changed = controls.SliderFloat(
-            IconGlyphs.TimerSand, "probeInterval",
-            interval, 0.1, 5.0, "%.1f s", nil,
-            settings.defaults.probeInterval,
-            "Re-Probe Interval\nHow often to scan for newly-drawn windows"
-        )
-        if changed then
-            settings.master.probeInterval = interval
-            settings.save()
-        end
+        c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, { format = "%.1f s", tooltip = "Re-Probe Interval\nHow often to scan for newly-drawn windows" })
 
-        settings.master.autoRemoveEmptyWindows, changed = controls.Checkbox(
-            "Auto-Remove Empty Windows",
-            settings.master.autoRemoveEmptyWindows,
-            settings.defaults.autoRemoveEmptyWindows,
-            "Automatically stop managing windows that are no longer drawn by any mod\nAlso removes empty shells instantly when clicked",
-            true
-        )
-        if changed then settings.save() end
+        c:Checkbox("Auto-Remove Empty Windows", "autoRemoveEmptyWindows", { tooltip = "Automatically stop managing windows that are no longer drawn by any mod\nAlso removes empty shells instantly when clicked", alwaysShowTooltip = true })
 
         if settings.master.autoRemoveEmptyWindows then
-            local arInterval = settings.master.autoRemoveInterval
-            arInterval, changed = controls.SliderFloat(
-                IconGlyphs.TimerSand, "autoRemoveInterval",
-                arInterval, 0.1, 5.0, "%.1f s", nil,
-                settings.defaults.autoRemoveInterval,
-                "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing"
-            )
-            if changed then
-                settings.master.autoRemoveInterval = arInterval
-                settings.save()
-            end
+            c:SliderFloat("TimerSand", "autoRemoveInterval", 0.1, 5.0, { format = "%.1f s", tooltip = "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing" })
 
-            settings.master.batchAutoRemove, changed = controls.Checkbox(
-                "Batch Auto-Remove",
-                settings.master.batchAutoRemove,
-                settings.defaults.batchAutoRemove,
-                "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)"
-            )
-            if changed then settings.save() end
+            c:Checkbox("Batch Auto-Remove", "batchAutoRemove", { tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)" })
         end
 
         if controls.Button("Window Browser", "inactive", ImGui.GetContentRegionAvail(), 0) then

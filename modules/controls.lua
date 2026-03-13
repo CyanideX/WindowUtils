@@ -119,8 +119,15 @@ end
 -- Helpers: icon prefix + width calculation (shared by sliders, inputs, combo)
 --------------------------------------------------------------------------------
 
+local function resolveIcon(icon)
+    if not icon or icon == "" then return nil end
+    if IconGlyphs and IconGlyphs[icon] then return IconGlyphs[icon] end
+    return icon
+end
+
 local function iconPrefix(icon, tooltip, alwaysShow)
-    if not icon or icon == "" then return false end
+    icon = resolveIcon(icon)
+    if not icon then return false end
     ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, frameCache.itemSpacingY)
     controls.IconButton(icon, false)
     if tooltip then
@@ -141,31 +148,33 @@ end
 -- Sliders with Icon (Shift-style: icon on left, slider fills remaining width)
 --------------------------------------------------------------------------------
 
---- Create a float slider with icon on left, fills remaining width
-function controls.SliderFloat(icon, id, value, min, max, format, cols, defaultValue, tooltip)
-    format = format or "%.2f"
-    local hasIcon = iconPrefix(icon, tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
+--- Create a float slider (icon, id, value, min, max, opts)
+function controls.SliderFloat(icon, id, value, min, max, opts)
+    opts = opts or {}
+    local format = opts.format or "%.2f"
+    local hasIcon = iconPrefix(icon, opts.tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.SliderFloat("##" .. id, value, min, max, format)
     styles.PopOutlined()
-    if defaultValue ~= nil and ImGui.IsItemClicked(1) then
-        newValue = defaultValue
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newValue = opts.default
         changed = true
     end
     return newValue, changed
 end
 
---- Create an integer slider with icon on left
-function controls.SliderInt(icon, id, value, min, max, format, cols, defaultValue, tooltip)
-    format = format or "%d"
-    local hasIcon = iconPrefix(icon, tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
+--- Create an integer slider (icon, id, value, min, max, opts)
+function controls.SliderInt(icon, id, value, min, max, opts)
+    opts = opts or {}
+    local format = opts.format or "%d"
+    local hasIcon = iconPrefix(icon, opts.tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.SliderInt("##" .. id, value, min, max, format)
     styles.PopOutlined()
-    if defaultValue ~= nil and ImGui.IsItemClicked(1) then
-        newValue = defaultValue
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newValue = opts.default
         changed = true
     end
     return newValue, changed
@@ -190,42 +199,27 @@ end
 -- Checkboxes (standard ImGui styling - no custom colors)
 --------------------------------------------------------------------------------
 
---- Create a standard checkbox with optional tooltip
-function controls.Checkbox(label, value, defaultValue, tooltip, alwaysShowTooltip)
-    if alwaysShowTooltip == nil then alwaysShowTooltip = false end
+--- Create a checkbox (opts: icon, default, tooltip, alwaysShowTooltip)
+function controls.Checkbox(label, value, opts)
+    opts = opts or {}
+    local hasIcon = false
+    if opts.icon then
+        hasIcon = true
+        iconPrefix(opts.icon, opts.tooltip, opts.alwaysShowTooltip)
+    end
 
     local newValue, changed = ImGui.Checkbox(label, value)
 
-    if tooltip then
-        if alwaysShowTooltip then
-            tooltips.ShowAlways(tooltip)
+    if not hasIcon and opts.tooltip then
+        if opts.alwaysShowTooltip then
+            tooltips.ShowAlways(opts.tooltip)
         else
-            tooltips.Show(tooltip)
+            tooltips.Show(opts.tooltip)
         end
     end
 
-    -- Right-click to reset to default
-    if defaultValue ~= nil and ImGui.IsItemClicked(1) then
-        newValue = defaultValue
-        changed = true
-    end
-
-    return newValue, changed
-end
-
---- Create a checkbox with icon prefix
-function controls.CheckboxWithIcon(icon, label, value, defaultValue, tooltip, alwaysShowTooltip)
-    iconPrefix(icon, tooltip, alwaysShowTooltip)
-
-    local newValue, changed = ImGui.Checkbox(label, value)
-
-    if tooltip then
-        if alwaysShowTooltip then tooltips.ShowAlways(tooltip)
-        else tooltips.Show(tooltip) end
-    end
-
-    if defaultValue ~= nil and ImGui.IsItemClicked(1) then
-        newValue = defaultValue
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newValue = opts.default
         changed = true
     end
 
@@ -279,17 +273,18 @@ end
 -- Color Picker
 --------------------------------------------------------------------------------
 
---- Create a color picker with icon on left
-function controls.ColorEdit4(icon, id, color, label, defaultColor, tooltip)
-    iconPrefix(icon, tooltip, true)
-    if label then
-        ImGui.Text(label)
+--- Create a color picker (icon, id, color, opts)
+function controls.ColorEdit4(icon, id, color, opts)
+    opts = opts or {}
+    iconPrefix(icon, opts.tooltip, true)
+    if opts.label then
+        ImGui.Text(opts.label)
         ImGui.SameLine()
     end
     ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
     local newColor, changed = ImGui.ColorEdit4("##" .. id, color, ImGuiColorEditFlags.NoOptions)
-    if defaultColor and ImGui.IsItemClicked(1) then
-        newColor = {defaultColor[1], defaultColor[2], defaultColor[3], defaultColor[4]}
+    if opts.default and ImGui.IsItemClicked(1) then
+        newColor = {opts.default[1], opts.default[2], opts.default[3], opts.default[4]}
         changed = true
     end
     return newColor, changed
@@ -331,15 +326,16 @@ end
 -- Combo/Dropdown with Icon
 --------------------------------------------------------------------------------
 
---- Create a combo dropdown with icon on left
-function controls.Combo(icon, id, currentIndex, items, cols, defaultIndex, tooltip)
-    local hasIcon = iconPrefix(icon, tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
+--- Create a combo dropdown (icon, id, currentIndex, items, opts)
+function controls.Combo(icon, id, currentIndex, items, opts)
+    opts = opts or {}
+    local hasIcon = iconPrefix(icon, opts.tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
     styles.PushOutlined()
     local newIndex, changed = ImGui.Combo("##" .. id, currentIndex, items, #items)
     styles.PopOutlined()
-    if defaultIndex ~= nil and ImGui.IsItemClicked(1) then
-        newIndex = defaultIndex
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newIndex = opts.default
         changed = true
     end
     return newIndex, changed
@@ -349,36 +345,39 @@ end
 -- Input Fields with Icon
 --------------------------------------------------------------------------------
 
---- Create an input text field with icon on left
-function controls.InputText(icon, id, text, maxLength, cols, tooltip, alwaysShowTooltip)
-    maxLength = maxLength or 256
-    local hasIcon = iconPrefix(icon, tooltip, alwaysShowTooltip)
-    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
+--- Create an input text field (icon, id, text, opts)
+function controls.InputText(icon, id, text, opts)
+    opts = opts or {}
+    local maxLength = opts.maxLength or 256
+    local hasIcon = iconPrefix(icon, opts.tooltip, opts.alwaysShowTooltip)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
     styles.PushOutlined()
     local newText, changed = ImGui.InputText("##" .. id, text, maxLength)
     styles.PopOutlined()
     return newText, changed
 end
 
---- Create an input float field with icon on left
-function controls.InputFloat(icon, id, value, step, stepFast, format, cols, tooltip, alwaysShowTooltip)
-    step = step or 0.1
-    stepFast = stepFast or 1.0
-    format = format or "%.2f"
-    local hasIcon = iconPrefix(icon, tooltip, alwaysShowTooltip)
-    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
+--- Create an input float field (icon, id, value, opts)
+function controls.InputFloat(icon, id, value, opts)
+    opts = opts or {}
+    local step = opts.step or 0.1
+    local stepFast = opts.stepFast or 1.0
+    local format = opts.format or "%.2f"
+    local hasIcon = iconPrefix(icon, opts.tooltip, opts.alwaysShowTooltip)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.InputFloat("##" .. id, value, step, stepFast, format)
     styles.PopOutlined()
     return newValue, changed
 end
 
---- Create an input int field with icon on left
-function controls.InputInt(icon, id, value, step, stepFast, cols, tooltip, alwaysShowTooltip)
-    step = step or 1
-    stepFast = stepFast or 10
-    local hasIcon = iconPrefix(icon, tooltip, alwaysShowTooltip)
-    ImGui.SetNextItemWidth(calcControlWidth(cols, hasIcon))
+--- Create an input int field (icon, id, value, opts)
+function controls.InputInt(icon, id, value, opts)
+    opts = opts or {}
+    local step = opts.step or 1
+    local stepFast = opts.stepFast or 10
+    local hasIcon = iconPrefix(icon, opts.tooltip, opts.alwaysShowTooltip)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
     styles.PushOutlined()
     local newValue, changed = ImGui.InputInt("##" .. id, value, step, stepFast)
     styles.PopOutlined()
@@ -877,6 +876,154 @@ function controls.Column(id, defs, opts)
 
         if def.bg then ImGui.PopStyleColor() end
     end
+end
+
+--------------------------------------------------------------------------------
+-- Panel (child window with default styling)
+--------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------
+-- Bound Controls API
+--------------------------------------------------------------------------------
+
+--- Create a bound context that auto-reads, auto-writes, auto-resets, and auto-saves.
+--- Usage: local c = controls.bind(data, defaults, onSave, { idPrefix = "prefix_" })
+---        c:SliderFloat(icon, key, min, max, opts)  -- reads data[key], resets to defaults[key]
+--- idPrefix is prepended to key for the ImGui ID but the raw key is used for data/defaults lookup.
+function controls.bind(data, defaults, onSave, bindOpts)
+    local ctx = {}
+    local idPrefix = bindOpts and bindOpts.idPrefix or ""
+
+    function ctx:SliderFloat(icon, key, min, max, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.SliderFloat(icon, idPrefix .. key, data[key], min, max, opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:SliderInt(icon, key, min, max, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.SliderInt(icon, idPrefix .. key, data[key], min, max, opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:Checkbox(label, key, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.Checkbox(label, data[key], opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:ColorEdit4(icon, key, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.ColorEdit4(icon, idPrefix .. key, data[key], opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:Combo(icon, key, items, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.Combo(icon, idPrefix .. key, data[key], items, opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:InputText(icon, key, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.InputText(icon, idPrefix .. key, data[key], opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:InputFloat(icon, key, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.InputFloat(icon, idPrefix .. key, data[key], opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    function ctx:InputInt(icon, key, opts)
+        opts = opts or {}
+        if defaults and defaults[key] ~= nil and opts.default == nil then
+            opts.default = defaults[key]
+        end
+        local newValue, changed = controls.InputInt(icon, idPrefix .. key, data[key], opts)
+        if changed then
+            data[key] = newValue
+            if onSave then onSave() end
+        end
+        return newValue, changed
+    end
+
+    return ctx
+end
+
+--------------------------------------------------------------------------------
+-- Panel (child window with default styling)
+--------------------------------------------------------------------------------
+
+--- Render a child window panel with default styling (opts: bg, border, width, height, flags)
+function controls.Panel(id, contentFn, opts)
+    opts = opts or {}
+    local border = opts.border ~= false
+    local bg = opts.bg
+    if bg == nil then bg = { 0.65, 0.7, 1.0, 0.045 } end
+    local width = opts.width or 0
+    local height = opts.height or 0
+    local flags = opts.flags or 0
+
+    local childId = id:find("^##") and id or ("##" .. id)
+
+    if bg then
+        ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0))
+    end
+    ImGui.BeginChild(childId, width, height, border, flags)
+    if contentFn then contentFn() end
+    ImGui.EndChild()
+    if bg then ImGui.PopStyleColor() end
 end
 
 return controls
