@@ -58,7 +58,13 @@ styles.colors = {
     textWhite = { 1.0, 1.0, 1.0, 1.0 },
 
     -- Transparent
-    transparent = { 0.0, 0.0, 0.0, 0.0 }
+    transparent = { 0.0, 0.0, 0.0, 0.0 },
+
+    -- Splitter
+    splitterHover = { 0.3, 0.5, 0.7, 0.5 },
+    splitterDrag = { 0.0, 1.0, 0.7, 0.6 },
+    splitterIcon = { 0.6, 0.6, 0.7, 1.0 },
+    splitterIconHi = { 1.0, 1.0, 1.0, 1.0 }
 }
 
 --------------------------------------------------------------------------------
@@ -67,6 +73,27 @@ styles.colors = {
 
 local function toColor(c)
     return ImGui.GetColorU32(c[1], c[2], c[3], c[4])
+end
+
+--- Public helper: Convert {r,g,b,a} table to ImGui u32 color
+-- @param c table: Color as {r, g, b, a} with values 0-1
+-- @return number: ImGui u32 color value
+styles.toColor = toColor
+
+--------------------------------------------------------------------------------
+-- Color Caching (pre-compute u32 values once per frame for hot loops)
+--------------------------------------------------------------------------------
+
+styles.colorsU32 = {}
+
+--- Pre-compute all styles.colors entries as ImGui u32 values.
+-- Call once per frame from init.lua onDraw for hot-loop performance.
+function styles.ensureCache()
+    for key, c in pairs(styles.colors) do
+        if type(c) == "table" and #c >= 4 then
+            styles.colorsU32[key] = toColor(c)
+        end
+    end
 end
 
 --------------------------------------------------------------------------------
@@ -323,21 +350,37 @@ local styleMap = {
     transparent = { push = styles.PushButtonTransparent, pop = styles.PopButtonTransparent }
 }
 
---- Push a button style by name
--- @param styleName string: "active", "inactive", "danger", "warning", "update", "disabled", "transparent"
-function styles.PushButton(styleName)
-    local style = styleMap[styleName]
-    if style then
-        style.push()
+--- Push a button style by name or by custom color table
+-- @param styleNameOrTable string|table: Style name ("active", etc.) or { bg={r,g,b,a}, hover={r,g,b,a}, text={r,g,b,a} }
+function styles.PushButton(styleNameOrTable)
+    if type(styleNameOrTable) == "table" then
+        -- Custom color table: { bg, hover, text }
+        local c = styleNameOrTable
+        ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
+        ImGui.PushStyleColor(ImGuiCol.Button, toColor(c.bg or styles.colors.blue))
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, toColor(c.hover or styles.colors.blueHover))
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, toColor(c.hover or styles.colors.blueActive))
+        ImGui.PushStyleColor(ImGuiCol.Text, toColor(c.text or styles.colors.textWhite))
+    else
+        local style = styleMap[styleNameOrTable]
+        if style then
+            style.push()
+        end
     end
 end
 
---- Pop a button style by name
--- @param styleName string: Must match the style pushed
-function styles.PopButton(styleName)
-    local style = styleMap[styleName]
-    if style then
-        style.pop()
+--- Pop a button style by name or table
+-- @param styleNameOrTable string|table: Must match what was pushed
+function styles.PopButton(styleNameOrTable)
+    if type(styleNameOrTable) == "table" then
+        -- Custom table always pushes 4 colors + 1 var
+        ImGui.PopStyleColor(4)
+        ImGui.PopStyleVar()
+    else
+        local style = styleMap[styleNameOrTable]
+        if style then
+            style.pop()
+        end
     end
 end
 

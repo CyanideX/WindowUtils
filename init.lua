@@ -22,6 +22,10 @@ local styles = require("modules/styles")
 local controls = require("modules/controls")
 local tooltips = require("modules/tooltips")
 local hotkeys = require("modules/hotkeys")
+local splitter = require("modules/splitter")
+local tabs = require("modules/tabs")
+local dragdrop = require("modules/dragdrop")
+local notifications = require("modules/notifications")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -96,6 +100,12 @@ WindowUtils.Styles = styles
 WindowUtils.Controls = controls
 WindowUtils.Tooltips = tooltips
 
+-- Layout and widget modules
+WindowUtils.Splitter = splitter
+WindowUtils.Tabs = tabs
+WindowUtils.DragDrop = dragdrop
+WindowUtils.Notify = notifications
+
 hotkeys.register()
 
 --------------------------------------------------------------------------------
@@ -111,6 +121,12 @@ registerForEvent("onInit", function()
 end)
 
 registerForEvent("onDraw", function()
+    -- Pre-compute cached color values for hot-loop performance
+    styles.ensureCache()
+
+    -- Draw toast notifications (visible even when overlay is closing)
+    notifications.draw()
+
     -- Update blur animation (runs even when overlay might be closing)
     ui.updateBlurAnimation()
 
