@@ -9,6 +9,7 @@ local discovery = {}
 local cachedWindows = nil
 local cacheGeneration = -1
 local currentGeneration = 0
+local lastLayoutString = nil  -- Skip re-parsing when layout string unchanged
 
 --- Invalidate the per-frame cache (call once at start of each frame).
 function discovery.invalidateCache()
@@ -42,14 +43,23 @@ function discovery.getActiveWindows()
         return cachedWindows
     end
 
-    local windows = {}
     local layoutString = RedCetWM.GetWindowLayout()
 
     if not layoutString or layoutString == "" then
-        cachedWindows = windows
+        cachedWindows = {}
         cacheGeneration = currentGeneration
-        return windows
+        lastLayoutString = layoutString
+        return cachedWindows
     end
+
+    -- Skip re-parsing if layout string hasn't changed since last parse
+    if layoutString == lastLayoutString and cachedWindows then
+        cacheGeneration = currentGeneration
+        return cachedWindows
+    end
+    lastLayoutString = layoutString
+
+    local windows = {}
 
     -- Parse layout string into lines
     local layoutLines = {}

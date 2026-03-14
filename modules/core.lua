@@ -27,6 +27,9 @@ local windowStates = {}
 
 -- Constraint animations
 local constraintAnimations = {}
+-- Reverse indices: windowName -> { property = true } for O(1) lookup
+local constraintAnimByWindow = {}   -- active constraint animations by window
+local snapPendingByWindow = {}      -- completed animations awaiting grid snap
 
 -- External window state tracking (for Override All Windows feature)
 local externalWindowStates = {}
@@ -291,30 +294,33 @@ end
 -- Internal State Management
 --------------------------------------------------------------------------------
 
+local function createBaseWindowState(windowName)
+    return {
+        animating = false,
+        animationStartTime = 0,
+        startPosX = 0,
+        startPosY = 0,
+        startSizeX = 0,
+        startSizeY = 0,
+        targetPosX = 0,
+        targetPosY = 0,
+        targetSizeX = 0,
+        targetSizeY = 0,
+        isDragging = false,
+        expandedSizeX = windowCache[windowName] and windowCache[windowName].width or nil,
+        expandedSizeY = windowCache[windowName] and windowCache[windowName].height or nil,
+        wasCollapsed = false,
+        pendingDragCheck = false,
+        dragCheckPosX = 0,
+        dragCheckPosY = 0,
+        dragCheckSizeX = 0,
+        dragCheckSizeY = 0,
+    }
+end
+
 local function getWindowState(windowName)
     if not windowStates[windowName] then
-        windowStates[windowName] = {
-            animating = false,
-            animationStartTime = 0,
-            startPosX = 0,
-            startPosY = 0,
-            startSizeX = 0,
-            startSizeY = 0,
-            targetPosX = 0,
-            targetPosY = 0,
-            targetSizeX = 0,
-            targetSizeY = 0,
-            isDragging = false,
-            expandedSizeX = windowCache[windowName] and windowCache[windowName].width or nil,
-            expandedSizeY = windowCache[windowName] and windowCache[windowName].height or nil,
-            wasCollapsed = false,
-            -- Pending drag check (detects child element drags vs window drags)
-            pendingDragCheck = false,
-            dragCheckPosX = 0,
-            dragCheckPosY = 0,
-            dragCheckSizeX = 0,
-            dragCheckSizeY = 0
-        }
+        windowStates[windowName] = createBaseWindowState(windowName)
     end
     return windowStates[windowName]
 end
@@ -349,7 +355,9 @@ local function handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowN
     end
 end
 
-local function animate(state, windowName, duration, isCollapsed)
+-- Calculate interpolated animation values for the current frame.
+-- Returns progress (0-1), new position, and optionally new size (nil for collapsed).
+local function calculateAnimationFrame(state, windowName, duration)
     local elapsedTime = os.clock() - state.animationStartTime
     local t = math.min(elapsedTime / duration, 1)
     t = core.applyEasing(t, windowName)
@@ -357,17 +365,91 @@ local function animate(state, windowName, duration, isCollapsed)
     local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
     local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
 
+    local newSizeX, newSizeY
+    if state.startSizeX and state.targetSizeX then
+        newSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
+        newSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
+    end
+
+    return t, newPosX, newPosY, newSizeX, newSizeY
+end
+
+local function animate(state, windowName, duration, isCollapsed)
+    local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
+
     ImGui.SetWindowPos(windowName, newPosX, newPosY)
 
-    if not isCollapsed then
-        local newSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
-        local newSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
+    if not isCollapsed and newSizeX then
         ImGui.SetWindowSize(windowName, newSizeX, newSizeY)
     end
 
     if t >= 1 then
         state.animating = false
     end
+end
+
+--------------------------------------------------------------------------------
+-- Shared Drag Detection
+--------------------------------------------------------------------------------
+
+-- Shared drag detection state machine for internal and external windows.
+-- Returns updatedPosX, updatedPosY, and an action string:
+--   nil           = no state change (during drag or idle)
+--   "changed"     = mouse released AND window pos/size changed from baseline
+--   "unchanged"   = mouse released but pos/size didn't change (child element drag)
+--   "focus_lost"  = focus was lost mid-drag
+local function handleDragDetection(state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY, isFocused, isDragging, isReleased, shiftHeld, treatAllDrags)
+    if isFocused and isDragging then
+        -- Record baseline position/size when any drag starts in focused window
+        if not state.pendingDragCheck then
+            state.pendingDragCheck = true
+            state.dragCheckPosX = currentPosX
+            state.dragCheckPosY = currentPosY
+            state.dragCheckSizeX = currentSizeX
+            state.dragCheckSizeY = currentSizeY
+            dragStartPos.x = currentPosX
+            dragStartPos.y = currentPosY
+        end
+
+        -- Check if window is actually moving/resizing (not a child element drag)
+        local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
+        local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
+
+        if treatAllDrags or posChanged or sizeChanged then
+            state.isDragging = true
+            state.animating = false
+            currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
+            updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
+        end
+
+        return currentPosX, currentPosY, nil
+
+    elseif state.pendingDragCheck and isReleased then
+        local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
+        local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
+
+        state.pendingDragCheck = false
+        state.isDragging = false
+        axisLock.active = false
+        axisLock.axis = nil
+
+        if posChanged or sizeChanged then
+            return currentPosX, currentPosY, "changed"
+        else
+            return currentPosX, currentPosY, "unchanged"
+        end
+
+    elseif state.pendingDragCheck and not isFocused then
+        -- Focus lost mid-drag — reset drag state to prevent getting stuck
+        state.pendingDragCheck = false
+        state.isDragging = false
+        axisLock.active = false
+        axisLock.axis = nil
+
+        return currentPosX, currentPosY, "focus_lost"
+    end
+
+    return currentPosX, currentPosY, nil
 end
 
 --------------------------------------------------------------------------------
@@ -446,80 +528,48 @@ function core.update(windowName, options)
         local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
         local shiftHeld = isShiftHeld()
 
-        if isFocused and isDragging then
-            -- Record baseline position/size when any drag starts in focused window
-            if not state.pendingDragCheck then
-                state.pendingDragCheck = true
-                state.dragCheckPosX = currentPosX
-                state.dragCheckPosY = currentPosY
-                state.dragCheckSizeX = currentSizeX
-                state.dragCheckSizeY = currentSizeY
-                dragStartPos.x = currentPosX
-                dragStartPos.y = currentPosY
+        local action
+        currentPosX, currentPosY, action = handleDragDetection(
+            state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
+            isFocused, isDragging, isReleased, shiftHeld, treatAllDragsAsWindowDrag
+        )
+
+        if action == "changed" then
+            -- Was a window drag - trigger snap
+            local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
+            local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+            handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
+
+            if useAnimation then
+                state.animating = true
+                state.animationStartTime = os.clock()
             end
-
-            -- Check if window is actually moving/resizing (not a child element drag)
-            -- treatAllDragsAsWindowDrag bypasses this check (for settings windows with live grid preview)
-            local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
-            local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
-
-            if treatAllDragsAsWindowDrag or posChanged or sizeChanged then
-                state.isDragging = true
-                state.animating = false  -- Cancel any running animation
-
-                -- Handle Shift+drag axis locking
-                currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
-
-                -- Update live bounds for grid feathering
-                updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
-            end
-        elseif state.pendingDragCheck and isReleased then
-            -- Mouse released - check if window position/size changed from baseline
-            local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
-            local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
-
-            state.pendingDragCheck = false
-            state.isDragging = false
-            axisLock.active = false
-            axisLock.axis = nil
-
-            if posChanged or sizeChanged then
-                -- Was a window drag - trigger snap
-                local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
-                local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
-                handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
-
-                if useAnimation then
-                    state.animating = true
-                    state.animationStartTime = os.clock()
-                end
-            end
-            -- else: was a child element drag (splitter, etc.) - do nothing
-        elseif state.pendingDragCheck and not isFocused then
-            -- Focus lost mid-drag — reset drag state to prevent getting stuck
-            state.pendingDragCheck = false
-            state.isDragging = false
-            axisLock.active = false
-            axisLock.axis = nil
         end
+        -- "unchanged": child element drag - do nothing
+        -- "focus_lost": no additional cleanup needed for internal windows
     end
 
     -- After constraint animation completes, trigger a one-time grid snap
-    -- so the window lands precisely on a grid line
+    -- so the window lands precisely on a grid line (O(1) lookup via reverse index)
     if not constraintAnimActive then
-        for _, cAnim in pairs(constraintAnimations) do
-            if cAnim.snapPending and cAnim.windowName == windowName then
-                cAnim.snapPending = false
-                if useGrid then
-                    local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
-                    local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
-                    handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
-                    if useAnimation then
-                        state.animating = true
-                        state.animationStartTime = os.clock()
+        local pending = snapPendingByWindow[windowName]
+        if pending then
+            for property in pairs(pending) do
+                local cAnim = constraintAnimations[property]
+                if cAnim and cAnim.snapPending then
+                    cAnim.snapPending = false
+                    if useGrid then
+                        local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
+                        local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+                        handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
+                        if useAnimation then
+                            state.animating = true
+                            state.animationStartTime = os.clock()
+                        end
                     end
                 end
             end
+            snapPendingByWindow[windowName] = nil
         end
     end
 
@@ -694,6 +744,16 @@ function core.startConstraintAnimation(windowName, property, targetValue, option
         anim.current = targetValue
     end
 
+    -- Update reverse index: clean up old window entry if property is switching windows
+    local oldWindow = anim.windowName
+    if oldWindow and oldWindow ~= windowName then
+        local old = constraintAnimByWindow[oldWindow]
+        if old then
+            old[property] = nil
+            if not next(old) then constraintAnimByWindow[oldWindow] = nil end
+        end
+    end
+
     anim.active = true
     anim.target = targetValue
     anim.windowName = windowName
@@ -701,6 +761,12 @@ function core.startConstraintAnimation(windowName, property, targetValue, option
     anim.startValue = anim.current
     anim.duration = options.duration or 0.3
     anim.easing = options.easing or "easeOut"
+
+    -- Add to reverse index
+    if not constraintAnimByWindow[windowName] then
+        constraintAnimByWindow[windowName] = {}
+    end
+    constraintAnimByWindow[windowName][property] = true
 
     -- Complete any running grid snap animation to prevent conflicts
     if windowName then
@@ -737,6 +803,19 @@ function core.updateConstraintAnimation(property, normalValue, expandedValue, is
         anim.current = anim.target
         anim.active = false
         anim.snapPending = true
+
+        -- Remove from active reverse index, add to snapPending reverse index
+        if anim.windowName then
+            local byWindow = constraintAnimByWindow[anim.windowName]
+            if byWindow then
+                byWindow[property] = nil
+                if not next(byWindow) then constraintAnimByWindow[anim.windowName] = nil end
+            end
+            if not snapPendingByWindow[anim.windowName] then
+                snapPendingByWindow[anim.windowName] = {}
+            end
+            snapPendingByWindow[anim.windowName][property] = true
+        end
     end
 
     return anim.current
@@ -756,16 +835,12 @@ function core.isAnyConstraintAnimating()
     return false
 end
 
----Check if any constraint animation is active for a specific window.
+---Check if any constraint animation is active for a specific window (O(1) lookup).
 ---@param windowName string Window name to check
 ---@return boolean
 function core.isConstraintAnimatingForWindow(windowName)
-    for _, anim in pairs(constraintAnimations) do
-        if anim.active and anim.windowName == windowName then
-            return true
-        end
-    end
-    return false
+    local byWindow = constraintAnimByWindow[windowName]
+    return byWindow ~= nil and next(byWindow) ~= nil
 end
 
 --------------------------------------------------------------------------------
@@ -792,35 +867,16 @@ local PROBE_BLOCKED = 3
 
 local function getExternalWindowState(windowName)
     if not externalWindowStates[windowName] then
-        externalWindowStates[windowName] = {
-            isDragging = false,
-            animating = false,
-            animationStartTime = 0,
-            startPosX = 0,
-            startPosY = 0,
-            targetPosX = 0,
-            targetPosY = 0,
-            startSizeX = 0,
-            startSizeY = 0,
-            targetSizeX = 0,
-            targetSizeY = 0,
-            probePhase = PROBE_SKIP,
-            skipFrames = 0,
-            expandedSizeX = windowCache[windowName] and windowCache[windowName].width or nil,
-            expandedSizeY = windowCache[windowName] and windowCache[windowName].height or nil,
-            wasCollapsed = false,
-            pendingDragCheck = false,
-            dragCheckPosX = 0,
-            dragCheckPosY = 0,
-            dragCheckSizeX = 0,
-            dragCheckSizeY = 0,
-            blockedPosX = 0,
-            blockedPosY = 0,
-            blockedSizeX = 0,
-            blockedSizeY = 0,
-            wasActive = false,
-            wasFocused = false,
-        }
+        local state = createBaseWindowState(windowName)
+        state.probePhase = PROBE_SKIP
+        state.skipFrames = 0
+        state.blockedPosX = 0
+        state.blockedPosY = 0
+        state.blockedSizeX = 0
+        state.blockedSizeY = 0
+        state.wasActive = false
+        state.wasFocused = false
+        externalWindowStates[windowName] = state
     end
     return externalWindowStates[windowName]
 end
@@ -951,53 +1007,22 @@ local function manageExternalWindow(windowName, state)
     local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
     local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
     local shiftHeld = isShiftHeld()
-    local allowSnapCollapsed = settings.master.snapCollapsed
 
-    if isFocused and isDragging then
-        -- Record baseline position/size when any drag starts in focused window
-        if not state.pendingDragCheck then
-            state.pendingDragCheck = true
-            state.dragCheckPosX = currentPosX
-            state.dragCheckPosY = currentPosY
-            state.dragCheckSizeX = currentSizeX
-            state.dragCheckSizeY = currentSizeY
-            dragStartPos.x = currentPosX
-            dragStartPos.y = currentPosY
-        end
+    local action
+    currentPosX, currentPosY, action = handleDragDetection(
+        state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
+        isFocused, isDragging, isReleased, shiftHeld, false
+    )
 
-        -- Check if window is actually moving/resizing (not a child element drag like a slider)
-        local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
-        local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
-
-        if posChanged or sizeChanged then
-            state.isDragging = true
-            state.animating = false
-
-            currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
-            updateDraggingBounds(windowName, currentPosX, currentPosY, currentSizeX, currentSizeY)
-        end
-
-    elseif state.pendingDragCheck and isReleased then
-        -- Mouse released - check if window position/size changed from baseline
-        local posChanged = currentPosX ~= state.dragCheckPosX or currentPosY ~= state.dragCheckPosY
-        local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
-
-        state.pendingDragCheck = false
-        state.isDragging = false
-        axisLock.active = false
-        axisLock.axis = nil
-
-        if not posChanged and not sizeChanged then
-            -- Was a child element drag (slider, color picker, etc.) - do nothing
-            draggingWindowBoundsValid = false
-            draggingWindowName = nil
-            ImGui.End()
-            return
-        end
-
-        core.saveWindowCache()
-
+    if action == "unchanged" then
+        -- Child element drag (slider, color picker, etc.) - clean up and return
+        draggingWindowBoundsValid = false
+        draggingWindowName = nil
+        ImGui.End()
+        return
+    elseif action == "changed" then
         local gridEnabled = settings.master.gridEnabled
+        local allowSnapCollapsed = settings.master.snapCollapsed
 
         if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
             draggingWindowBoundsValid = false
@@ -1046,13 +1071,7 @@ local function manageExternalWindow(windowName, state)
                 end
             end
         end
-
-    elseif state.pendingDragCheck and not isFocused then
-        -- Focus lost mid-drag — reset drag state to prevent getting stuck
-        state.pendingDragCheck = false
-        state.isDragging = false
-        axisLock.active = false
-        axisLock.axis = nil
+    elseif action == "focus_lost" then
         draggingWindowBoundsValid = false
         draggingWindowName = nil
     end
@@ -1150,22 +1169,16 @@ function core.updateExternalWindows()
                         state.animating = false
                     else
                         local duration = settings.master.animationDuration
-                        local elapsedTime = os.clock() - state.animationStartTime
-                        local t = math.min(elapsedTime / duration, 1)
-                        t = core.applyEasing(t, windowName)
-
-                        local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
-                        local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
+                        local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
 
                         local op = {
                             windowName = windowName,
                             targetPosX = newPosX,
                             targetPosY = newPosY,
                         }
-                        -- Only lerp size when size targets exist (nil for collapsed windows)
-                        if state.startSizeX and state.targetSizeX then
-                            op.targetSizeX = core.lerp(state.startSizeX, state.targetSizeX, t)
-                            op.targetSizeY = core.lerp(state.startSizeY, state.targetSizeY, t)
+                        if newSizeX then
+                            op.targetSizeX = newSizeX
+                            op.targetSizeY = newSizeY
                         end
                         deferredSnapCount = deferredSnapCount + 1
                         deferredSnapOperations[deferredSnapCount] = op

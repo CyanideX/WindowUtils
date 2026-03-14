@@ -266,6 +266,19 @@ local function distanceToRect(px, py, rx, ry, rw, rh, padding)
 end
 
 local function drawGridVisualization()
+    -- Early exit when both features are fully disabled
+    if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
+        dimFade.opacity = 0
+        dimFade.wasDragging = false
+        gridFade.opacity = 0
+        gridFade.wasDragging = false
+        gridFade.wasFeathering = false
+        gridFade.lastBounds = nil
+        gridFade.lastGridSize = nil
+        core.clearDraggingWindowBounds()
+        return
+    end
+
     local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
     local now = os.clock()
 

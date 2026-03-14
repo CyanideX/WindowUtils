@@ -9,7 +9,7 @@
 -- A universal library for ImGui window management in CET mods.
 -- Provides grid snapping, smooth animations, and collapse-safe sizing.
 --
--- Copyright (c) 2024 CyanideX
+-- Copyright (c) 2026 CyanideX
 -- https://next.nexusmods.com/profile/theCyanideX/mods
 --------------------------------------------------------------------------------
 

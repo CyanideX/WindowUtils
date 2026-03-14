@@ -26,6 +26,7 @@
 ------------------------------------------------------
 
 local settings = require("modules/settings")
+local core = require("modules/core")
 local ui = require("modules/ui")
 
 local api = {}
@@ -183,6 +184,7 @@ function api.SetGridUnits(units)
     if type(units) ~= "number" or units <= 0 then return false end
     settings.master.gridUnits = units
     settings.save()
+    core.invalidateGridCache()
     return true
 end
 

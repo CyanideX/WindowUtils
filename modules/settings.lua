@@ -70,7 +70,7 @@ end
 settings.defaults = createDefaultSettings()
 
 settings.master = createDefaultSettings()
-settings.master.enabled = false -- control flag, not a persisted setting
+settings.master.enabled = false -- master override toggle (persisted with other settings)
 
 settings.windowConfigs = {}
 
