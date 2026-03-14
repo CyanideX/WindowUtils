@@ -8,6 +8,15 @@ local styles = require("modules/styles")
 local splitter = {}
 
 local TRANSPARENT = { 0, 0, 0, 0 }
+local SNAP_INCREMENT = 0.05
+
+local function isCtrlHeld()
+    return ImGui.IsKeyDown(ImGuiKey.LeftCtrl) or ImGui.IsKeyDown(ImGuiKey.RightCtrl)
+end
+
+local function snapValue(val)
+    return math.floor(val / SNAP_INCREMENT + 0.5) * SNAP_INCREMENT
+end
 
 --------------------------------------------------------------------------------
 -- State
@@ -119,25 +128,34 @@ local function drawGrabBar(id, state, isVertical)
         state.dragging = false
     end
 
+    -- Double-click to reset
+    if state.hovering and ImGui.IsMouseDoubleClicked(0) then
+        if state.pct and state.defaultPct then
+            state.pct = state.defaultPct
+        end
+        state.dragging = false
+    end
+
     -- Apply drag delta (only for states with pct; multi handles its own)
     if state.dragging and state.pct then
+        -- Save origin on drag start
+        if not state.dragStart then state.dragStart = state.pct end
+
         if isVertical then
-            local _, totalH = ImGui.GetContentRegionAvail()
-            -- For vertical, we need the parent window height
             local _, parentH = ImGui.GetWindowSize()
             local dy = select(2, ImGui.GetMouseDragDelta(0, 0))
-            local newPct = state.pct + (dy / parentH)
+            local newPct = state.dragStart + (dy / parentH)
+            if isCtrlHeld() then newPct = snapValue(newPct) end
             state.pct = math.max(state.minPct, math.min(state.maxPct, newPct))
-            ImGui.ResetMouseDragDelta()
         else
-            local totalW = ImGui.GetContentRegionAvail()
-            -- For horizontal, use parent window width
             local parentW = ImGui.GetWindowContentRegionWidth()
             local dx = ImGui.GetMouseDragDelta(0, 0)
-            local newPct = state.pct + (dx / parentW)
+            local newPct = state.dragStart + (dx / parentW)
+            if isCtrlHeld() then newPct = snapValue(newPct) end
             state.pct = math.max(state.minPct, math.min(state.maxPct, newPct))
-            ImGui.ResetMouseDragDelta()
         end
+    else
+        state.dragStart = nil
     end
 
     -- Resize cursor
@@ -308,7 +326,7 @@ function splitter.multi(id, panels, opts)
 
     -- Pre-compute all panel sizes from current breakpoints (before any drag updates)
     local sizes = {}
-    local totalSize
+    local totalSize, totalAvail
 
     if isVertical then
         local availW, availH = ImGui.GetContentRegionAvail()
@@ -316,6 +334,7 @@ function splitter.multi(id, panels, opts)
         local usableH = availH - (n - 1) * grabW
         if usableH < 1 then return end
         totalSize = usableH
+        totalAvail = availH
 
         local consumed = 0
         for i = 1, n do
@@ -347,6 +366,7 @@ function splitter.multi(id, panels, opts)
         local usableW = availW - (n - 1) * grabW
         if usableW < 1 then return end
         totalSize = usableW
+        totalAvail = availW
 
         local consumed = 0
         for i = 1, n do
@@ -376,14 +396,37 @@ function splitter.multi(id, panels, opts)
         end
     end
 
+    -- Double-click any divider to reset ALL breakpoints to defaults
+    for i = 1, n - 1 do
+        if ms.dividers[i].hovering and ImGui.IsMouseDoubleClicked(0) then
+            for j = 1, n - 1 do
+                ms.breakpoints[j] = ms.defaults[j]
+                ms.dividers[j].dragging = false
+            end
+            break
+        end
+    end
+
     -- Apply drag updates AFTER all rendering (prevents one-frame desync / rubber banding)
     for i = 1, n - 1 do
         if ms.dividers[i].dragging then
+            -- Save origin on drag start
+            if not ms.dividers[i].dragOrigin then
+                ms.dividers[i].dragOrigin = ms.breakpoints[i]
+            end
+
             local dx, dy = ImGui.GetMouseDragDelta(0, 0)
             local delta = isVertical and dy or dx
             if delta ~= 0 then
                 local oldBp = ms.breakpoints[i]
-                local newBp = oldBp + (delta / totalSize)
+                local newBp = ms.dividers[i].dragOrigin + (delta / totalSize)
+                if isCtrlHeld() then
+                    -- Snap in pixel space relative to full available width/height
+                    -- so positions align across rows with different panel counts
+                    local pixFrac = (newBp * totalSize + (i - 0.5) * grabW) / totalAvail
+                    pixFrac = snapValue(pixFrac)
+                    newBp = (pixFrac * totalAvail - (i - 0.5) * grabW) / totalSize
+                end
                 local shiftHeld = ImGui.IsKeyDown(ImGuiKey.LeftShift)
                               or ImGui.IsKeyDown(ImGuiKey.RightShift)
 
@@ -413,9 +456,9 @@ function splitter.multi(id, panels, opts)
                     local hi = (i == n - 1) and (1 - minGap) or (ms.breakpoints[i + 1] - minGap)
                     ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
                 end
-
-                ImGui.ResetMouseDragDelta()
             end
+        else
+            ms.dividers[i].dragOrigin = nil
         end
     end
 end
