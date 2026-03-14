@@ -4,38 +4,23 @@
 ------------------------------------------------------
 
 local styles = require("modules/styles")
+local utils = require("modules/utils")
 
 local splitter = {}
 
 local TRANSPARENT = { 0, 0, 0, 0 }
-local SNAP_INCREMENT = 0.05
 local COLLAPSE_SPEED = 6.0
 local COLLAPSE_MIN = 0.01
 
-local function isCtrlHeld()
-    return ImGui.IsKeyDown(ImGuiKey.LeftCtrl) or ImGui.IsKeyDown(ImGuiKey.RightCtrl)
-end
-
-local function snapValue(val)
-    return math.floor(val / SNAP_INCREMENT + 0.5) * SNAP_INCREMENT
-end
+local isCtrlHeld = utils.isCtrlHeld
+local isShiftHeld = utils.isShiftHeld
+local snapValue = function(val) return utils.snapToIncrement(val) end
 
 --------------------------------------------------------------------------------
 -- Size Specification Helpers
 --------------------------------------------------------------------------------
 
---- Parse a size spec: number (pixels), string "30%" (percentage), or nil (flex)
-local function parseSizeSpec(spec, available)
-    if type(spec) == "number" then
-        return spec
-    elseif type(spec) == "string" then
-        local pct = tonumber(spec:match("^(%d+%.?%d*)%%$"))
-        if pct then
-            return math.floor(available * pct / 100)
-        end
-    end
-    return nil
-end
+local parseSizeSpec = utils.parseSizeSpec
 
 --- Compute initial pixel sizes from panel definitions
 local function computeInitialSizes(panels, available, isVertical)
@@ -447,12 +432,24 @@ local function getMultiState(id, n, opts, panels)
     return multiStates[id]
 end
 
---- Get minimum fraction for a panel based on its constraints
+--- Get minimum fraction for a panel based on its constraints.
+--- When no explicit min is set, auto-floors to icon button width + window padding.
+--- Set autoMin = false on a panel definition to opt out.
 local function getPanelMinFrac(panelDefs, panelIdx, totalSize, minGap, isVertical)
     if not panelDefs or not panelDefs[panelIdx] then return minGap end
+    local panel = panelDefs[panelIdx]
     local key = isVertical and "minHeight" or "minWidth"
-    local spec = panelDefs[panelIdx][key]
+    local spec = panel[key]
     local px = parseSizeSpec(spec, totalSize)
+
+    -- Auto-detect minimum when no explicit min is set
+    if not px and panel.autoMin ~= false then
+        local autoMinPx = utils.minIconButtonWidth()
+        local padKey = isVertical and "y" or "x"
+        autoMinPx = autoMinPx + ImGui.GetStyle().WindowPadding[padKey] * 2
+        px = autoMinPx
+    end
+
     return px and math.max(px / totalSize, COLLAPSE_MIN) or minGap
 end
 
@@ -651,8 +648,7 @@ function splitter.multi(id, panels, opts)
                     pixFrac = snapValue(pixFrac)
                     newBp = (pixFrac * totalAvail - (i - 0.5) * grabW) / totalSize
                 end
-                local shiftHeld = ImGui.IsKeyDown(ImGuiKey.LeftShift)
-                              or ImGui.IsKeyDown(ImGuiKey.RightShift)
+                local shiftHeld = isShiftHeld()
 
                 if shiftHeld then
                     -- Shift: scale all other breakpoints proportionally
@@ -714,9 +710,207 @@ function splitter.resetMulti(id)
     end
 end
 
+--------------------------------------------------------------------------------
+-- Toggle Panel (fixed-size, click to open/close, no drag)
+--------------------------------------------------------------------------------
+
+local toggleStates = {}
+
+local _chevrons = nil
+local function ensureChevrons()
+    if _chevrons then return end
+    _chevrons = {
+        left  = IconGlyphs and IconGlyphs.ChevronLeft or "<",
+        right = IconGlyphs and IconGlyphs.ChevronRight or ">",
+        up    = IconGlyphs and IconGlyphs.ChevronUp or "^",
+        down  = IconGlyphs and IconGlyphs.ChevronDown or "v",
+    }
+end
+
+local function getToggleIcon(side, isOpen)
+    ensureChevrons()
+    if side == "left" then
+        return isOpen and _chevrons.left or _chevrons.right
+    elseif side == "right" then
+        return isOpen and _chevrons.right or _chevrons.left
+    elseif side == "top" then
+        return isOpen and _chevrons.up or _chevrons.down
+    else
+        return isOpen and _chevrons.down or _chevrons.up
+    end
+end
+
+local function getToggleState(id, opts)
+    if not toggleStates[id] then
+        opts = opts or {}
+        toggleStates[id] = {
+            isOpen = opts.defaultOpen ~= false,
+            animProgress = (opts.defaultOpen ~= false) and 1.0 or 0.0,
+            lastTime = os.clock(),
+            speed = opts.speed or COLLAPSE_SPEED,
+            barWidth = opts.barWidth or ImGui.GetStyle().ItemSpacing.x,
+            hovering = false,
+        }
+    end
+    return toggleStates[id]
+end
+
+local function drawToggleBar(id, state, side)
+    local isVert = (side == "top" or side == "bottom")
+    local icon = getToggleIcon(side, state.isOpen)
+    local barW = state.barWidth
+
+    local bgColor = state.hovering
+        and (styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 })
+        or TRANSPARENT
+    local iconColor = state.hovering
+        and (styles.colors.splitterIconHi or styles.colors.textWhite)
+        or (styles.colors.splitterIcon or styles.colors.greyLight)
+
+    ImGui.PushStyleColor(ImGuiCol.ChildBg,
+        ImGui.GetColorU32(bgColor[1], bgColor[2], bgColor[3], bgColor[4]))
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
+
+    local childW = isVert and 0 or barW
+    local childH = isVert and barW or 0
+    local grabFlags = ImGuiWindowFlags.NoMove
+        + ImGuiWindowFlags.NoScrollbar
+        + ImGuiWindowFlags.NoScrollWithMouse
+
+    if ImGui.BeginChild("##toggle_bar_" .. id, childW, childH, false, grabFlags) then
+        local winW, winH = ImGui.GetWindowSize()
+        if not iconSizeCache[icon] then
+            iconSizeCache[icon] = { ImGui.CalcTextSize(icon) }
+        end
+        local textW, textH = iconSizeCache[icon][1], iconSizeCache[icon][2]
+        ImGui.SetCursorPosX((winW - textW) / 2)
+        ImGui.SetCursorPosY((winH - textH) / 2)
+
+        ImGui.PushStyleColor(ImGuiCol.Text,
+            ImGui.GetColorU32(iconColor[1], iconColor[2], iconColor[3], iconColor[4]))
+        ImGui.Text(icon)
+        ImGui.PopStyleColor()
+    end
+    ImGui.EndChild()
+
+    state.hovering = ImGui.IsItemHovered()
+
+    ImGui.PopStyleVar()
+    ImGui.PopStyleColor()
+
+    if state.hovering and ImGui.IsItemClicked(0) then
+        state.isOpen = not state.isOpen
+    end
+
+    if state.hovering then
+        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
+    end
+end
+
+--- Render a toggleable panel with animated open/close.
+--- panels[1] = fixed/toggleable panel, panels[2] = flex panel.
+--- opts.side: "left"|"right"|"top"|"bottom" (default "left")
+--- opts.size: number|string (expanded size in px or "30%", default 200)
+--- opts.defaultOpen: boolean (default true)
+--- opts.speed: number (animation speed, default 6.0)
+--- Returns: boolean (current open state)
+function splitter.toggle(id, panels, opts)
+    opts = opts or {}
+    local side = opts.side or "left"
+    local isVert = (side == "top" or side == "bottom")
+    local state = getToggleState(id, opts)
+
+    -- Resolve expanded size
+    local availW, availH = ImGui.GetContentRegionAvail()
+    local totalAvail = isVert and availH or availW
+
+    local expandedSize = parseSizeSpec(opts.size or 200, totalAvail) or 200
+
+    -- Animation tick
+    local now = os.clock()
+    local dt = now - state.lastTime
+    state.lastTime = now
+    local target = state.isOpen and 1.0 or 0.0
+    if state.animProgress < target then
+        state.animProgress = math.min(target, state.animProgress + state.speed * dt)
+    elseif state.animProgress > target then
+        state.animProgress = math.max(target, state.animProgress - state.speed * dt)
+    end
+    local eased = state.animProgress * state.animProgress * (3 - 2 * state.animProgress)
+
+    -- Compute panel size (spacing cancelled by SetCursorPos like regular splitters)
+    local panelSize = math.floor(expandedSize * eased)
+    local barW = state.barWidth
+    local spacing = isVert and ImGui.GetStyle().ItemSpacing.y or ImGui.GetStyle().ItemSpacing.x
+    local flexSize = math.max(totalAvail - panelSize - barW, 1)
+
+    local fixedFirst = (side == "left" or side == "top")
+    local fixedPanel = panels[1]
+    local flexPanel = panels[2]
+
+    local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+
+    local function renderFixed()
+        if panelSize > 0 then
+            local cw = isVert and availW or panelSize
+            local ch = isVert and panelSize or 0
+            ImGui.BeginChild("##toggle_fixed_" .. id, cw, ch, false, noScroll)
+            if fixedPanel.content then fixedPanel.content() end
+            ImGui.EndChild()
+        end
+    end
+
+    local function renderFlex()
+        local cw = isVert and availW or flexSize
+        local ch = isVert and flexSize or 0
+        ImGui.BeginChild("##toggle_flex_" .. id, cw, ch, false)
+        if flexPanel.content then flexPanel.content() end
+        ImGui.EndChild()
+    end
+
+    -- Cancel ItemSpacing after each element (matches splitter.horizontal / .vertical)
+    local function cancelSpacing()
+        if isVert then
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacing)
+        else
+            ImGui.SameLine()
+            ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacing)
+        end
+    end
+
+    if fixedFirst then
+        renderFixed()
+        if panelSize > 0 then cancelSpacing() end
+        drawToggleBar(id, state, side)
+        cancelSpacing()
+        renderFlex()
+    else
+        renderFlex()
+        cancelSpacing()
+        drawToggleBar(id, state, side)
+        if panelSize > 0 then cancelSpacing() end
+        renderFixed()
+    end
+
+    return state.isOpen
+end
+
+--- Programmatically set toggle state
+function splitter.setToggle(id, open)
+    local state = toggleStates[id]
+    if state then state.isOpen = open end
+end
+
+--- Query toggle state
+function splitter.getToggle(id)
+    local state = toggleStates[id]
+    return state and state.isOpen or nil
+end
+
 -- Aliases for brevity
 splitter.h = splitter.horizontal
 splitter.v = splitter.vertical
 splitter.m = splitter.multi
+splitter.t = splitter.toggle
 
 return splitter

@@ -14,6 +14,7 @@
 --------------------------------------------------------------------------------
 
 local settings = require("modules/settings")
+local utils = require("modules/utils")
 local core = require("modules/core")
 local ui = require("modules/ui")
 local browser = require("modules/browser")
@@ -95,10 +96,11 @@ end
 -- External Mod API
 WindowUtils.API = api
 
--- Styles, Controls, and Tooltips modules
+-- Styles, Controls, Tooltips, and Utils modules
 WindowUtils.Styles = styles
 WindowUtils.Controls = controls
 WindowUtils.Tooltips = tooltips
+WindowUtils.Utils = utils
 
 -- Layout and widget modules
 WindowUtils.Splitter = splitter

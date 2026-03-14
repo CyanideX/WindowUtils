@@ -5,6 +5,7 @@
 
 local styles = require("modules/styles")
 local tooltips = require("modules/tooltips")
+local utils = require("modules/utils")
 
 local controls = {}
 
@@ -120,11 +121,7 @@ end
 -- Helpers: icon prefix + width calculation (shared by sliders, inputs, combo)
 --------------------------------------------------------------------------------
 
-local function resolveIcon(icon)
-    if not icon or icon == "" then return nil end
-    if IconGlyphs and IconGlyphs[icon] then return IconGlyphs[icon] end
-    return icon
-end
+local resolveIcon = utils.resolveIcon
 
 local function iconPrefix(icon, tooltip, alwaysShow)
     icon = resolveIcon(icon)
@@ -145,39 +142,15 @@ local function calcControlWidth(cols, hasIcon)
     return ImGui.GetContentRegionAvail()
 end
 
---- Binary search for maximum text that fits within maxWidth, appending ellipsis.
-local function truncateText(text, maxWidth)
-    local fullWidth = ImGui.CalcTextSize(text)
-    if fullWidth <= maxWidth then return text, false end
-
-    local ellipsis = "..."
-    local ellipsisWidth = ImGui.CalcTextSize(ellipsis)
-    local targetWidth = maxWidth - ellipsisWidth
-    if targetWidth <= 0 then return ellipsis, true end
-
-    local lo, hi = 1, #text
-    local bestLen = 0
-    while lo <= hi do
-        local mid = math.floor((lo + hi) / 2)
-        local w = ImGui.CalcTextSize(text:sub(1, mid))
-        if w <= targetWidth then
-            bestLen = mid
-            lo = mid + 1
-        else
-            hi = mid - 1
-        end
-    end
-
-    if bestLen == 0 then return ellipsis, true end
-    return text:sub(1, bestLen) .. ellipsis, true
-end
+local truncateText = utils.truncateText
 
 --- Create a button that adapts content based on available width.
 --- Normal: full text. Narrow: truncated with "...". Icon mode: icon only.
+--- opts.minChars: minimum visible characters before switching to icon (default 3)
+--- opts.iconThreshold: explicit pixel override for icon switch threshold
 function controls.DynamicButton(label, icon, opts)
     opts = opts or {}
     local iconStr = resolveIcon(icon) or opts.iconFallback or "?"
-    local iconThreshold = opts.iconThreshold or 40
     local styleName = opts.style or "inactive"
     local width = opts.width or ImGui.GetContentRegionAvail()
     local height = opts.height or 0
@@ -185,6 +158,16 @@ function controls.DynamicButton(label, icon, opts)
 
     local padX = (frameCache.framePaddingX or 6) * 2
     local innerWidth = width - padX
+
+    -- Smart threshold: switch to icon if fewer than minChars would show
+    local minChars = opts.minChars or 3
+    local iconThreshold = opts.iconThreshold
+    if not iconThreshold then
+        local charW = ImGui.CalcTextSize("M")
+        local ellipsisW = ImGui.CalcTextSize("...")
+        iconThreshold = (charW * minChars) + ellipsisW
+    end
+
     local displayLabel
     local wasTruncated = false
     local isIconMode = false

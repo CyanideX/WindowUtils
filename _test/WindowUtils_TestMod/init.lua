@@ -925,6 +925,221 @@ local function drawMultiSplitterDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 9: Toggle Panel Demo
+--------------------------------------------------------------------------------
+
+local function drawTogglePanelDemo()
+    local controls = wu.Controls
+    local splitter = wu.Splitter
+
+    ImGui.Dummy(0, 4)
+    controls.TextMuted("Toggle panels: fixed-size sidebar that opens/closes with a click.")
+    controls.TextMuted("No drag — just click the chevron bar to toggle.")
+    ImGui.Dummy(0, 4)
+
+    -- Demo 1: Left sidebar (200px, default open)
+    controls.SectionHeader("Left Sidebar (200px)", 0, 4)
+
+    ImGui.BeginChild("##toggle_demo_left", 0, 180, true)
+    splitter.toggle("tgl_left", {
+        { content = function()
+            controls.Panel("tgl_left_panel", function()
+                ImGui.Text("Sidebar")
+                ImGui.Separator()
+                controls.TextMuted("side = \"left\"")
+                controls.TextMuted("size = 200")
+                ImGui.Dummy(0, 4)
+                controls.Button("  Nav A  ", "active")
+                controls.Button("  Nav B  ", "inactive")
+                controls.Button("  Nav C  ", "inactive")
+            end, { bg = { 0.1, 0.15, 0.2, 1.0 } })
+        end },
+        { content = function()
+            controls.Panel("tgl_left_main", function()
+                ImGui.Text("Main Content")
+                ImGui.Separator()
+                controls.TextMuted("Flex panel fills remaining space.")
+                controls.TextMuted("Click the chevron bar to toggle the sidebar.")
+            end)
+        end },
+    }, { side = "left", size = 200, defaultOpen = true })
+    ImGui.EndChild()
+
+    ImGui.Dummy(0, 8)
+
+    -- Demo 2: Right properties panel (30%, default closed)
+    controls.SectionHeader("Right Panel (30%, starts closed)", 0, 4)
+
+    ImGui.BeginChild("##toggle_demo_right", 0, 180, true)
+    splitter.toggle("tgl_right", {
+        { content = function()
+            controls.Panel("tgl_right_panel", function()
+                ImGui.Text("Properties")
+                ImGui.Separator()
+                controls.TextMuted("side = \"right\"")
+                controls.TextMuted("size = \"30%\"")
+                controls.TextMuted("defaultOpen = false")
+            end, { bg = { 0.12, 0.1, 0.18, 1.0 } })
+        end },
+        { content = function()
+            controls.Panel("tgl_right_main", function()
+                ImGui.Text("Editor Area")
+                ImGui.Separator()
+                controls.TextMuted("Click the chevron to open the properties panel.")
+            end)
+        end },
+    }, { side = "right", size = "30%", defaultOpen = false })
+    ImGui.EndChild()
+
+    ImGui.Dummy(0, 8)
+
+    -- Demo 3: Top toolbar (50px, default open)
+    controls.SectionHeader("Top Toolbar (50px)", 0, 4)
+
+    ImGui.BeginChild("##toggle_demo_top", 0, 200, true)
+    splitter.toggle("tgl_top", {
+        { content = function()
+            controls.Panel("tgl_top_bar", function()
+                ImGui.Text("Toolbar")
+                ImGui.SameLine()
+                controls.TextMuted("  side = \"top\", size = 50")
+            end, { bg = { 0.15, 0.15, 0.2, 1.0 } })
+        end },
+        { content = function()
+            controls.Panel("tgl_top_main", function()
+                ImGui.Text("Content Below")
+                ImGui.Separator()
+                controls.TextMuted("Click the chevron bar above to toggle the toolbar.")
+                for i = 1, 5 do
+                    ImGui.Text("  Item " .. i)
+                end
+            end)
+        end },
+    }, { side = "top", size = 50, defaultOpen = true })
+    ImGui.EndChild()
+
+    ImGui.Dummy(0, 8)
+
+    -- Demo 4: Bottom panel (80px, default open)
+    controls.SectionHeader("Bottom Panel (80px)", 0, 4)
+
+    ImGui.BeginChild("##toggle_demo_bottom", 0, 200, true)
+    splitter.toggle("tgl_bottom", {
+        { content = function()
+            controls.Panel("tgl_bot_panel", function()
+                ImGui.Text("Status Bar")
+                ImGui.Separator()
+                controls.TextMuted("side = \"bottom\", size = 80")
+            end, { bg = { 0.1, 0.12, 0.16, 1.0 } })
+        end },
+        { content = function()
+            controls.Panel("tgl_bot_main", function()
+                ImGui.Text("Main Area")
+                ImGui.Separator()
+                controls.TextMuted("Click chevron bar below to toggle the status bar.")
+                for i = 1, 4 do
+                    ImGui.Text("  Log line " .. i)
+                end
+            end)
+        end },
+    }, { side = "bottom", size = 80, defaultOpen = true })
+    ImGui.EndChild()
+
+    ImGui.Dummy(0, 8)
+
+    -- Programmatic control
+    controls.SectionHeader("Programmatic Control", 0, 4)
+    controls.TextMuted("Use setToggle(id, bool) / getToggle(id) to control panels from code:")
+    ImGui.Dummy(0, 2)
+
+    local leftOpen = splitter.getToggle("tgl_left")
+    local rightOpen = splitter.getToggle("tgl_right")
+    local topOpen = splitter.getToggle("tgl_top")
+    local botOpen = splitter.getToggle("tgl_bottom")
+
+    local w4 = controls.ColWidth(3)
+    if controls.Button(leftOpen and "  Close Left  " or "  Open Left  ", leftOpen and "danger" or "active", w4) then
+        splitter.setToggle("tgl_left", not leftOpen)
+    end
+    ImGui.SameLine()
+    if controls.Button(rightOpen and "  Close Right  " or "  Open Right  ", rightOpen and "danger" or "active", w4) then
+        splitter.setToggle("tgl_right", not rightOpen)
+    end
+    ImGui.SameLine()
+    if controls.Button(topOpen and "  Close Top  " or "  Open Top  ", topOpen and "danger" or "active", w4) then
+        splitter.setToggle("tgl_top", not topOpen)
+    end
+    ImGui.SameLine()
+    if controls.Button(botOpen and "  Close Bot  " or "  Open Bot  ", botOpen and "danger" or "active", w4) then
+        splitter.setToggle("tgl_bottom", not botOpen)
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Tab 10: Vertical Toggle Demo (isolated test)
+--------------------------------------------------------------------------------
+
+local function drawVerticalToggleDemo()
+    local controls = wu.Controls
+    local splitter = wu.Splitter
+
+    -- Two rows filling the tab: top toggle demo | bottom toggle demo
+    splitter.multi("vtgl_rows", {
+        { content = function()
+            -- Top toolbar toggle (1 row, default open)
+            local rowH = ImGui.GetTextLineHeightWithSpacing()
+                + ImGui.GetStyle().WindowPadding.y * 2
+                + 2  -- border
+            splitter.toggle("vtgl_top", {
+                { content = function()
+                    controls.Panel("vtgl_top_bar", function()
+                        ImGui.Text("Toolbar")
+                        ImGui.SameLine()
+                        controls.TextMuted("  side = \"top\"")
+                    end, { bg = { 0.15, 0.15, 0.2, 1.0 } })
+                end },
+                { content = function()
+                    controls.Panel("vtgl_top_main", function()
+                        ImGui.Text("Content Below")
+                        ImGui.Separator()
+                        controls.TextMuted("Click the chevron bar to toggle the toolbar.")
+                        for i = 1, 5 do
+                            ImGui.Text("  Item " .. i)
+                        end
+                    end)
+                end },
+            }, { side = "top", size = rowH, defaultOpen = true })
+        end },
+        { content = function()
+            -- Bottom status bar toggle (2 rows + separator, default open)
+            local statusH = ImGui.GetTextLineHeightWithSpacing() * 2
+                + ImGui.GetStyle().ItemSpacing.y  -- separator
+                + ImGui.GetStyle().WindowPadding.y * 2
+                + 2  -- border
+            splitter.toggle("vtgl_bottom", {
+                { content = function()
+                    controls.Panel("vtgl_bot_panel", function()
+                        ImGui.Text("Status Bar")
+                        ImGui.Separator()
+                        controls.TextMuted("side = \"bottom\"")
+                    end, { bg = { 0.1, 0.12, 0.16, 1.0 } })
+                end },
+                { content = function()
+                    controls.Panel("vtgl_bot_main", function()
+                        ImGui.Text("Main Area")
+                        ImGui.Separator()
+                        controls.TextMuted("Click chevron bar below to toggle the status bar.")
+                        for i = 1, 4 do
+                            ImGui.Text("  Log line " .. i)
+                        end
+                    end)
+                end },
+            }, { side = "bottom", size = statusH, defaultOpen = true })
+        end },
+    }, { direction = "vertical", defaultPcts = { 0.5, 0.5 } })
+end
+
+--------------------------------------------------------------------------------
 -- Phase 3 Demo
 --------------------------------------------------------------------------------
 
@@ -1211,6 +1426,8 @@ registerForEvent("onDraw", function()
             { label = "Styles",        content = drawStylesDemo },
             { label = "Layout",        content = drawLayoutDemo },
             { label = "Multi-Split",   content = drawMultiSplitterDemo },
+            { label = "Toggle",        content = drawTogglePanelDemo },
+            { label = "V-Toggle",      content = drawVerticalToggleDemo },
             { label = "Phase 3",       content = drawPhase3Demo },
         })
         if changed and selected == 5 then notifCounter = 0 end

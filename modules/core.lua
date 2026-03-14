@@ -5,6 +5,7 @@
 
 local settings = require("modules/settings")
 local discovery = require("modules/discovery")
+local utils = require("modules/utils")
 
 ---@class WindowUtilsUpdateOptions
 ---@field gridEnabled? boolean Override grid snapping
@@ -182,9 +183,7 @@ local easeFunctions = {
     end
 }
 
-local function isShiftHeld()
-    return ImGui.IsKeyDown(ImGuiKey.LeftShift) or ImGui.IsKeyDown(ImGuiKey.RightShift)
-end
+local isShiftHeld = utils.isShiftHeld
 
 --------------------------------------------------------------------------------
 -- Utility Functions
