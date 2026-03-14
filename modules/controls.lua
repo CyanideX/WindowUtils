@@ -15,6 +15,7 @@ local controls = {}
 
 local frameCache = {}
 
+---@return nil
 function controls.cacheFrameState()
     local style = ImGui.GetStyle()
     frameCache.itemSpacingX = style.ItemSpacing.x
@@ -25,6 +26,7 @@ function controls.cacheFrameState()
     frameCache.textLineHeight = ImGui.GetTextLineHeightWithSpacing()
 end
 
+---@return table frameCache Cached style values for the current frame
 function controls.getFrameCache()
     return frameCache
 end
@@ -37,6 +39,10 @@ end
 local ICON_WIDTH = 24
 
 --- Calculate width for a column ratio (1-12 out of 12 columns)
+---@param cols? number Column span (1-12, default 12)
+---@param gap? number Gap between columns in pixels (default itemSpacingX)
+---@param hasIcon? boolean Whether an icon occupies space to the left
+---@return number width Calculated pixel width (minimum 20)
 function controls.ColWidth(cols, gap, hasIcon)
     cols = math.max(1, math.min(12, cols or 12))
     gap = gap or frameCache.itemSpacingX
@@ -55,6 +61,8 @@ function controls.ColWidth(cols, gap, hasIcon)
 end
 
 --- Get remaining width after current cursor position
+---@param offset? number Pixels to subtract from remaining width (default 0)
+---@return number width Remaining width in pixels
 function controls.RemainingWidth(offset)
     offset = offset or 0
     return ImGui.GetContentRegionAvail() - offset
@@ -65,6 +73,9 @@ end
 --------------------------------------------------------------------------------
 
 --- Create an invisible button with an icon (for use as slider/input labels)
+---@param icon string Icon glyph string or IconGlyphs key
+---@param clickable? boolean If true, returns click state (default false)
+---@return boolean clicked True if clickable and the button was clicked
 function controls.IconButton(icon, clickable)
     clickable = clickable or false
 
@@ -83,6 +94,11 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a styled button with automatic push/pop
+---@param label string Button label text
+---@param styleName? string Style name from styles module (default "inactive")
+---@param width? number Button width in pixels (0=auto, negative=fill available)
+---@param height? number Button height in pixels (default 0)
+---@return boolean clicked True if the button was clicked
 function controls.Button(label, styleName, width, height)
     styleName = styleName or "inactive"
     width = width or 0
@@ -97,17 +113,29 @@ function controls.Button(label, styleName, width, height)
 end
 
 --- Create a toggle button that switches between active/inactive styles
+---@param label string Button label text
+---@param isActive boolean Current toggle state
+---@param width? number Button width in pixels (default 0)
+---@param height? number Button height in pixels (default 0)
+---@return boolean clicked True if the button was clicked
 function controls.ToggleButton(label, isActive, width, height)
     local styleName = isActive and "active" or "inactive"
     return controls.Button(label, styleName, width, height)
 end
 
 --- Create a full-width button (fills available width)
+---@param label string Button label text
+---@param styleName? string Style name from styles module (default "inactive")
+---@return boolean clicked True if the button was clicked
 function controls.FullWidthButton(label, styleName)
     return controls.Button(label, styleName, ImGui.GetContentRegionAvail())
 end
 
 --- Create a disabled button that cannot be clicked
+---@param label string Button label text
+---@param width? number Button width in pixels (default 0)
+---@param height? number Button height in pixels (default 0)
+---@return nil
 function controls.DisabledButton(label, width, height)
     width = width or 0
     height = height or 0
@@ -148,6 +176,10 @@ local truncateText = utils.truncateText
 --- Normal: full text. Narrow: truncated with "...". Icon mode: icon only.
 --- opts.minChars: minimum visible characters before switching to icon (default 3)
 --- opts.iconThreshold: explicit pixel override for icon switch threshold
+---@param label string Full button label text
+---@param icon string|nil Icon glyph or IconGlyphs key for narrow display
+---@param opts? table {style?, width?, height?, minChars?, iconThreshold?, iconFallback?, tooltip?}
+---@return boolean clicked True if the button was clicked
 function controls.DynamicButton(label, icon, opts)
     opts = opts or {}
     local iconStr = resolveIcon(icon) or opts.iconFallback or "?"
@@ -197,6 +229,14 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a float slider (icon, id, value, min, max, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param value number Current slider value
+---@param min number Minimum value
+---@param max number Maximum value
+---@param opts? table {format?, tooltip?, cols?, default?}
+---@return number newValue Updated value
+---@return boolean changed True if the value was modified
 function controls.SliderFloat(icon, id, value, min, max, opts)
     opts = opts or {}
     local format = opts.format or "%.2f"
@@ -213,6 +253,14 @@ function controls.SliderFloat(icon, id, value, min, max, opts)
 end
 
 --- Create an integer slider (icon, id, value, min, max, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param value integer Current slider value
+---@param min integer Minimum value
+---@param max integer Maximum value
+---@param opts? table {format?, tooltip?, cols?, default?}
+---@return integer newValue Updated value
+---@return boolean changed True if the value was modified
 function controls.SliderInt(icon, id, value, min, max, opts)
     opts = opts or {}
     local format = opts.format or "%d"
@@ -229,6 +277,9 @@ function controls.SliderInt(icon, id, value, min, max, opts)
 end
 
 --- Create a disabled slider appearance (greyed out)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param label string Slider display label
+---@return nil
 function controls.SliderDisabled(icon, label)
     if icon then
         controls.IconButton(icon, false)
@@ -248,6 +299,11 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a checkbox (opts: icon, default, tooltip, alwaysShowTooltip)
+---@param label string Checkbox label text
+---@param value boolean Current checked state
+---@param opts? table {icon?, default?, tooltip?, alwaysShowTooltip?}
+---@return boolean newValue Updated checked state
+---@return boolean changed True if the value was toggled
 function controls.Checkbox(label, value, opts)
     opts = opts or {}
     local hasIcon = false
@@ -279,6 +335,12 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a styled progress bar
+---@param fraction number Progress value between 0.0 and 1.0
+---@param width? number Bar width in pixels (default fills available)
+---@param height? number Bar height in pixels (default 0)
+---@param overlay? string Text overlay on the bar (default "")
+---@param styleName? string|table Style name ("default"|"danger"|"success") or custom color table
+---@return nil
 function controls.ProgressBar(fraction, width, height, overlay, styleName)
     width = width or ImGui.GetContentRegionAvail()
     height = height or 0
@@ -322,6 +384,12 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a color picker (icon, id, color, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param color table RGBA color array {r, g, b, a}
+---@param opts? table {tooltip?, label?, default?}
+---@return table newColor Updated RGBA color array
+---@return boolean changed True if the color was modified
 function controls.ColorEdit4(icon, id, color, opts)
     opts = opts or {}
     iconPrefix(icon, opts.tooltip, true)
@@ -343,6 +411,8 @@ end
 --------------------------------------------------------------------------------
 
 --- Display muted/grey text
+---@param text string Text to display
+---@return nil
 function controls.TextMuted(text)
     styles.PushTextMuted()
     ImGui.Text(text)
@@ -350,6 +420,8 @@ function controls.TextMuted(text)
 end
 
 --- Display success/green text
+---@param text string Text to display
+---@return nil
 function controls.TextSuccess(text)
     styles.PushTextSuccess()
     ImGui.Text(text)
@@ -357,6 +429,8 @@ function controls.TextSuccess(text)
 end
 
 --- Display danger/red text
+---@param text string Text to display
+---@return nil
 function controls.TextDanger(text)
     styles.PushTextDanger()
     ImGui.Text(text)
@@ -364,6 +438,8 @@ function controls.TextDanger(text)
 end
 
 --- Display warning/yellow text
+---@param text string Text to display
+---@return nil
 function controls.TextWarning(text)
     styles.PushTextWarning()
     ImGui.Text(text)
@@ -375,6 +451,13 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a combo dropdown (icon, id, currentIndex, items, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param currentIndex integer Zero-based selected index
+---@param items table Array of string labels
+---@param opts? table {tooltip?, cols?, default?}
+---@return integer newIndex Updated selected index
+---@return boolean changed True if the selection changed
 function controls.Combo(icon, id, currentIndex, items, opts)
     opts = opts or {}
     local hasIcon = iconPrefix(icon, opts.tooltip, true)
@@ -394,6 +477,12 @@ end
 --------------------------------------------------------------------------------
 
 --- Create an input text field (icon, id, text, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param text string Current text value
+---@param opts? table {maxLength?, tooltip?, alwaysShowTooltip?, cols?}
+---@return string newText Updated text value
+---@return boolean changed True if the text was modified
 function controls.InputText(icon, id, text, opts)
     opts = opts or {}
     local maxLength = opts.maxLength or 256
@@ -406,6 +495,12 @@ function controls.InputText(icon, id, text, opts)
 end
 
 --- Create an input float field (icon, id, value, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param value number Current float value
+---@param opts? table {step?, stepFast?, format?, tooltip?, alwaysShowTooltip?, cols?}
+---@return number newValue Updated float value
+---@return boolean changed True if the value was modified
 function controls.InputFloat(icon, id, value, opts)
     opts = opts or {}
     local step = opts.step or 0.1
@@ -420,6 +515,12 @@ function controls.InputFloat(icon, id, value, opts)
 end
 
 --- Create an input int field (icon, id, value, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param value integer Current integer value
+---@param opts? table {step?, stepFast?, tooltip?, alwaysShowTooltip?, cols?}
+---@return integer newValue Updated integer value
+---@return boolean changed True if the value was modified
 function controls.InputInt(icon, id, value, opts)
     opts = opts or {}
     local step = opts.step or 1
@@ -437,6 +538,9 @@ end
 --------------------------------------------------------------------------------
 
 --- Create a separator with optional spacing
+---@param spacingBefore? number Vertical spacing in pixels before the separator
+---@param spacingAfter? number Vertical spacing in pixels after the separator
+---@return nil
 function controls.Separator(spacingBefore, spacingAfter)
     if spacingBefore then
         ImGui.Dummy(0, spacingBefore)
@@ -448,6 +552,10 @@ function controls.Separator(spacingBefore, spacingAfter)
 end
 
 --- Create a labeled section header
+---@param label string Section title text
+---@param spacingBefore? number Vertical spacing in pixels before the separator
+---@param spacingAfter? number Vertical spacing in pixels after the label
+---@return nil
 function controls.SectionHeader(label, spacingBefore, spacingAfter)
     if spacingBefore then
         ImGui.Dummy(0, spacingBefore)
@@ -468,6 +576,11 @@ local holdStates = {}
 local HOLD_OVERLAY_COLOR = nil
 
 --- Create a hold-to-confirm button with progress fill overlay
+---@param id string Unique button ID (also used as label in legacy mode)
+---@param label string Button label text
+---@param opts? table {duration?, style?, width?, progressDisplay?, progressStyle?, disabled?, tooltip?, overlayColor?, onClick?, onHold?}
+---@return boolean triggered True if the hold completed
+---@return boolean clicked True if released before hold completed
 function controls.HoldButton(id, label, opts)
     -- Backward compatibility: detect old HoldButton(label, duration, styleName, width)
     if type(label) == "number" or label == nil then
@@ -606,6 +719,8 @@ function controls.HoldButton(id, label, opts)
 end
 
 --- Get the current hold progress for a button ID
+---@param id string Button ID to query
+---@return number|nil progress Hold progress 0.0-1.0, or nil if not holding
 function controls.getHoldProgress(id)
     local state = holdStates[id]
     if not state or not state.holding then return nil end
@@ -613,6 +728,10 @@ function controls.getHoldProgress(id)
 end
 
 --- Display a progress bar showing another button's hold progress
+---@param sourceId string Button ID whose hold progress to display
+---@param width? number Bar width in pixels (default fills available)
+---@param progressStyle? string Style name for the progress bar (default "danger")
+---@return boolean shown True if a progress bar was rendered
 function controls.ShowHoldProgress(sourceId, width, progressStyle)
     local progress = controls.getHoldProgress(sourceId)
     if not progress then return false end
@@ -624,6 +743,10 @@ function controls.ShowHoldProgress(sourceId, width, progressStyle)
 end
 
 --- Compound action button: primary label + secondary icon with cross-element progress
+---@param id string Unique button group ID
+---@param label string Primary button label text
+---@param opts? table {onPrimary?, onSecondary?, secondaryIcon?, secondaryDuration?, secondaryStyle?, progressStyle?, style?, isActive?, width?}
+---@return table result {primaryClicked: boolean, secondaryTriggered: boolean}
 function controls.ActionButton(id, label, opts)
     opts = opts or {}
     local onPrimary = opts.onPrimary
@@ -684,11 +807,14 @@ function controls.ActionButton(id, label, opts)
 end
 
 --- Reset hold state for a specific button ID
+---@param id string Button ID to reset
+---@return nil
 function controls.resetHoldState(id)
     holdStates[id] = nil
 end
 
 --- Reset all hold states.
+---@return nil
 function controls.resetAllHoldStates()
     holdStates = {}
 end
@@ -710,6 +836,10 @@ local function ensureArrows()
 end
 
 --- Begin an animated collapsible section
+---@param label string Section header text
+---@param id? string Unique section ID (defaults to label)
+---@param defaultOpen? boolean Initial open state (default true)
+---@return boolean isOpen True if the section content should be rendered (call EndCollapsingSection after)
 function controls.CollapsingSection(label, id, defaultOpen)
     ensureArrows()
 
@@ -769,6 +899,8 @@ function controls.CollapsingSection(label, id, defaultOpen)
 end
 
 --- End a collapsing section (must be called after CollapsingSection returns true)
+---@param id? string Section ID matching the CollapsingSection call
+---@return nil
 function controls.EndCollapsingSection(id)
     id = id or ""
     local state = collapseStates[id]
@@ -789,6 +921,9 @@ end
 --------------------------------------------------------------------------------
 
 --- Begin a child region that fills remaining vertical space in the window
+---@param id string Unique child ID (## prefix added automatically if missing)
+---@param opts? table {footerHeight?, border?, flags?, bg?}
+---@return boolean visible True if the child region is visible
 function controls.BeginFillChild(id, opts)
     opts = opts or {}
     local footerHeight = opts.footerHeight or 0
@@ -817,6 +952,8 @@ function controls.BeginFillChild(id, opts)
 end
 
 --- End a fill child region
+---@param opts? table {bg?} Must match the opts.bg passed to BeginFillChild to pop the color
+---@return nil
 function controls.EndFillChild(opts)
     ImGui.EndChild()
     opts = opts or {}
@@ -830,6 +967,10 @@ end
 --------------------------------------------------------------------------------
 
 --- Horizontal row of child windows that fills available width
+---@param id string Unique row ID prefix
+---@param defs table Array of column defs: {width?, cols?, flex?, bg?, border?, flags?, content?}
+---@param opts? table {gap?, height?}
+---@return nil
 function controls.Row(id, defs, opts)
     if not defs or #defs == 0 then return end
     opts = opts or {}
@@ -891,6 +1032,10 @@ end
 --------------------------------------------------------------------------------
 
 --- Vertical column of child windows that fills available height
+---@param id string Unique column ID prefix
+---@param defs table Array of row defs: {height?, flex?, bg?, border?, flags?, content?}
+---@param opts? table Currently unused, reserved for future options
+---@return nil
 function controls.Column(id, defs, opts)
     if not defs or #defs == 0 then return end
     opts = opts or {}
@@ -951,6 +1096,9 @@ end
 
 --- Render a row of buttons with automatic width distribution.
 --- Icon-only buttons (def.icon, no def.label) auto-size. Text buttons share remaining space by weight.
+---@param defs table Array of button defs: {label?, icon?, style?, weight?, width?, height?, disabled?, tooltip?, onClick?, onHold?, holdDuration?, progressFrom?, progressStyle?, progressDisplay?, id?}
+---@param opts? table {gap?}
+---@return nil
 function controls.ButtonRow(defs, opts)
     if not defs or #defs == 0 then return end
     opts = opts or {}
@@ -1025,6 +1173,11 @@ end
 --- Usage: local c = controls.bind(data, defaults, onSave, { idPrefix = "prefix_" })
 ---        c:SliderFloat(icon, key, min, max, opts)  -- reads data[key], resets to defaults[key]
 --- idPrefix is prepended to key for the ImGui ID but the raw key is used for data/defaults lookup.
+---@param data table Data table to read/write values from
+---@param defaults? table Default values table for right-click reset
+---@param onSave? function Callback invoked after any value change
+---@param bindOpts? table {idPrefix?: string}
+---@return table ctx Bound context with SliderFloat, SliderInt, Checkbox, ColorEdit4, Combo, InputText, InputFloat, InputInt, ToggleButtonRow methods
 function controls.bind(data, defaults, onSave, bindOpts)
     local ctx = {}
     local idPrefix = bindOpts and bindOpts.idPrefix or ""
@@ -1208,6 +1361,10 @@ end
 --------------------------------------------------------------------------------
 
 --- Render a child window panel with default styling (opts: bg, border, width, height, flags)
+---@param id string Unique panel ID (## prefix added automatically if missing)
+---@param contentFn? function Callback that renders panel content
+---@param opts? table {bg?, border?, width?, height?, flags?}
+---@return nil
 function controls.Panel(id, contentFn, opts)
     opts = opts or {}
     local border = opts.border ~= false

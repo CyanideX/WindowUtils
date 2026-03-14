@@ -108,9 +108,9 @@ For sliders, progress bars, and other framed elements.
 
 ### Scrollbar Styles
 
-`PushScrollbar(opts?)` / `PopScrollbar(opts?)`
+`PushScrollbar(opts?)` / `PopScrollbar()`
 
-Themed scrollbar with transparent track and styled thumb. Call before any scrollable region.
+Themed scrollbar with transparent track and styled thumb. Call before any scrollable region. `PopScrollbar` takes no arguments — it always pops 4 colors and 2 style vars.
 
 ```lua
 -- Simple (uses defaults)
@@ -123,13 +123,13 @@ styles.PopScrollbar()
 -- Customized
 styles.PushScrollbar({ size = 5, rounding = 4, grab = { 0, 1, 0.7, 0.4 } })
 -- scrollable content
-styles.PopScrollbar({ rounding = 4 })
+styles.PopScrollbar()
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| size | number | current ScrollbarSize | Scrollbar thickness |
-| rounding | number\|nil | nil | Thumb corner rounding (pass same to Pop) |
+| size | number | fontSize * 0.4 (min 6) | Scrollbar thickness |
+| rounding | number | 10 | Thumb corner rounding |
 | bg | table | scrollbarBg | Track background color |
 | grab | table | scrollbarGrab | Thumb color |
 | hover | table | scrollbarHover | Thumb hover color |

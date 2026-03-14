@@ -61,6 +61,11 @@ local function smoothEase(t)
     return t * t * (3 - 2 * t)
 end
 
+--------------------------------------------------------------------------------
+-- Blur Control
+--------------------------------------------------------------------------------
+
+--- Activate background blur with a fade-in animation.
 function ui.enableBlur()
     if ui.blur.isActive and not ui.blur.isAnimating then return end
 
@@ -89,6 +94,7 @@ function ui.enableBlur()
     ui.blur.isActive = true
 end
 
+--- Start a fade-out animation and deactivate background blur on completion.
 function ui.disableBlur()
     if not ui.blur.isActive then return end
 
@@ -99,6 +105,7 @@ function ui.disableBlur()
     -- targetRadius stays the same, we fade from currentRadius to 0
 end
 
+--- Advance the blur fade-in/fade-out animation by one tick. Call every frame.
 function ui.updateBlurAnimation()
     if not ui.blur.isAnimating then return end
 
@@ -139,6 +146,8 @@ function ui.updateBlurAnimation()
     end
 end
 
+--- Update the blur target radius, applying immediately when not animating.
+---@param intensity number New blur radius value
 function ui.updateBlurIntensity(intensity)
     if not ui.blur.isActive then return end
 
@@ -154,10 +163,13 @@ function ui.updateBlurIntensity(intensity)
     end
 end
 
+--- Check whether the BlurUtils service is installed and reachable.
+---@return boolean
 function ui.isBlurAvailable()
     return getBlurService() ~= nil
 end
 
+--- Enable/disable blur in response to drag state changes (drag-only mode). Call every frame.
 function ui.updateBlurDragState()
     if not settings.master.blurOnOverlayOpen then return end
     if not settings.master.blurOnDragOnly then return end
@@ -177,10 +189,16 @@ function ui.updateBlurDragState()
     ui.blur.wasDragging = isDragging
 end
 
+--------------------------------------------------------------------------------
+-- Initialization / Dim Control
+--------------------------------------------------------------------------------
+
+--- Initialize UI state from persisted settings.
 function ui.init()
     ui.state.showWindow = settings.master.showSettingsWindow or false
 end
 
+--- Reset the dim-background fade to fully transparent.
 function ui.disableDim()
     dimFade.opacity = 0
     dimFade.wasDragging = false
@@ -488,6 +506,7 @@ end
 -- Settings Window
 --------------------------------------------------------------------------------
 
+--- Render the grid visualization overlay and the WindowUtils settings window.
 function ui.drawSettingsWindow()
     drawGridVisualization()
 
@@ -723,24 +742,29 @@ end
 -- Window Control API
 --------------------------------------------------------------------------------
 
+--- Show the settings window and persist the state.
 function ui.show()
     ui.state.showWindow = true
     settings.master.showSettingsWindow = true
     settings.save()
 end
 
+--- Hide the settings window and persist the state.
 function ui.hide()
     ui.state.showWindow = false
     settings.master.showSettingsWindow = false
     settings.save()
 end
 
+--- Toggle settings window visibility and persist the state.
 function ui.toggle()
     ui.state.showWindow = not ui.state.showWindow
     settings.master.showSettingsWindow = ui.state.showWindow
     settings.save()
 end
 
+--- Return whether the settings window is currently visible.
+---@return boolean
 function ui.isVisible()
     return ui.state.showWindow
 end

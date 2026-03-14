@@ -13,6 +13,9 @@ settings.NAME = "Window Utils"
 settings.ICON = IconGlyphs.WindowMaximize
 settings.VERSION = "1.0.0"
 
+--- Print a debug message to the CET console.
+---@param message string Message to print
+---@param forced? boolean Print even if debugOutput is disabled
 function settings.debugPrint(message, forced)
     if settings.master.debugOutput or forced then
         print(settings.ICON .. " " .. settings.NAME .. ": " .. message)
@@ -85,8 +88,12 @@ settings.KEY_MAP = {
 settings.easingKeys = {"linear", "easeIn", "easeOut", "easeInOut", "bounce"}
 settings.easingNames = {"Linear", "Ease In", "Ease Out", "Ease In-Out", "Bounce"}
 
+--------------------------------------------------------------------------------
 -- Persistence
+--------------------------------------------------------------------------------
 
+--- Load settings from disk. Merges saved values into master settings.
+---@return boolean success
 function settings.load()
     local file = io.open(settingsPath, "r")
     if not file then
@@ -118,6 +125,8 @@ function settings.load()
     return true
 end
 
+--- Save current master settings to disk.
+---@return boolean success
 function settings.save()
     if not settings.master then
         settings.debugPrint("Cannot save: master settings not initialized", true)
@@ -141,6 +150,7 @@ function settings.save()
     return true
 end
 
+--- Reset all settings to defaults and save.
 function settings.reset()
     settings.master = createDefaultSettings()
     settings.master.enabled = false
@@ -148,13 +158,18 @@ function settings.reset()
     settings.debugPrint("Settings reset to defaults", true)
 end
 
+--- Reload settings from disk.
 function settings.reload()
     settings.load()
     settings.debugPrint("Settings reloaded")
 end
 
+--------------------------------------------------------------------------------
 -- Configuration API
+--------------------------------------------------------------------------------
 
+--- Override global default values.
+---@param config table Key-value pairs to merge into defaults
 function settings.setDefaults(config)
     for key, value in pairs(config) do
         if settings.defaults[key] ~= nil then
@@ -169,6 +184,9 @@ function settings.configure(settingsObj)
     settings.debugPrint("Configured", true)
 end
 
+--- Set per-window configuration overrides.
+---@param windowName string Window title
+---@param config table Key-value pairs to merge into window config
 function settings.setWindowConfig(windowName, config)
     if not settings.windowConfigs[windowName] then
         settings.windowConfigs[windowName] = {}
@@ -178,6 +196,8 @@ function settings.setWindowConfig(windowName, config)
     end
 end
 
+--- Remove all per-window configuration overrides.
+---@param windowName string Window title
 function settings.clearWindowConfig(windowName)
     settings.windowConfigs[windowName] = nil
 end

@@ -73,6 +73,7 @@ local lastFrameTime = 0
 
 -- Offscreen position threshold (windows at 9000+ are hidden by other mods)
 local OFFSCREEN_THRESHOLD = 9000
+core.OFFSCREEN_THRESHOLD = OFFSCREEN_THRESHOLD
 
 -- Core exclusion list: known CET/ImGui internal windows that should never be managed
 local coreExcludedWindows = {

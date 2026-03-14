@@ -22,7 +22,6 @@ local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")
 local tooltips = require("modules/tooltips")
-local hotkeys = require("modules/hotkeys")
 local splitter = require("modules/splitter")
 local tabs = require("modules/tabs")
 local dragdrop = require("modules/dragdrop")
@@ -108,7 +107,10 @@ WindowUtils.Tabs = tabs
 WindowUtils.DragDrop = dragdrop
 WindowUtils.Notify = notifications
 
-hotkeys.register()
+-- Register hotkey for toggling the main window (can also be toggled via API)
+registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
+    ui.toggle()
+end)
 
 --------------------------------------------------------------------------------
 -- CET Event Registration
@@ -119,6 +121,7 @@ registerForEvent("onInit", function()
     core.loadWindowCache()
     core.rebuildExclusionSet()
     ui.init()
+
     settings.debugPrint("Initialized!", true)
 end)
 

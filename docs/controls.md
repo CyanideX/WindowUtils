@@ -299,6 +299,37 @@ c.EndFillChild({ bg = true })
 ImGui.Button("Footer Button", c.RemainingWidth(), 0)
 ```
 
+## Panel
+
+### `Panel(id, contentFn, opts?)`
+
+Child region with optional background color and border. A simpler alternative to `BeginFillChild`/`EndFillChild` for non-expanding regions.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string | — | Child window ID (auto-prefixed with `##` if needed) |
+| contentFn | function | — | Renders panel content |
+| opts.bg | table\|false | subtle blue | Background color `{r,g,b,a}` or `false` for none |
+| opts.border | boolean | true | Show border |
+| opts.width | number | 0 | Panel width (0 = fill available) |
+| opts.height | number | 0 | Panel height (0 = auto-fit content) |
+| opts.flags | number | 0 | Extra ImGui window flags |
+
+```lua
+-- Default styled panel
+c.Panel("info", function()
+    ImGui.Text("Panel content")
+end)
+
+-- Custom background, no border
+c.Panel("custom", function()
+    ImGui.Text("Dark panel")
+end, { bg = { 0.1, 0.1, 0.1, 0.8 }, border = false })
+
+-- Fixed-size panel
+c.Panel("fixed", drawContent, { width = 300, height = 200 })
+```
+
 ## Text Display
 
 | Function | Color |

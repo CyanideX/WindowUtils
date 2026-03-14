@@ -19,6 +19,8 @@ end
 -- Plugin Detection
 --------------------------------------------------------------------------------
 
+--- Check if the RedCetWM window discovery plugin is available.
+---@return boolean
 function discovery.isAvailable()
     return RedCetWM ~= nil and RedCetWM.GetWindowLayout ~= nil
 end
@@ -27,7 +29,9 @@ end
 -- Window Discovery
 --------------------------------------------------------------------------------
 
--- Parse layout string from RedCetWM.GetWindowLayout() into window info tables.
+--- Parse layout string from RedCetWM into window info tables.
+--- Results are cached per-frame; call invalidateCache() to refresh.
+---@return table[] windows Array of {name, posX, posY, sizeX, sizeY, collapsed}
 function discovery.getActiveWindows()
     if not discovery.isAvailable() then
         return {}
@@ -100,6 +104,8 @@ function discovery.getActiveWindows()
     return windows
 end
 
+--- Get an array of all discovered window names.
+---@return string[]
 function discovery.getWindowNames()
     local names = {}
     local windows = discovery.getActiveWindows()

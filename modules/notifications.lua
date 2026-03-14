@@ -98,27 +98,38 @@ end
 -- Public API
 --------------------------------------------------------------------------------
 
---- Show an info notification
+--- Show an info notification.
+---@param message string Notification text
+---@param opts? table {ttl?: number, fadeOut?: number}
 function notifications.info(message, opts)
     notifications.show(message, "info", opts)
 end
 
---- Show a success notification
+--- Show a success notification.
+---@param message string Notification text
+---@param opts? table {ttl?: number, fadeOut?: number}
 function notifications.success(message, opts)
     notifications.show(message, "success", opts)
 end
 
---- Show a warning notification
+--- Show a warning notification.
+---@param message string Notification text
+---@param opts? table {ttl?: number, fadeOut?: number}
 function notifications.warn(message, opts)
     notifications.show(message, "warn", opts)
 end
 
---- Show an error notification
+--- Show an error notification.
+---@param message string Notification text
+---@param opts? table {ttl?: number, fadeOut?: number}
 function notifications.error(message, opts)
     notifications.show(message, "error", opts)
 end
 
---- Show a notification with a specific level
+--- Show a notification with a specific level.
+---@param message string Notification text
+---@param level? string "info"|"success"|"warn"|"error" (default "info")
+---@param opts? table {ttl?: number, fadeOut?: number}
 function notifications.show(message, level, opts)
     opts = opts or {}
     local toast = {
@@ -222,7 +233,8 @@ function notifications.draw()
     end
 end
 
---- Configure notification defaults
+--- Configure notification defaults.
+---@param opts? table Key-value pairs to merge into config (position, maxVisible, ttl, etc.)
 function notifications.configure(opts)
     if not opts then return end
     for k, v in pairs(opts) do
@@ -237,7 +249,8 @@ function notifications.clear()
     queue = {}
 end
 
---- Get current notification count
+--- Get current notification count.
+---@return number
 function notifications.count()
     return #queue
 end

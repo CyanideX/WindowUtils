@@ -9,7 +9,7 @@ local discovery = require("modules/discovery")
 local controls = require("modules/controls")
 local styles = require("modules/styles")
 
-local OFFSCREEN_THRESHOLD = 9000
+local OFFSCREEN_THRESHOLD = core.OFFSCREEN_THRESHOLD
 
 local browser = {}
 
@@ -23,18 +23,23 @@ browser.state = {
 -- Window Control
 --------------------------------------------------------------------------------
 
+--- Show the window browser.
 function browser.show()
     browser.state.showWindow = true
 end
 
+--- Hide the window browser.
 function browser.hide()
     browser.state.showWindow = false
 end
 
+--- Toggle the window browser visibility.
 function browser.toggle()
     browser.state.showWindow = not browser.state.showWindow
 end
 
+--- Check if the window browser is visible.
+---@return boolean
 function browser.isVisible()
     return browser.state.showWindow
 end
@@ -70,6 +75,7 @@ end
 -- Draw
 --------------------------------------------------------------------------------
 
+--- Render the window browser (call once per frame from onDraw).
 function browser.draw()
     if not browser.state.showWindow then return end
 

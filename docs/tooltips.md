@@ -72,11 +72,7 @@ Pre-colored tooltip shortcuts:
 
 ### `ShowIf(text, condition)`
 
-Shows tooltip only when `condition` is true.
-
-### `ShowIfEnabled(text, enabled)`
-
-Shows tooltip only when `enabled` is true. Both respect `tooltipsEnabled`.
+Shows tooltip only when `condition` is true. Respects `tooltipsEnabled`.
 
 ### Info & Help Tooltips
 

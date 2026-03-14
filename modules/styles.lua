@@ -77,7 +77,9 @@ styles.colors = {
 -- Helpers
 --------------------------------------------------------------------------------
 
---- Convert {r,g,b,a} table to ImGui u32 color
+--- Convert {r,g,b,a} table to ImGui u32 color.
+---@param c table {r, g, b, a} color values (0-1)
+---@return number u32color
 function styles.ToColor(c)
     return ImGui.GetColorU32(c[1], c[2], c[3], c[4])
 end
@@ -107,6 +109,7 @@ styles.buttonDefaults = {
 local function pushBtnDef(name)
     return function() styles.PushButton(styles.buttonDefaults[name]) end
 end
+-- Pop matches PushButton: 4 colors (Button, ButtonHovered, ButtonActive, Text) + 1 var (ButtonTextAlign)
 local function popBtnDef()
     return function() ImGui.PopStyleColor(4); ImGui.PopStyleVar() end
 end
@@ -280,7 +283,8 @@ end
 -- Scrollbar Styles
 --------------------------------------------------------------------------------
 
---- Scrollbar styling (transparent bg, themed thumb)
+--- Scrollbar styling (transparent bg, themed thumb).
+---@param opts? table {size?: number, rounding?: number, bg?: table, grab?: table, hover?: table, active?: table}
 function styles.PushScrollbar(opts)
     opts = opts or {}
     local size = opts.size or math.max(6, math.floor(ImGui.GetFontSize() * 0.4))
@@ -312,7 +316,8 @@ local styleMap = {
     transparent = { push = styles.PushButtonTransparent, pop = styles.PopButtonTransparent }
 }
 
---- Push a button style by name or by custom color table
+--- Push a button style by name or by custom color table.
+---@param styleNameOrTable string|table Style name ("active","inactive","danger","warning","update","disabled","transparent") or {bg, hover, active, text} color table
 function styles.PushButton(styleNameOrTable)
     if type(styleNameOrTable) == "table" then
         local c = styleNameOrTable
@@ -329,7 +334,8 @@ function styles.PushButton(styleNameOrTable)
     end
 end
 
---- Pop a button style by name or table
+--- Pop a button style by name or table.
+---@param styleNameOrTable string|table Must match the value passed to PushButton
 function styles.PopButton(styleNameOrTable)
     if type(styleNameOrTable) == "table" then
         ImGui.PopStyleColor(4)

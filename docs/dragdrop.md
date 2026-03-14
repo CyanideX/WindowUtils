@@ -30,6 +30,9 @@ Render a reorderable list with all state, visuals, and array mutation handled in
 | renderFn | function | — | `function(item, index, ctx)` — render each item |
 | onReorder | function\|nil | nil | `function(fromIndex, toIndex)` — called after reorder |
 | opts.colors | table\|nil | nil | Custom colors (see below) |
+| opts.showHandle | boolean | false | Show a drag handle icon before each item |
+| opts.handleIcon | string | "DragVertical" | IconGlyph name for the drag handle |
+| opts.handleColor | table | {0.5, 0.5, 0.5, 1} | Handle icon color `{r,g,b,a}` |
 
 The `renderFn` must include an interactive ImGui element (Selectable, Button, etc.) that can be clicked and dragged.
 

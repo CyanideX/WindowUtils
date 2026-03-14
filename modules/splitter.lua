@@ -263,6 +263,11 @@ end
 --------------------------------------------------------------------------------
 
 --- Horizontal split (left | right)
+---@param id string Unique splitter identifier
+---@param leftFn? function Render callback for the left panel
+---@param rightFn? function Render callback for the right panel
+---@param opts? table Options: defaultPct, minPct, maxPct, grabWidth
+---@return number pct Current split fraction (0..1)
 function splitter.horizontal(id, leftFn, rightFn, opts)
     local state = getState(id, opts)
     local grabW = state.grabWidth
@@ -293,6 +298,11 @@ function splitter.horizontal(id, leftFn, rightFn, opts)
 end
 
 --- Vertical split (top / bottom)
+---@param id string Unique splitter identifier
+---@param topFn? function Render callback for the top panel
+---@param bottomFn? function Render callback for the bottom panel
+---@param opts? table Options: defaultPct, minPct, maxPct, grabWidth
+---@return number pct Current split fraction (0..1)
 function splitter.vertical(id, topFn, bottomFn, opts)
     local state = getState(id, opts)
     local grabH = state.grabWidth
@@ -321,12 +331,16 @@ function splitter.vertical(id, topFn, bottomFn, opts)
 end
 
 --- Get current split percentage for an ID
+---@param id string Splitter identifier
+---@return number|nil pct Current split fraction, or nil if not found
 function splitter.getSplitPct(id)
     local state = splitStates[id]
     return state and state.pct or nil
 end
 
 --- Set split percentage programmatically
+---@param id string Splitter identifier
+---@param pct number Desired split fraction (clamped to minPct..maxPct)
 function splitter.setSplitPct(id, pct)
     local state = splitStates[id]
     if state then
@@ -335,6 +349,7 @@ function splitter.setSplitPct(id, pct)
 end
 
 --- Reset to default percentage
+---@param id string Splitter identifier
 function splitter.reset(id)
     local state = splitStates[id]
     if state then
@@ -579,6 +594,9 @@ end
 
 --- Multi-panel layout with independent flat breakpoints.
 --- Each divider moves independently — dragging divider i only affects panels i and i+1.
+---@param id string Unique splitter identifier
+---@param panels table Array of panel definitions ({ content, width/height, minWidth/minHeight, maxWidth/maxHeight, flex, toggle, size })
+---@param opts? table Options: direction ("horizontal"|"vertical"), grabWidth, minPct, defaultPcts
 function splitter.multi(id, panels, opts)
     if not panels or #panels < 2 then return end
     opts = opts or {}
@@ -800,6 +818,7 @@ function splitter.multi(id, panels, opts)
 end
 
 --- Reset a multi-splitter to default breakpoints
+---@param id string Multi-splitter identifier
 function splitter.resetMulti(id)
     local ms = multiStates[id]
     if ms then
@@ -814,11 +833,10 @@ end
 
 --- Render a toggleable panel with animated open/close.
 --- panels[1] = fixed/toggleable panel, panels[2] = flex panel.
---- opts.side: "left"|"right"|"top"|"bottom" (default "left")
---- opts.size: number|string (expanded size in px or "30%", default 200)
---- opts.defaultOpen: boolean (default true)
---- opts.speed: number (animation speed, default 6.0)
---- Returns: boolean (current open state)
+---@param id string Unique toggle identifier
+---@param panels table Two-element array: [1] = fixed panel { content }, [2] = flex panel { content }
+---@param opts? table Options: side ("left"|"right"|"top"|"bottom"), size (number|string), defaultOpen (boolean), speed (number), barWidth (number)
+---@return boolean isOpen Current open state
 function splitter.toggle(id, panels, opts)
     opts = opts or {}
     local side = opts.side or "left"
@@ -901,12 +919,16 @@ function splitter.toggle(id, panels, opts)
 end
 
 --- Programmatically set toggle state
+---@param id string Toggle identifier
+---@param open boolean Desired open state
 function splitter.setToggle(id, open)
     local state = toggleStates[id]
     if state then state.isOpen = open end
 end
 
 --- Query toggle state
+---@param id string Toggle identifier
+---@return boolean|nil isOpen Current open state, or nil if not found
 function splitter.getToggle(id)
     local state = toggleStates[id]
     return state and state.isOpen or nil

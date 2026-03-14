@@ -19,7 +19,8 @@ end
 -- State Management
 --------------------------------------------------------------------------------
 
---- Create a new drag-drop state for a list
+--- Create a new drag-drop state for a list.
+---@return table state {draggingIndex, hoverIndex, dropPosition}
 function dragdrop.createState()
     return {
         draggingIndex = nil,     -- Index being dragged (1-based, nil if not dragging)
@@ -28,7 +29,8 @@ function dragdrop.createState()
     }
 end
 
---- Reset drag state
+--- Reset all drag state fields to nil.
+---@param state table Drag-drop state from createState()
 function dragdrop.resetState(state)
     state.draggingIndex = nil
     state.hoverIndex = nil
@@ -39,10 +41,13 @@ end
 -- Core API (advanced, manual state management)
 --------------------------------------------------------------------------------
 
---- Get context for current item (call at start of each list item)
--- Returns a reusable table — do not store the reference across frames
+-- Reusable context table — do not store the reference across frames
 local reusableCtx = { isDragged = false, isHoverTarget = false, dropAbove = false, dropBelow = false }
 
+--- Get drag context for an item (call at start of each list item).
+---@param index number 1-based item index
+---@param state table Drag-drop state
+---@return table ctx {isDragged, isHoverTarget, dropAbove, dropBelow}
 function dragdrop.getItemContext(index, state)
     local isDragging = state.draggingIndex ~= nil
     reusableCtx.isDragged = state.draggingIndex == index
@@ -52,7 +57,26 @@ function dragdrop.getItemContext(index, state)
     return reusableCtx
 end
 
---- Handle drag interaction for an ImGui item (call AFTER the draggable ImGui element)
+--- Track hover position on the last ImGui item for drop targeting
+local function trackHover(index, state)
+    if state.draggingIndex and state.draggingIndex ~= index then
+        if ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
+            state.hoverIndex = index
+            local minY = select(2, ImGui.GetItemRectMin())
+            local maxY = select(2, ImGui.GetItemRectMax())
+            local mouseY = select(2, ImGui.GetMousePos())
+            state.dropPosition = mouseY < (minY + maxY) / 2 and "above" or "below"
+        end
+    end
+end
+
+--- Handle drag interaction for an ImGui item (call AFTER the draggable ImGui element).
+---@param index number 1-based item index
+---@param totalCount number Total number of items in the list
+---@param state table Drag-drop state
+---@return boolean shouldReorder Whether a reorder should be applied
+---@return number|nil fromIndex Source index (nil if no reorder)
+---@return number|nil toIndex Destination index (nil if no reorder)
 function dragdrop.handleDrag(index, totalCount, state)
     local shouldReorder = false
     local fromIndex, toIndex = nil, nil
@@ -65,16 +89,7 @@ function dragdrop.handleDrag(index, totalCount, state)
     end
 
     -- Track hover position for non-dragged items
-    if state.draggingIndex and state.draggingIndex ~= index then
-        if ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
-            state.hoverIndex = index
-            -- Determine drop position based on mouse Y relative to item center
-            local minY = select(2, ImGui.GetItemRectMin())
-            local maxY = select(2, ImGui.GetItemRectMax())
-            local mouseY = select(2, ImGui.GetMousePos())
-            state.dropPosition = mouseY < (minY + maxY) / 2 and "above" or "below"
-        end
-    end
+    trackHover(index, state)
 
     -- Handle drop when mouse released
     if state.draggingIndex == index and not ImGui.IsMouseDown(0) then
@@ -99,12 +114,16 @@ function dragdrop.handleDrag(index, totalCount, state)
     return shouldReorder, fromIndex, toIndex
 end
 
---- Check if currently dragging any item
+--- Check if currently dragging any item.
+---@param state table Drag-drop state
+---@return boolean
 function dragdrop.isDragging(state)
     return state.draggingIndex ~= nil
 end
 
---- Get the index being dragged (or nil)
+--- Get the index being dragged (or nil).
+---@param state table Drag-drop state
+---@return number|nil
 function dragdrop.getDraggingIndex(state)
     return state.draggingIndex
 end
@@ -113,7 +132,9 @@ end
 -- Visual Feedback Helpers
 --------------------------------------------------------------------------------
 
---- Push visual styles for dragged/hover state
+--- Push visual styles for dragged/hover state.
+---@param ctx table Item context from getItemContext()
+---@param colors? table {dragAlpha?: number, hover?: table}
 function dragdrop.pushItemStyles(ctx, colors)
     colors = colors or {}
     local dragAlpha = colors.dragAlpha or 0.4
@@ -127,7 +148,8 @@ function dragdrop.pushItemStyles(ctx, colors)
     end
 end
 
---- Pop visual styles (must match pushItemStyles)
+--- Pop visual styles (must match pushItemStyles).
+---@param ctx table Item context from getItemContext()
 function dragdrop.popItemStyles(ctx)
     if ctx.isHoverTarget then
         ImGui.PopStyleColor()
@@ -137,7 +159,9 @@ function dragdrop.popItemStyles(ctx)
     end
 end
 
---- Draw drop indicator separator (only rendered when show is true)
+--- Draw a colored drop indicator separator.
+---@param show boolean Whether to render
+---@param color? table {r,g,b,a} color (default: blueHover)
 function dragdrop.drawSeparator(show, color)
     if not show then return end
     color = color or styles.colors.blueHover
@@ -146,7 +170,8 @@ function dragdrop.drawSeparator(show, color)
     ImGui.PopStyleColor()
 end
 
---- Update cursor feedback (call once after the list loop)
+--- Set hand cursor when dragging over a valid target (call once after the list loop).
+---@param state table Drag-drop state
 function dragdrop.updateCursor(state)
     if state.draggingIndex and state.hoverIndex and state.dropPosition then
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
@@ -157,7 +182,10 @@ end
 -- Array Utility
 --------------------------------------------------------------------------------
 
---- Reorder an array by moving item from one index to another
+--- Move an element in an array from one index to another (mutates in-place).
+---@param array table The array to reorder
+---@param fromIndex number Source index
+---@param toIndex number Destination index
 function dragdrop.reorderArray(array, fromIndex, toIndex)
     if fromIndex < 1 or fromIndex > #array then return end
     if toIndex < 1 or toIndex > #array then return end
@@ -174,7 +202,12 @@ end
 -- Cached states for the convenience wrapper, keyed by list ID
 local listStates = {}
 
---- Render a reorderable list with minimal boilerplate
+--- Render a reorderable list with all state, visuals, and array mutation handled internally.
+---@param id string Unique list ID
+---@param items table Array to reorder in-place on drop
+---@param renderFn function function(item, index, ctx) — render each item
+---@param onReorder? function function(fromIndex, toIndex) — called after reorder
+---@param opts? table {colors?, showHandle?, handleIcon?, handleColor?}
 function dragdrop.list(id, items, renderFn, onReorder, opts)
     if not items or #items == 0 then return end
 
@@ -218,15 +251,7 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
             end
 
             -- Track hover on handle for drop targeting
-            if state.draggingIndex and state.draggingIndex ~= i then
-                if ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
-                    state.hoverIndex = i
-                    local minY = select(2, ImGui.GetItemRectMin())
-                    local maxY = select(2, ImGui.GetItemRectMax())
-                    local mouseY = select(2, ImGui.GetMousePos())
-                    state.dropPosition = mouseY < (minY + maxY) / 2 and "above" or "below"
-                end
-            end
+            trackHover(i, state)
 
             ImGui.PopStyleVar()
             ImGui.PopStyleColor(4)

@@ -43,20 +43,24 @@ api.IsVisible = ui.isVisible
 -- Master Override Control
 --------------------------------------------------------------------------------
 
+---@return boolean
 function api.IsEnabled()
     return settings.master.enabled
 end
 
+--- Enable the master override.
 function api.Enable()
     settings.master.enabled = true
     settings.save()
 end
 
+--- Disable the master override.
 function api.Disable()
     settings.master.enabled = false
     settings.save()
 end
 
+---@param enabled boolean
 function api.SetEnabled(enabled)
     settings.master.enabled = enabled
     settings.save()
@@ -66,25 +70,30 @@ end
 -- Grid Control
 --------------------------------------------------------------------------------
 
+---@return boolean
 function api.IsGridEnabled()
     return settings.master.gridEnabled
 end
 
+--- Enable grid snapping.
 function api.EnableGrid()
     settings.master.gridEnabled = true
     settings.save()
 end
 
+--- Disable grid snapping.
 function api.DisableGrid()
     settings.master.gridEnabled = false
     settings.save()
 end
 
+---@param enabled boolean
 function api.SetGridEnabled(enabled)
     settings.master.gridEnabled = enabled
     settings.save()
 end
 
+---@return boolean newState
 function api.ToggleGrid()
     settings.master.gridEnabled = not settings.master.gridEnabled
     settings.save()
@@ -95,25 +104,30 @@ end
 -- Animation Control
 --------------------------------------------------------------------------------
 
+---@return boolean
 function api.IsAnimationEnabled()
     return settings.master.animationEnabled
 end
 
+--- Enable snap animation.
 function api.EnableAnimation()
     settings.master.animationEnabled = true
     settings.save()
 end
 
+--- Disable snap animation.
 function api.DisableAnimation()
     settings.master.animationEnabled = false
     settings.save()
 end
 
+---@param enabled boolean
 function api.SetAnimationEnabled(enabled)
     settings.master.animationEnabled = enabled
     settings.save()
 end
 
+---@return boolean newState
 function api.ToggleAnimation()
     settings.master.animationEnabled = not settings.master.animationEnabled
     settings.save()
@@ -124,25 +138,30 @@ end
 -- Tooltips Control
 --------------------------------------------------------------------------------
 
+---@return boolean
 function api.IsTooltipsEnabled()
     return settings.master.tooltipsEnabled
 end
 
+--- Enable tooltips.
 function api.EnableTooltips()
     settings.master.tooltipsEnabled = true
     settings.save()
 end
 
+--- Disable tooltips.
 function api.DisableTooltips()
     settings.master.tooltipsEnabled = false
     settings.save()
 end
 
+---@param enabled boolean
 function api.SetTooltipsEnabled(enabled)
     settings.master.tooltipsEnabled = enabled
     settings.save()
 end
 
+---@return boolean newState
 function api.ToggleTooltips()
     settings.master.tooltipsEnabled = not settings.master.tooltipsEnabled
     settings.save()
@@ -153,10 +172,13 @@ end
 -- Grid Size Control
 --------------------------------------------------------------------------------
 
+---@return number
 function api.GetGridUnits()
     return settings.master.gridUnits
 end
 
+---@param units number Grid unit count (must be > 0)
+---@return boolean success
 function api.SetGridUnits(units)
     if type(units) ~= "number" or units <= 0 then return false end
     settings.master.gridUnits = units
@@ -168,10 +190,13 @@ end
 -- Animation Duration Control
 --------------------------------------------------------------------------------
 
+---@return number
 function api.GetAnimationDuration()
     return settings.master.animationDuration
 end
 
+---@param duration number Seconds (must be > 0)
+---@return boolean success
 function api.SetAnimationDuration(duration)
     if type(duration) ~= "number" or duration <= 0 then return false end
     settings.master.animationDuration = duration
@@ -184,20 +209,22 @@ end
 --------------------------------------------------------------------------------
 
 --- Get the current master settings table (mutable reference).
--- Changes made to this table affect WindowUtils behavior.
--- Call settings.save() to persist changes.
+--- Changes made to this table affect WindowUtils behavior.
+--- Call settings.save() to persist changes.
+---@return table
 function api.GetSettings()
     return settings.master
 end
 
 --- Get the default settings table (read-only reference).
+---@return table
 function api.GetDefaults()
     return settings.defaults
 end
 
 --- Apply multiple settings at once.
--- @param settingsTable table: Key-value pairs of settings to apply
--- @return boolean: True if any settings were applied
+---@param settingsTable table Key-value pairs of settings to apply
+---@return boolean applied True if any settings were applied
 function api.ApplySettings(settingsTable)
     if type(settingsTable) ~= "table" then return false end
 
@@ -226,7 +253,7 @@ function api.ReloadSettings()
 end
 
 --- Save current settings to file.
--- @return boolean: True if save was successful
+---@return boolean success
 function api.SaveSettings()
     return settings.save()
 end
