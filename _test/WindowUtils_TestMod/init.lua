@@ -804,58 +804,92 @@ local function drawMultiSplitterDemo()
     local controls = wu.Controls
     local splitter = wu.Splitter
 
-    -- Outer vertical multi-split: 3 rows with independent dividers
-    -- Hold Shift while dragging to scale remaining panels proportionally
+    -- Outer vertical multi-split: 4 rows with independent dividers
+    -- Double-click: collapse panel to nearest wall. Shift+drag: proportional scaling.
+    -- Ctrl+drag: snap to 5% grid. Right-click: reset menu.
     splitter.multi("ms_rows", {
         { content = function()
-            -- Row 1: 3 horizontal panels
+            -- Row 1: 3 equal panels
             splitter.multi("ms_3panel", {
                 { content = function()
                     controls.Panel("ms3_p1", function()
                         ImGui.Text("Panel 1")
                         ImGui.Separator()
                         controls.TextMuted("3-panel row")
-                        controls.TextMuted("Drag dividers ->")
+                        controls.TextMuted("Dbl-click to collapse")
                     end)
                 end },
                 { content = function()
                     controls.Panel("ms3_p2", function()
                         ImGui.Text("Panel 2")
                         ImGui.Separator()
-                        controls.TextMuted("Independent dividers")
+                        controls.TextMuted("Right-click for menu")
                     end)
                 end },
                 { content = function()
                     controls.Panel("ms3_p3", function()
                         ImGui.Text("Panel 3")
                         ImGui.Separator()
-                        controls.TextMuted("<- Drag dividers")
+                        controls.TextMuted("Shift+drag to scale")
                     end)
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.33, 0.34, 0.33 } })
         end },
         { content = function()
-            -- Row 2: 2 horizontal panels
-            splitter.multi("ms_2panel", {
+            -- Row 2: Weighted panels (fixed 150px + flex 2 + flex 1 with min/max)
+            splitter.multi("ms_weighted", {
                 { content = function()
-                    controls.Panel("ms2_p1", function()
-                        ImGui.Text("Left")
+                    controls.Panel("msw_p1", function()
+                        ImGui.Text("Fixed 150px")
                         ImGui.Separator()
-                        controls.TextMuted("2-panel row")
-                        controls.TextMuted("Single divider")
+                        controls.TextMuted("width = 150")
+                    end)
+                end, width = 150 },
+                { content = function()
+                    controls.Panel("msw_p2", function()
+                        ImGui.Text("Flex 2")
+                        ImGui.Separator()
+                        controls.TextMuted("flex = 2")
+                    end)
+                end, flex = 2 },
+                { content = function()
+                    controls.Panel("msw_p3", function()
+                        ImGui.Text("Flex 1 (min 80)")
+                        ImGui.Separator()
+                        controls.TextMuted("minWidth = 80")
+                    end)
+                end, flex = 1, minWidth = 80 },
+            }, { direction = "horizontal" })
+        end },
+        { content = function()
+            -- Row 3: DynamicButton demo (resize panels to see truncation/icon modes)
+            splitter.multi("ms_dynbtn", {
+                { content = function()
+                    controls.Panel("msdb_p1", function()
+                        ImGui.Text("DynamicButton")
+                        ImGui.Separator()
+                        controls.TextMuted("Resize to see modes:")
+                        ImGui.Dummy(0, 2)
+                        controls.DynamicButton("Save Settings", "ContentSave", { style = "active" })
+                        controls.DynamicButton("Delete All Items", "Delete", { style = "danger" })
+                        controls.DynamicButton("Export Configuration", "Export", { style = "inactive" })
                     end)
                 end },
                 { content = function()
-                    controls.Panel("ms2_p2", function()
-                        ImGui.Text("Right")
+                    controls.Panel("msdb_p2", function()
+                        ImGui.Text("Normal Buttons")
                         ImGui.Separator()
-                        controls.TextMuted("Resizable")
+                        controls.TextMuted("For comparison:")
+                        ImGui.Dummy(0, 2)
+                        controls.Button("Save Settings", "active", -1)
+                        controls.Button("Delete All Items", "danger", -1)
+                        controls.Button("Export Configuration", "inactive", -1)
                     end)
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.5, 0.5 } })
         end },
         { content = function()
-            -- Row 3: 4 horizontal panels
+            -- Row 4: 4 equal panels
             splitter.multi("ms_4panel", {
                 { content = function()
                     controls.Panel("ms4_p1", function()
@@ -868,26 +902,26 @@ local function drawMultiSplitterDemo()
                     controls.Panel("ms4_p2", function()
                         ImGui.Text("Col 2")
                         ImGui.Separator()
-                        controls.TextMuted("Each divider")
+                        controls.TextMuted("Ctrl+drag snaps")
                     end)
                 end },
                 { content = function()
                     controls.Panel("ms4_p3", function()
                         ImGui.Text("Col 3")
                         ImGui.Separator()
-                        controls.TextMuted("is independent")
+                        controls.TextMuted("across all rows")
                     end)
                 end },
                 { content = function()
                     controls.Panel("ms4_p4", function()
                         ImGui.Text("Col 4")
                         ImGui.Separator()
-                        controls.TextMuted("of the others")
+                        controls.TextMuted("pixel-aligned")
                     end)
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.25, 0.25, 0.25, 0.25 } })
         end },
-    }, { direction = "vertical", defaultPcts = { 0.33, 0.34, 0.33 } })
+    }, { direction = "vertical", defaultPcts = { 0.25, 0.25, 0.25, 0.25 } })
 end
 
 --------------------------------------------------------------------------------

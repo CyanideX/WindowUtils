@@ -145,6 +145,70 @@ local function calcControlWidth(cols, hasIcon)
     return ImGui.GetContentRegionAvail()
 end
 
+--- Binary search for maximum text that fits within maxWidth, appending ellipsis.
+local function truncateText(text, maxWidth)
+    local fullWidth = ImGui.CalcTextSize(text)
+    if fullWidth <= maxWidth then return text, false end
+
+    local ellipsis = "..."
+    local ellipsisWidth = ImGui.CalcTextSize(ellipsis)
+    local targetWidth = maxWidth - ellipsisWidth
+    if targetWidth <= 0 then return ellipsis, true end
+
+    local lo, hi = 1, #text
+    local bestLen = 0
+    while lo <= hi do
+        local mid = math.floor((lo + hi) / 2)
+        local w = ImGui.CalcTextSize(text:sub(1, mid))
+        if w <= targetWidth then
+            bestLen = mid
+            lo = mid + 1
+        else
+            hi = mid - 1
+        end
+    end
+
+    if bestLen == 0 then return ellipsis, true end
+    return text:sub(1, bestLen) .. ellipsis, true
+end
+
+--- Create a button that adapts content based on available width.
+--- Normal: full text. Narrow: truncated with "...". Icon mode: icon only.
+function controls.DynamicButton(label, icon, opts)
+    opts = opts or {}
+    local iconStr = resolveIcon(icon) or opts.iconFallback or "?"
+    local iconThreshold = opts.iconThreshold or 40
+    local styleName = opts.style or "inactive"
+    local width = opts.width or ImGui.GetContentRegionAvail()
+    local height = opts.height or 0
+    if width < 0 then width = ImGui.GetContentRegionAvail() end
+
+    local padX = (frameCache.framePaddingX or 6) * 2
+    local innerWidth = width - padX
+    local displayLabel
+    local wasTruncated = false
+    local isIconMode = false
+
+    if innerWidth <= iconThreshold then
+        displayLabel = iconStr
+        isIconMode = true
+    else
+        displayLabel, wasTruncated = truncateText(label, innerWidth)
+    end
+
+    styles.PushButton(styleName)
+    local clicked = ImGui.Button(displayLabel, width, height)
+    styles.PopButton(styleName)
+
+    if (wasTruncated or isIconMode) and ImGui.IsItemHovered() then
+        ImGui.BeginTooltip()
+        ImGui.Text(opts.tooltip or label)
+        ImGui.EndTooltip()
+    end
+
+    return clicked
+end
+
 --------------------------------------------------------------------------------
 -- Sliders with Icon (Shift-style: icon on left, slider fills remaining width)
 --------------------------------------------------------------------------------
