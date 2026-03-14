@@ -1083,60 +1083,145 @@ local function drawVerticalToggleDemo()
     local controls = wu.Controls
     local splitter = wu.Splitter
 
-    -- Two rows filling the tab: top toggle demo | bottom toggle demo
-    splitter.multi("vtgl_rows", {
-        { content = function()
-            -- Top toolbar toggle (1 row, default open)
-            local rowH = ImGui.GetTextLineHeightWithSpacing()
-                + ImGui.GetStyle().WindowPadding.y * 2
-                + 2  -- border
-            splitter.toggle("vtgl_top", {
-                { content = function()
-                    controls.Panel("vtgl_top_bar", function()
-                        ImGui.Text("Toolbar")
-                        ImGui.SameLine()
-                        controls.TextMuted("  side = \"top\"")
-                    end, { bg = { 0.15, 0.15, 0.2, 1.0 } })
-                end },
-                { content = function()
-                    controls.Panel("vtgl_top_main", function()
-                        ImGui.Text("Content Below")
-                        ImGui.Separator()
-                        controls.TextMuted("Click the chevron bar to toggle the toolbar.")
-                        for i = 1, 5 do
-                            ImGui.Text("  Item " .. i)
-                        end
-                    end)
-                end },
-            }, { side = "top", size = rowH, defaultOpen = true })
+    -- Toolbar height: 1 text row + window padding + border
+    local rowH = ImGui.GetTextLineHeightWithSpacing()
+        + ImGui.GetStyle().WindowPadding.y * 2
+        + 2
+
+    -- Status bar height: 2 text rows + separator + window padding + border
+    local statusH = ImGui.GetTextLineHeightWithSpacing() * 2
+        + ImGui.GetStyle().ItemSpacing.y
+        + ImGui.GetStyle().WindowPadding.y * 2
+        + 2
+
+    -- Single multi-splitter with toggle edge panels
+    splitter.multi("vtgl_integrated", {
+        -- Lead toggle: toolbar
+        { toggle = true, size = rowH, defaultOpen = true, content = function()
+            controls.Panel("vtgl_toolbar", function()
+                ImGui.Text("Toolbar")
+                ImGui.SameLine()
+                controls.TextMuted("  toggle = true (top edge)")
+            end, { bg = { 0.15, 0.15, 0.2, 1.0 } })
         end },
+        -- Core panel 1: main content
         { content = function()
-            -- Bottom status bar toggle (2 rows + separator, default open)
-            local statusH = ImGui.GetTextLineHeightWithSpacing() * 2
-                + ImGui.GetStyle().ItemSpacing.y  -- separator
-                + ImGui.GetStyle().WindowPadding.y * 2
-                + 2  -- border
-            splitter.toggle("vtgl_bottom", {
-                { content = function()
-                    controls.Panel("vtgl_bot_panel", function()
-                        ImGui.Text("Status Bar")
+            controls.Panel("vtgl_main", function()
+                ImGui.Text("Main Content")
+                ImGui.Separator()
+                controls.TextMuted("Click the chevron bars to toggle toolbar/status bar.")
+                controls.TextMuted("Drag the divider between core panels.")
+                for i = 1, 5 do
+                    ImGui.Text("  Item " .. i)
+                end
+            end)
+        end },
+        -- Core panel 2: detail pane
+        { content = function()
+            controls.Panel("vtgl_detail", function()
+                ImGui.Text("Detail Pane")
+                ImGui.Separator()
+                controls.TextMuted("This is a second core panel, drag-resizable with the one above.")
+                for i = 1, 4 do
+                    ImGui.Text("  Log line " .. i)
+                end
+            end)
+        end },
+        -- Trail toggle: status bar
+        { toggle = true, size = statusH, defaultOpen = true, content = function()
+            controls.Panel("vtgl_status", function()
+                ImGui.Text("Status Bar")
+                ImGui.Separator()
+                controls.TextMuted("toggle = true (bottom edge)")
+            end, { bg = { 0.1, 0.12, 0.16, 1.0 } })
+        end },
+    }, { direction = "vertical" })
+end
+
+--------------------------------------------------------------------------------
+-- Tab 11: Edge Toggle Layout Demo
+--------------------------------------------------------------------------------
+
+local function drawEdgeToggleDemo()
+    local controls = wu.Controls
+    local splitter = wu.Splitter
+
+    -- Dynamic sizes from ImGui metrics
+    local lineH = ImGui.GetTextLineHeightWithSpacing()
+    local padY = ImGui.GetStyle().WindowPadding.y
+    local spacY = ImGui.GetStyle().ItemSpacing.y
+
+    local toolbarH = lineH + padY * 2 + 2
+    local statusH = lineH * 2 + spacY + padY * 2 + 2
+
+    -- Outer vertical: toolbar | core row | status bar
+    splitter.multi("etgl_outer", {
+        -- Top edge: toolbar
+        { toggle = true, size = toolbarH, defaultOpen = true, content = function()
+            controls.Panel("etgl_toolbar", function()
+                ImGui.Text("Toolbar")
+                ImGui.SameLine()
+                controls.TextMuted("  File  Edit  View  Help")
+            end, { bg = { 0.15, 0.15, 0.2, 1.0 } })
+        end },
+        -- Core: horizontal multi with sidebar + editor + properties
+        { content = function()
+            splitter.multi("etgl_inner", {
+                -- Left edge: sidebar
+                { toggle = true, size = 160, defaultOpen = true, content = function()
+                    controls.Panel("etgl_sidebar", function()
+                        ImGui.Text("Explorer")
                         ImGui.Separator()
-                        controls.TextMuted("side = \"bottom\"")
+                        for _, name in ipairs({ "init.lua", "config.lua", "utils.lua", "styles.lua", "README.md" }) do
+                            ImGui.Text("  " .. name)
+                        end
                     end, { bg = { 0.1, 0.12, 0.16, 1.0 } })
                 end },
+                -- Core panel 1: editor
                 { content = function()
-                    controls.Panel("vtgl_bot_main", function()
-                        ImGui.Text("Main Area")
+                    controls.Panel("etgl_editor", function()
+                        ImGui.Text("Editor")
                         ImGui.Separator()
-                        controls.TextMuted("Click chevron bar below to toggle the status bar.")
-                        for i = 1, 4 do
-                            ImGui.Text("  Log line " .. i)
+                        controls.TextMuted("Outer: vertical multi with top/bottom toggles.")
+                        controls.TextMuted("Inner: horizontal multi with left/right toggles.")
+                        controls.TextMuted("Drag the divider to resize editor / output.")
+                        ImGui.Dummy(0, 4)
+                        for i = 1, 6 do
+                            controls.TextMuted(string.format("  %2d |  local x = %d", i, i * 10))
                         end
                     end)
                 end },
-            }, { side = "bottom", size = statusH, defaultOpen = true })
+                -- Core panel 2: output
+                { content = function()
+                    controls.Panel("etgl_output", function()
+                        ImGui.Text("Output")
+                        ImGui.Separator()
+                        for i = 1, 4 do
+                            controls.TextMuted("  [info] message " .. i)
+                        end
+                    end)
+                end },
+                -- Right edge: properties
+                { toggle = true, size = 180, defaultOpen = false, content = function()
+                    controls.Panel("etgl_props", function()
+                        ImGui.Text("Properties")
+                        ImGui.Separator()
+                        controls.TextMuted("Name: widget_01")
+                        controls.TextMuted("Type: Button")
+                        controls.TextMuted("Visible: true")
+                    end, { bg = { 0.12, 0.1, 0.18, 1.0 } })
+                end },
+            }, { direction = "horizontal" })
         end },
-    }, { direction = "vertical", defaultPcts = { 0.5, 0.5 } })
+        -- Bottom edge: status bar
+        { toggle = true, size = statusH, defaultOpen = true, content = function()
+            controls.Panel("etgl_status", function()
+                ImGui.Text("Status Bar")
+                ImGui.Separator()
+                controls.TextMuted("Ln 42, Col 8  |  UTF-8  |  Lua")
+            end, { bg = { 0.1, 0.12, 0.16, 1.0 } })
+        end },
+    }, { direction = "vertical" })
 end
 
 --------------------------------------------------------------------------------
@@ -1428,6 +1513,7 @@ registerForEvent("onDraw", function()
             { label = "Multi-Split",   content = drawMultiSplitterDemo },
             { label = "Toggle",        content = drawTogglePanelDemo },
             { label = "V-Toggle",      content = drawVerticalToggleDemo },
+            { label = "Edge Toggle",   content = drawEdgeToggleDemo },
             { label = "Phase 3",       content = drawPhase3Demo },
         })
         if changed and selected == 5 then notifCounter = 0 end

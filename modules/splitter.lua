@@ -406,9 +406,7 @@ local function getMultiState(id, n, opts, panels)
                 grabWidth = grabWidth,
                 hovering = false,
                 dragging = false,
-                -- Collapse animation
-                collapsed = false,
-                restoreBp = nil,
+                -- Animation (used by context menu reset)
                 animFrom = nil,
                 animTo = nil,
                 animProgress = 1.0,
@@ -462,256 +460,8 @@ local function getPanelMaxFrac(panelDefs, panelIdx, totalSize, isVertical)
     return px and (px / totalSize) or 1.0
 end
 
---- Render a right-click context menu for a multi-splitter divider
-local function drawContextMenu(id, i, ms, isVertical)
-    if ImGui.BeginPopupContextItem("##splitter_ctx_" .. id .. "_d" .. i) then
-        local resetLabel = isVertical and "Reset Column" or "Reset Row"
-        if ImGui.MenuItem(resetLabel) then
-            for j = 1, #ms.defaults do
-                ms.breakpoints[j] = ms.defaults[j]
-                ms.dividers[j].collapsed = false
-                ms.dividers[j].animProgress = 1.0
-            end
-        end
-        if ImGui.MenuItem("Reset All") then
-            for _, state in pairs(multiStates) do
-                for j = 1, #state.defaults do
-                    state.breakpoints[j] = state.defaults[j]
-                end
-                for j = 1, #state.dividers do
-                    state.dividers[j].collapsed = false
-                    state.dividers[j].animProgress = 1.0
-                end
-            end
-        end
-        ImGui.EndPopup()
-    end
-end
-
---- Multi-panel layout with independent flat breakpoints.
---- Each divider moves independently — dragging divider i only affects panels i and i+1.
-function splitter.multi(id, panels, opts)
-    if not panels or #panels < 2 then return end
-    opts = opts or {}
-    local n = #panels
-    local isVertical = (opts.direction or "horizontal") == "vertical"
-    local ms = getMultiState(id, n, opts, panels)
-    local grabW = ms.grabWidth
-    local minGap = ms.minGap
-
-    -- Pre-compute all panel sizes from current breakpoints (before any drag updates)
-    local sizes = {}
-    local totalSize, totalAvail
-
-    if isVertical then
-        local availW, availH = ImGui.GetContentRegionAvail()
-        local spacingY = ImGui.GetStyle().ItemSpacing.y
-        local usableH = availH - (n - 1) * grabW
-        if usableH < 1 then return end
-        totalSize = usableH
-        totalAvail = availH
-
-        local consumed = 0
-        for i = 1, n do
-            local startFrac = (i == 1) and 0 or ms.breakpoints[i - 1]
-            local endFrac = (i == n) and 1 or ms.breakpoints[i]
-            if i == n then
-                sizes[i] = usableH - consumed
-            else
-                sizes[i] = math.floor(usableH * (endFrac - startFrac))
-                consumed = consumed + sizes[i]
-            end
-        end
-
-        -- Render all panels and grab bars
-        for i = 1, n do
-            ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, availW, sizes[i], false)
-            if panels[i].content then panels[i].content() end
-            ImGui.EndChild()
-
-            if i < n then
-                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
-                drawGrabBar(id .. "_d" .. i, ms.dividers[i], true)
-                drawContextMenu(id, i, ms, isVertical)
-                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
-            end
-        end
-    else
-        local availW = ImGui.GetContentRegionAvail()
-        local spacingX = ImGui.GetStyle().ItemSpacing.x
-        local usableW = availW - (n - 1) * grabW
-        if usableW < 1 then return end
-        totalSize = usableW
-        totalAvail = availW
-
-        local consumed = 0
-        for i = 1, n do
-            local startFrac = (i == 1) and 0 or ms.breakpoints[i - 1]
-            local endFrac = (i == n) and 1 or ms.breakpoints[i]
-            if i == n then
-                sizes[i] = usableW - consumed
-            else
-                sizes[i] = math.floor(usableW * (endFrac - startFrac))
-                consumed = consumed + sizes[i]
-            end
-        end
-
-        -- Render all panels and grab bars
-        for i = 1, n do
-            ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, sizes[i], 0, false)
-            if panels[i].content then panels[i].content() end
-            ImGui.EndChild()
-
-            if i < n then
-                ImGui.SameLine()
-                ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacingX)
-                drawGrabBar(id .. "_d" .. i, ms.dividers[i], false)
-                drawContextMenu(id, i, ms, isVertical)
-                ImGui.SameLine()
-                ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacingX)
-            end
-        end
-    end
-
-    -- Double-click divider: collapse/expand the smaller adjacent panel
-    for i = 1, n - 1 do
-        if ms.dividers[i].hovering and ImGui.IsMouseDoubleClicked(0) then
-            local div = ms.dividers[i]
-            div.dragging = false
-
-            if not div.collapsed then
-                local leftStart = (i == 1) and 0 or ms.breakpoints[i - 1]
-                local rightEnd = (i == n - 1) and 1 or ms.breakpoints[i + 1]
-                local leftSize = ms.breakpoints[i] - leftStart
-                local rightSize = rightEnd - ms.breakpoints[i]
-
-                div.restoreBp = ms.breakpoints[i]
-
-                if leftSize <= rightSize then
-                    div.animTo = leftStart + COLLAPSE_MIN
-                else
-                    div.animTo = rightEnd - COLLAPSE_MIN
-                end
-
-                div.collapsed = true
-                div.animFrom = ms.breakpoints[i]
-                div.animProgress = 0.0
-                div.animLastTime = os.clock()
-            else
-                div.animFrom = ms.breakpoints[i]
-                div.animTo = div.restoreBp or ms.defaults[i]
-                div.animProgress = 0.0
-                div.animLastTime = os.clock()
-                div.collapsed = false
-            end
-            break
-        end
-    end
-
-    -- Animation tick for multi dividers
-    for i = 1, n - 1 do
-        local div = ms.dividers[i]
-        if div.animProgress and div.animProgress < 1.0 then
-            local now = os.clock()
-            local dt = now - (div.animLastTime or now)
-            div.animLastTime = now
-            div.animProgress = math.min(1.0, div.animProgress + COLLAPSE_SPEED * dt)
-            local t = div.animProgress
-            local eased = t * t * (3 - 2 * t)
-            ms.breakpoints[i] = div.animFrom + (div.animTo - div.animFrom) * eased
-            div.dragging = false
-        end
-    end
-
-    -- Apply drag updates AFTER all rendering (prevents one-frame desync / rubber banding)
-    for i = 1, n - 1 do
-        if ms.dividers[i].dragging and (not ms.dividers[i].animProgress or ms.dividers[i].animProgress >= 1.0) then
-            -- Cancel collapse if user drags
-            if ms.dividers[i].collapsed then
-                ms.dividers[i].collapsed = false
-                ms.dividers[i].animProgress = 1.0
-            end
-
-            -- Save origin on drag start
-            if not ms.dividers[i].dragOrigin then
-                ms.dividers[i].dragOrigin = ms.breakpoints[i]
-            end
-
-            local dx, dy = ImGui.GetMouseDragDelta(0, 0)
-            local delta = isVertical and dy or dx
-            if delta ~= 0 then
-                local oldBp = ms.breakpoints[i]
-                local newBp = ms.dividers[i].dragOrigin + (delta / totalSize)
-                if isCtrlHeld() then
-                    -- Snap in pixel space relative to full available width/height
-                    local pixFrac = (newBp * totalSize + (i - 0.5) * grabW) / totalAvail
-                    pixFrac = snapValue(pixFrac)
-                    newBp = (pixFrac * totalAvail - (i - 0.5) * grabW) / totalSize
-                end
-                local shiftHeld = isShiftHeld()
-
-                if shiftHeld then
-                    -- Shift: scale all other breakpoints proportionally
-                    newBp = math.max(minGap, math.min(1 - minGap, newBp))
-                    ms.breakpoints[i] = newBp
-
-                    if oldBp > 0 then
-                        local leftScale = newBp / oldBp
-                        for j = 1, i - 1 do
-                            ms.breakpoints[j] = ms.breakpoints[j] * leftScale
-                        end
-                    end
-
-                    if oldBp < 1 then
-                        local rightScale = (1 - newBp) / (1 - oldBp)
-                        for j = i + 1, n - 1 do
-                            ms.breakpoints[j] = newBp + (ms.breakpoints[j] - oldBp) * rightScale
-                        end
-                    end
-                else
-                    -- Constraint-aware clamping
-                    local loBase = (i == 1) and 0 or ms.breakpoints[i - 1]
-                    local hiBase = (i == n - 1) and 1 or ms.breakpoints[i + 1]
-
-                    local leftMin = getPanelMinFrac(ms.panelDefs, i, totalSize, minGap, isVertical)
-                    local rightMin = getPanelMinFrac(ms.panelDefs, i + 1, totalSize, minGap, isVertical)
-                    local leftMax = getPanelMaxFrac(ms.panelDefs, i, totalSize, isVertical)
-                    local rightMax = getPanelMaxFrac(ms.panelDefs, i + 1, totalSize, isVertical)
-
-                    local lo = loBase + leftMin
-                    local hi = hiBase - rightMin
-
-                    -- Enforce max constraints
-                    local loMax = loBase + leftMax
-                    local hiMin = hiBase - rightMax
-                    if loMax < hi then hi = math.min(hi, loMax) end
-                    if hiMin > lo then lo = math.max(lo, hiMin) end
-
-                    ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
-                end
-            end
-        else
-            ms.dividers[i].dragOrigin = nil
-        end
-    end
-end
-
---- Reset a multi-splitter to default breakpoints
-function splitter.resetMulti(id)
-    local ms = multiStates[id]
-    if ms then
-        for i = 1, #ms.defaults do
-            ms.breakpoints[i] = ms.defaults[i]
-        end
-        for i = 1, #ms.dividers do
-            ms.dividers[i].collapsed = false
-            ms.dividers[i].animProgress = 1.0
-        end
-    end
-end
-
 --------------------------------------------------------------------------------
--- Toggle Panel (fixed-size, click to open/close, no drag)
+-- Toggle Panel helpers (shared by splitter.multi edge toggles and splitter.toggle)
 --------------------------------------------------------------------------------
 
 local toggleStates = {}
@@ -804,6 +554,261 @@ local function drawToggleBar(id, state, side)
 
     if state.hovering then
         ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
+    end
+end
+
+--- Render a right-click context menu for a multi-splitter divider
+local function drawContextMenu(id, i, ms, isVertical)
+    if ImGui.BeginPopupContextItem("##splitter_ctx_" .. id .. "_d" .. i) then
+        local resetLabel = isVertical and "Reset Column" or "Reset Row"
+        if ImGui.MenuItem(resetLabel) then
+            for j = 1, #ms.defaults do
+                ms.breakpoints[j] = ms.defaults[j]
+            end
+        end
+        if ImGui.MenuItem("Reset All") then
+            for _, state in pairs(multiStates) do
+                for j = 1, #state.defaults do
+                    state.breakpoints[j] = state.defaults[j]
+                end
+            end
+        end
+        ImGui.EndPopup()
+    end
+end
+
+--- Multi-panel layout with independent flat breakpoints.
+--- Each divider moves independently — dragging divider i only affects panels i and i+1.
+function splitter.multi(id, panels, opts)
+    if not panels or #panels < 2 then return end
+    opts = opts or {}
+    local n = #panels
+    local isVertical = (opts.direction or "horizontal") == "vertical"
+
+    -- Detect edge toggle panels (only first/last may be toggles)
+    local leadToggle = panels[1] and panels[1].toggle and panels[1] or nil
+    local trailToggle = panels[n] and panels[n].toggle and panels[n] or nil
+
+    -- Build core (draggable) panel list
+    local corePanels = {}
+    local coreStart = leadToggle and 2 or 1
+    local coreEnd = trailToggle and (n - 1) or n
+    for i = coreStart, coreEnd do
+        corePanels[#corePanels + 1] = panels[i]
+    end
+    local coreN = #corePanels
+    if coreN < 1 then return end
+
+    local ms = getMultiState(id, coreN, opts, corePanels)
+    local grabW = ms.grabWidth
+    local minGap = ms.minGap
+
+    -- Available space
+    local availW, availH = ImGui.GetContentRegionAvail()
+    local totalAvail = isVertical and availH or availW
+    local spacing = isVertical and ImGui.GetStyle().ItemSpacing.y
+                                or ImGui.GetStyle().ItemSpacing.x
+
+    -- Toggle animation helper (same smoothstep as splitter.toggle)
+    local function tickToggle(tglState)
+        local now = os.clock()
+        local dt = now - tglState.lastTime
+        tglState.lastTime = now
+        local target = tglState.isOpen and 1.0 or 0.0
+        if tglState.animProgress < target then
+            tglState.animProgress = math.min(target, tglState.animProgress + tglState.speed * dt)
+        elseif tglState.animProgress > target then
+            tglState.animProgress = math.max(target, tglState.animProgress - tglState.speed * dt)
+        end
+        local t = tglState.animProgress
+        return t * t * (3 - 2 * t)
+    end
+
+    -- Compute toggle animated sizes
+    local leadState, leadSize, leadBarW = nil, 0, 0
+    if leadToggle then
+        leadState = getToggleState(id .. "_tgl_lead", leadToggle)
+        local eased = tickToggle(leadState)
+        local expandedSize = parseSizeSpec(leadToggle.size, totalAvail) or 0
+        leadSize = math.floor(expandedSize * eased)
+        leadBarW = leadState.barWidth
+    end
+
+    local trailState, trailSize, trailBarW = nil, 0, 0
+    if trailToggle then
+        trailState = getToggleState(id .. "_tgl_trail", trailToggle)
+        local eased = tickToggle(trailState)
+        local expandedSize = parseSizeSpec(trailToggle.size, totalAvail) or 0
+        trailSize = math.floor(expandedSize * eased)
+        trailBarW = trailState.barWidth
+    end
+
+    -- Core panel space = total minus toggle panels and bars
+    local toggleSpace = leadSize + leadBarW + trailSize + trailBarW
+    local coreAvail = totalAvail - toggleSpace
+    local coreUsable = coreAvail - (coreN > 1 and (coreN - 1) * grabW or 0)
+    if coreUsable < 1 then return end
+    local totalSize = coreUsable
+
+    -- Compute core panel pixel sizes from breakpoints
+    local sizes = {}
+    local consumed = 0
+    for i = 1, coreN do
+        local startFrac = (i == 1) and 0 or ms.breakpoints[i - 1]
+        local endFrac = (i == coreN) and 1 or ms.breakpoints[i]
+        if i == coreN then
+            sizes[i] = coreUsable - consumed
+        else
+            sizes[i] = math.floor(coreUsable * (endFrac - startFrac))
+            consumed = consumed + sizes[i]
+        end
+    end
+
+    -- Cancel ItemSpacing between elements (matches splitter.horizontal / .vertical)
+    local function cancelSpacing()
+        if isVertical then
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacing)
+        else
+            ImGui.SameLine()
+            ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacing)
+        end
+    end
+
+    local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+    local leadSide = isVertical and "top" or "left"
+    local trailSide = isVertical and "bottom" or "right"
+
+    -- 1. Lead toggle panel + toggle bar
+    if leadToggle then
+        if leadSize > 0 then
+            local cw = isVertical and availW or leadSize
+            local ch = isVertical and leadSize or 0
+            ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_lead", cw, ch, false, noScroll)
+            if leadToggle.content then leadToggle.content() end
+            ImGui.EndChild()
+            cancelSpacing()
+        end
+        drawToggleBar(id .. "_tgl_lead", leadState, leadSide)
+        cancelSpacing()
+    end
+
+    -- 2. Core panels with dividers
+    for i = 1, coreN do
+        local cw = isVertical and availW or sizes[i]
+        local ch = isVertical and sizes[i] or 0
+        ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, cw, ch, false)
+        if corePanels[i].content then corePanels[i].content() end
+        ImGui.EndChild()
+
+        if i < coreN then
+            cancelSpacing()
+            drawGrabBar(id .. "_d" .. i, ms.dividers[i], isVertical)
+            drawContextMenu(id, i, ms, isVertical)
+            cancelSpacing()
+        end
+    end
+
+    -- 3. Trail toggle bar + toggle panel
+    if trailToggle then
+        cancelSpacing()
+        drawToggleBar(id .. "_tgl_trail", trailState, trailSide)
+        if trailSize > 0 then
+            cancelSpacing()
+            local cw = isVertical and availW or trailSize
+            local ch = isVertical and trailSize or 0
+            ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_trail", cw, ch, false, noScroll)
+            if trailToggle.content then trailToggle.content() end
+            ImGui.EndChild()
+        end
+    end
+
+    -- Animation tick for multi dividers (used by context menu "Reset")
+    for i = 1, coreN - 1 do
+        local div = ms.dividers[i]
+        if div.animProgress and div.animProgress < 1.0 then
+            local now = os.clock()
+            local dt = now - (div.animLastTime or now)
+            div.animLastTime = now
+            div.animProgress = math.min(1.0, div.animProgress + COLLAPSE_SPEED * dt)
+            local t = div.animProgress
+            local eased = t * t * (3 - 2 * t)
+            ms.breakpoints[i] = div.animFrom + (div.animTo - div.animFrom) * eased
+            div.dragging = false
+        end
+    end
+
+    -- Apply drag updates AFTER all rendering (prevents one-frame desync / rubber banding)
+    for i = 1, coreN - 1 do
+        if ms.dividers[i].dragging and (not ms.dividers[i].animProgress or ms.dividers[i].animProgress >= 1.0) then
+            if not ms.dividers[i].dragOrigin then
+                ms.dividers[i].dragOrigin = ms.breakpoints[i]
+            end
+
+            local dx, dy = ImGui.GetMouseDragDelta(0, 0)
+            local delta = isVertical and dy or dx
+            if delta ~= 0 then
+                local oldBp = ms.breakpoints[i]
+                local newBp = ms.dividers[i].dragOrigin + (delta / totalSize)
+                if isCtrlHeld() then
+                    local pixFrac = (newBp * totalSize + (i - 0.5) * grabW) / coreAvail
+                    pixFrac = snapValue(pixFrac)
+                    newBp = (pixFrac * coreAvail - (i - 0.5) * grabW) / totalSize
+                end
+                local shiftHeld = isShiftHeld()
+
+                if shiftHeld then
+                    newBp = math.max(minGap, math.min(1 - minGap, newBp))
+                    ms.breakpoints[i] = newBp
+
+                    if oldBp > 0 then
+                        local leftScale = newBp / oldBp
+                        for j = 1, i - 1 do
+                            ms.breakpoints[j] = ms.breakpoints[j] * leftScale
+                        end
+                    end
+
+                    if oldBp < 1 then
+                        local rightScale = (1 - newBp) / (1 - oldBp)
+                        for j = i + 1, coreN - 1 do
+                            ms.breakpoints[j] = newBp + (ms.breakpoints[j] - oldBp) * rightScale
+                        end
+                    end
+                else
+                    local loBase = (i == 1) and 0 or ms.breakpoints[i - 1]
+                    local hiBase = (i == coreN - 1) and 1 or ms.breakpoints[i + 1]
+
+                    local leftMin = getPanelMinFrac(ms.panelDefs, i, totalSize, minGap, isVertical)
+                    local rightMin = getPanelMinFrac(ms.panelDefs, i + 1, totalSize, minGap, isVertical)
+                    local leftMax = getPanelMaxFrac(ms.panelDefs, i, totalSize, isVertical)
+                    local rightMax = getPanelMaxFrac(ms.panelDefs, i + 1, totalSize, isVertical)
+
+                    local lo = loBase + leftMin
+                    local hi = hiBase - rightMin
+
+                    local loMax = loBase + leftMax
+                    local hiMin = hiBase - rightMax
+                    if loMax < hi then hi = math.min(hi, loMax) end
+                    if hiMin > lo then lo = math.max(lo, hiMin) end
+
+                    ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
+                end
+            end
+        else
+            ms.dividers[i].dragOrigin = nil
+        end
+    end
+end
+
+--- Reset a multi-splitter to default breakpoints
+function splitter.resetMulti(id)
+    local ms = multiStates[id]
+    if ms then
+        for i = 1, #ms.defaults do
+            ms.breakpoints[i] = ms.defaults[i]
+        end
+        for i = 1, #ms.dividers do
+            ms.dividers[i].animProgress = 1.0
+        end
     end
 end
 
