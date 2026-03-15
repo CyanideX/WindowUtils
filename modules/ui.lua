@@ -56,9 +56,7 @@ local function getBlurService()
     return nil
 end
 
-local function smoothEase(t)
-    return t * t * (3 - 2 * t)
-end
+local easeInOut = core.easeInOut
 
 --------------------------------------------------------------------------------
 -- Blur Control
@@ -118,7 +116,7 @@ function ui.updateBlurAnimation()
 
     local elapsed = os.clock() - ui.blur.startTime
     local progress = math.min(elapsed / duration, 1.0)
-    local easedProgress = smoothEase(progress)
+    local easedProgress = easeInOut(progress)
 
     if ui.blur.animationType == "fade_in" then
         ui.blur.currentRadius = easedProgress * ui.blur.targetRadius

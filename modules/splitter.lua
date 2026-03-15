@@ -5,6 +5,9 @@
 
 local styles = require("modules/styles")
 local utils = require("modules/utils")
+local core = require("modules/core")
+
+local easeInOut = core.easeInOut
 
 local splitter = {}
 
@@ -216,8 +219,7 @@ local function drawGrabBar(id, state, isVertical)
         state.animLastTime = now
         state.animProgress = math.min(1.0, state.animProgress + COLLAPSE_SPEED * dt)
         local t = state.animProgress
-        local eased = t * t * (3 - 2 * t)
-        state.pct = state.animFrom + (state.animTo - state.animFrom) * eased
+        state.pct = state.animFrom + (state.animTo - state.animFrom) * easeInOut(t)
         state.dragging = false
     end
 
@@ -639,7 +641,7 @@ function splitter.multi(id, panels, opts)
             tglState.animProgress = math.max(target, tglState.animProgress - tglState.speed * dt)
         end
         local t = tglState.animProgress
-        return t * t * (3 - 2 * t)
+        return easeInOut(t)
     end
 
     -- Compute toggle animated sizes
@@ -749,8 +751,7 @@ function splitter.multi(id, panels, opts)
             div.animLastTime = now
             div.animProgress = math.min(1.0, div.animProgress + COLLAPSE_SPEED * dt)
             local t = div.animProgress
-            local eased = t * t * (3 - 2 * t)
-            ms.breakpoints[i] = div.animFrom + (div.animTo - div.animFrom) * eased
+            ms.breakpoints[i] = div.animFrom + (div.animTo - div.animFrom) * easeInOut(t)
             div.dragging = false
         end
     end

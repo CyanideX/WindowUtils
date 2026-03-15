@@ -73,7 +73,6 @@ local lastFrameTime = 0
 
 -- Offscreen position threshold (windows at 9000+ are hidden by other mods)
 local OFFSCREEN_THRESHOLD = 9000
-core.OFFSCREEN_THRESHOLD = OFFSCREEN_THRESHOLD
 
 -- Core exclusion list: known CET/ImGui internal windows that should never be managed
 local coreExcludedWindows = {
@@ -183,6 +182,9 @@ local easeFunctions = {
         end
     end
 }
+
+-- Expose easeInOut for modules that need simple smooth interpolation
+core.easeInOut = easeFunctions.easeInOut
 
 local isShiftHeld = utils.isShiftHeld
 
@@ -1247,7 +1249,6 @@ function core.processDeferred()
         if op.targetSizeX and op.targetSizeY then
             ImGui.SetWindowSize(op.windowName, op.targetSizeX, op.targetSizeY)
         end
-        deferredSnapOperations[i] = nil
     end
     deferredSnapCount = 0
 end

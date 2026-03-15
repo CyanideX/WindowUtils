@@ -114,17 +114,4 @@ function discovery.getActiveWindows()
     return windows
 end
 
---- Get an array of all discovered window names.
----@return string[]
-function discovery.getWindowNames()
-    local names = {}
-    local windows = discovery.getActiveWindows()
-
-    for _, window in ipairs(windows) do
-        table.insert(names, window.name)
-    end
-
-    return names
-end
-
 return discovery
