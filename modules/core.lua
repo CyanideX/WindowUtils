@@ -65,9 +65,6 @@ local dragStartPos = {
 -- Grid size cache (avoids recalculating every frame)
 local gridSizeCache = {}
 
--- Exclusion set (hash table for fast lookup, rebuilt from settings.master.excludedWindows)
-local excludedWindowSet = {}
-
 -- Re-probe state
 local blockedReprobeTimer = 0  -- Timer for batch BLOCKED re-probe
 local activeReprobeTimer = 0   -- Timer for batch ACTIVE re-probe (auto-removal)
@@ -875,22 +872,9 @@ local function getExternalWindowState(windowName)
     return externalWindowStates[windowName]
 end
 
-function core.rebuildExclusionSet()
-    excludedWindowSet = {}
-    if settings.master.excludedWindows then
-        for _, name in ipairs(settings.master.excludedWindows) do
-            excludedWindowSet[name] = true
-        end
-    end
-end
-
 local function shouldManageWindow(windowName)
     -- Skip known CET/ImGui internal windows
     if coreExcludedWindows[windowName] then
-        return false
-    end
-    -- Skip windows on the user exclusion list
-    if excludedWindowSet[windowName] then
         return false
     end
     -- Skip windows already managed internally
@@ -928,27 +912,7 @@ end
 
 -- Manage a confirmed-active external window: drag detection, snap, animation.
 local function manageExternalWindow(windowName, state)
-    local usePOpen = settings.master.windowPOpen and settings.master.windowPOpen[windowName]
-    local visible
-    if usePOpen then
-        local open
-        visible, open = ImGui.Begin(windowName, true)
-        if not open then
-            -- User closed via X button — transition to blocked
-            ImGui.End()
-            state.probePhase = PROBE_BLOCKED
-            state.blockedPosX = 0
-            state.blockedPosY = 0
-            state.blockedSizeX = 0
-            state.blockedSizeY = 0
-            state.isDragging = false
-            state.pendingDragCheck = false
-
-            return
-        end
-    else
-        visible = ImGui.Begin(windowName)
-    end
+    local visible = ImGui.Begin(windowName)
     -- NOTE: Don't return early when not visible (collapsed windows) — we still
     -- need drag detection, grid snapping, collapse tracking, and size restoration.
     -- All ImGui state queries work inside Begin/End regardless of collapse state.
@@ -1346,60 +1310,6 @@ function core.saveWindowCache()
     if not file then return end
     file:write(content)
     file:close()
-end
-
---------------------------------------------------------------------------------
--- Probe Constants & Browser API
---------------------------------------------------------------------------------
-
--- Expose probe phase constants for external modules (browser, API)
-core.PROBE_SKIP = PROBE_SKIP
-core.PROBE_CHECK = PROBE_CHECK
-core.PROBE_ACTIVE = PROBE_ACTIVE
-core.PROBE_BLOCKED = PROBE_BLOCKED
-
-function core.getExternalWindowStates()
-    local result = {}
-    for name, state in pairs(externalWindowStates) do
-        result[name] = {
-            probePhase = state.probePhase,
-            isDragging = state.isDragging,
-            animating = state.animating,
-        }
-    end
-    return result
-end
-
-function core.addExclusion(windowName)
-    if not settings.master.excludedWindows then
-        settings.master.excludedWindows = {}
-    end
-    for _, name in ipairs(settings.master.excludedWindows) do
-        if name == windowName then return end
-    end
-    settings.master.excludedWindows[#settings.master.excludedWindows + 1] = windowName
-    core.rebuildExclusionSet()
-    settings.save()
-end
-
-function core.removeExclusion(windowName)
-    if not settings.master.excludedWindows then return end
-    for i, name in ipairs(settings.master.excludedWindows) do
-        if name == windowName then
-            table.remove(settings.master.excludedWindows, i)
-            core.rebuildExclusionSet()
-            settings.save()
-            return
-        end
-    end
-end
-
-function core.setPOpen(windowName, value)
-    if not settings.master.windowPOpen then
-        settings.master.windowPOpen = {}
-    end
-    settings.master.windowPOpen[windowName] = value or nil
-    settings.save()
 end
 
 return core

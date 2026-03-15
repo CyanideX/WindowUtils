@@ -6,7 +6,6 @@
 local settings = require("modules/settings")
 local core = require("modules/core")
 local controls = require("modules/controls")
-local browser = require("modules/browser")
 
 local ui = {}
 
@@ -783,9 +782,6 @@ function ui.drawSettingsWindow()
             c:Checkbox("Batch Auto-Remove", "batchAutoRemove", { tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)" })
         end
 
-        if controls.Button("Window Browser", "inactive", ImGui.GetContentRegionAvail(), 0) then
-            browser.toggle()
-        end
     end
 
     if not settings.master.enabled then

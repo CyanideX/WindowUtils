@@ -17,7 +17,6 @@ local settings = require("modules/settings")
 local utils = require("modules/utils")
 local core = require("modules/core")
 local ui = require("modules/ui")
-local browser = require("modules/browser")
 local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")
@@ -119,7 +118,6 @@ end)
 registerForEvent("onInit", function()
     settings.load()
     core.loadWindowCache()
-    core.rebuildExclusionSet()
     ui.init()
 
     settings.debugPrint("Initialized!", true)
@@ -137,9 +135,6 @@ registerForEvent("onDraw", function()
         ui.updateBlurDragState()
 
         ui.drawSettingsWindow()
-
-        -- Draw window browser if open
-        browser.draw()
 
         -- Process external windows if override is enabled
         core.updateExternalWindows()
