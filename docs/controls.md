@@ -303,28 +303,39 @@ ImGui.Button("Footer Button", c.RemainingWidth(), 0)
 
 ### `Panel(id, contentFn, opts?)`
 
-Child region with optional background color and border. A simpler alternative to `BeginFillChild`/`EndFillChild` for non-expanding regions.
+Child region with optional background color and border. Always has internal padding (`AlwaysUseWindowPadding`). A simpler alternative to `BeginFillChild`/`EndFillChild` for non-expanding regions.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | id | string | — | Child window ID (auto-prefixed with `##` if needed) |
 | contentFn | function | — | Renders panel content |
 | opts.bg | table\|false | subtle blue | Background color `{r,g,b,a}` or `false` for none |
-| opts.border | boolean | true | Show border |
+| opts.border | boolean | false | Show border |
+| opts.borderOnHover | boolean | false | Show border only when hovered |
 | opts.width | number | 0 | Panel width (0 = fill available) |
 | opts.height | number | 0 | Panel height (0 = auto-fit content) |
 | opts.flags | number | 0 | Extra ImGui window flags |
 
 ```lua
--- Default styled panel
+-- Default styled panel (no border, subtle background)
 c.Panel("info", function()
     ImGui.Text("Panel content")
 end)
 
--- Custom background, no border
+-- Explicit border
+c.Panel("bordered", function()
+    ImGui.Text("Bordered panel")
+end, { border = true })
+
+-- Border appears on hover
+c.Panel("interactive", function()
+    ImGui.Text("Hover me")
+end, { borderOnHover = true })
+
+-- Custom background
 c.Panel("custom", function()
     ImGui.Text("Dark panel")
-end, { bg = { 0.1, 0.1, 0.1, 0.8 }, border = false })
+end, { bg = { 0.1, 0.1, 0.1, 0.8 } })
 
 -- Fixed-size panel
 c.Panel("fixed", drawContent, { width = 300, height = 200 })
@@ -401,38 +412,52 @@ c.Row("triple", {
 
 ### `Column(id, defs, opts?)`
 
-Vertical column of child windows that fills available height. Each child can have a fixed pixel height or a flex share of remaining space.
+Vertical column of child windows that fills available height. Children can be flex (proportional), fixed height, or auto-sized. DPI-scaled gap spacing is applied between children by default.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | id | string | — | Unique column ID |
 | defs | table | — | Array of child definitions (see below) |
-| opts.gap | number\|nil | ItemSpacing.y | Gap between children |
+| opts.gap | number\|nil | ItemSpacing.y × 2 | Gap between children (0 = flush) |
 
 **Child definition fields:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | content | function | — | Renders child content |
-| height | number\|nil | nil | Fixed height in pixels |
 | flex | number\|nil | 1 | Proportional share of remaining space |
+| height | number\|nil | nil | Fixed height in pixels (auto-adds `NoScrollbar`) |
+| auto | boolean\|nil | nil | Auto-size to content (no child window, rendered inline) |
 | border | boolean | false | Show child border |
 | flags | number | 0 | Extra ImGui window flags |
 | bg | table\|nil | nil | Background color `{r,g,b,a}` |
 
+**Child types:**
+- **flex** (default) — proportional share of remaining height after fixed/auto children
+- **height** — fixed pixel height; automatically gets `NoScrollbar` flag
+- **auto** — rendered inline without a child window; height measured automatically each frame. Ideal for footers with buttons/text where manual height calculation is impractical
+
 ```lua
--- Header + scrollable content + footer (dynamic height)
-local rowH = ImGui.GetTextLineHeight() + ImGui.GetStyle().WindowPadding.y * 2
+-- Two flex panels + auto-sized footer (no height calculation needed)
 c.Column("page", {
-    { height = rowH, content = drawHeader },
-    { content = drawScrollableContent },
-    { height = rowH, content = drawFooter },
+    { flex = 1, content = drawTopPanel },
+    { flex = 1, content = drawBottomPanel },
+    { auto = true, content = function()
+        if c.Button("Reset", "inactive") then reset() end
+    end },
 })
 
--- Two equal stacked panels
-c.Column("stack", {
-    { content = drawTop },
-    { content = drawBottom },
+-- Flush children (no gap)
+c.Column("tight", {
+    { content = drawA },
+    { content = drawB },
+}, { gap = 0 })
+
+-- Fixed header + scrollable content
+local rowH = ImGui.GetFrameHeight()
+c.Column("layout", {
+    { height = rowH, content = drawHeader },
+    { content = drawScrollableContent },
 })
 ```
 

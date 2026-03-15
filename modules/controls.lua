@@ -1037,7 +1037,7 @@ local columnAutoCache = {}
 --- Children can be flex (fill proportional space), fixed height, or auto-sized.
 ---@param id string Unique column ID prefix
 ---@param defs table Array of row defs: {flex?, height?, auto?, bg?, border?, flags?, content?}
----@param opts? table Currently unused, reserved for future options
+---@param opts? table {gap?} gap = spacing in pixels between children (default ItemSpacing.y * 2)
 ---@return nil
 function controls.Column(id, defs, opts)
     if not defs or #defs == 0 then return end
@@ -1045,8 +1045,10 @@ function controls.Column(id, defs, opts)
 
     -- Phase 1: calculate heights (cancel spacing between children, matching splitter pattern)
     local spacingY = ImGui.GetStyle().ItemSpacing.y
+    local gap = opts.gap or spacingY * 2
     local availW, availH = ImGui.GetContentRegionAvail()
     availH = math.max(availH, 1)
+    local totalGap = gap * math.max(#defs - 1, 0)
     local fixedH = 0
     local totalFlex = 0
 
@@ -1066,12 +1068,12 @@ function controls.Column(id, defs, opts)
         end
     end
 
-    local remainingH = math.max(availH - fixedH, 0)
+    local remainingH = math.max(availH - fixedH - totalGap, 0)
 
-    -- Phase 2: render children, cancelling implicit item spacing between them
+    -- Phase 2: render children, cancelling implicit item spacing and applying gap
     for i, def in ipairs(defs) do
         if i > 1 then
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY + gap)
         end
 
         if def.auto then
