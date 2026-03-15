@@ -459,9 +459,10 @@ local function getPanelMinFrac(panelDefs, panelIdx, totalSize, minGap, isVertica
 
     -- Auto-detect minimum when no explicit min is set
     if not px and panel.autoMin ~= false then
-        local autoMinPx = utils.minIconButtonWidth()
+        local style = ImGui.GetStyle()
+        local autoMinPx = utils.minIconButtonWidth(style.FramePadding.x)
         local padKey = isVertical and "y" or "x"
-        autoMinPx = autoMinPx + ImGui.GetStyle().WindowPadding[padKey] * 2
+        autoMinPx = autoMinPx + style.WindowPadding[padKey] * 2
         px = autoMinPx
     end
 
