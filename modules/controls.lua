@@ -1044,9 +1044,7 @@ function controls.Column(id, defs, opts)
     opts = opts or {}
 
     -- Phase 1: calculate heights (cancel spacing between children, matching splitter pattern)
-    local style = ImGui.GetStyle()
-    local spacingY = style.ItemSpacing.y
-    local padY = style.WindowPadding.y
+    local spacingY = ImGui.GetStyle().ItemSpacing.y
     local availW, availH = ImGui.GetContentRegionAvail()
     availH = math.max(availH, 1)
     local fixedH = 0
@@ -1062,8 +1060,7 @@ function controls.Column(id, defs, opts)
         if def.auto then
             fixedH = fixedH + (autoCache[i] or 0)
         elseif def.height then
-            -- height = content height; child window needs +2*padY for AlwaysUseWindowPadding
-            fixedH = fixedH + def.height + 2 * padY
+            fixedH = fixedH + def.height
         else
             totalFlex = totalFlex + (def.flex or 1)
         end
@@ -1086,7 +1083,7 @@ function controls.Column(id, defs, opts)
         else
             local childH
             if def.height then
-                childH = def.height + 2 * padY
+                childH = def.height
             else
                 childH = totalFlex > 0
                     and math.floor(remainingH * (def.flex or 1) / totalFlex)
@@ -1098,7 +1095,7 @@ function controls.Column(id, defs, opts)
             end
 
             local childId = "##col_" .. id .. "_" .. i
-            local childFlags = ImGuiWindowFlags.AlwaysUseWindowPadding + (def.flags or 0)
+            local childFlags = (def.flags or 0)
             if def.height then
                 childFlags = childFlags + ImGuiWindowFlags.NoScrollbar
             end
