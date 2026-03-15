@@ -11,6 +11,9 @@ local visible = false
 local demoDefaults = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
 local demoState = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
 local notifCounter = 0
+local notifBadgeMode = "count"   -- "none", "dot", "count"
+local notifBadgeCount = 0
+local notifClearOnOpen = false
 
 -- Demo state for advanced controls (percent sliders, toggles, transforms)
 local advDefaults = {
@@ -396,6 +399,7 @@ local function drawControlsDemo()
 
                 if controls.Button("  Info Toast  ", "inactive", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
+                    notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.info("This is an info message #" .. notifCounter)
                 end
                 tooltips.ShowBullets("wu.Notify.info(message, opts)", {
@@ -404,6 +408,7 @@ local function drawControlsDemo()
                 ImGui.SameLine()
                 if controls.Button("  Success Toast  ", "active", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
+                    notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.success("Operation completed! #" .. notifCounter)
                 end
                 tooltips.ShowBullets("wu.Notify.success(message, opts)", {
@@ -412,6 +417,7 @@ local function drawControlsDemo()
 
                 if controls.Button("  Warning Toast  ", "warning", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
+                    notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.warn("Caution: something needs attention #" .. notifCounter)
                 end
                 tooltips.ShowBullets("wu.Notify.warn(message, opts)", {
@@ -420,10 +426,39 @@ local function drawControlsDemo()
                 ImGui.SameLine()
                 if controls.Button("  Error Toast  ", "danger", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
+                    notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.error("Something went wrong! #" .. notifCounter)
                 end
                 tooltips.ShowBullets("wu.Notify.error(message, opts)", {
                     "Red error toast notification",
+                })
+
+                ImGui.Dummy(0, 8)
+                controls.TextMuted("Tab badge demo:")
+                ImGui.Dummy(0, 2)
+
+                controls.ButtonRow({
+                    { label = "No Badge",    style = notifBadgeMode == "none"  and "active" or "inactive",
+                      onClick = function() notifBadgeMode = "none" end },
+                    { label = "Green Dot",   style = notifBadgeMode == "dot"   and "active" or "inactive",
+                      onClick = function() notifBadgeMode = "dot" end },
+                    { label = "Count Badge", style = notifBadgeMode == "count" and "active" or "inactive",
+                      onClick = function() notifBadgeMode = "count" end },
+                })
+                tooltips.ShowBullets("Tab badge options", {
+                    "tab.badge = true  -> green dot",
+                    "tab.badge = <number>  -> red count badge",
+                    "tab.badge = nil/false  -> no badge",
+                })
+
+                ImGui.Dummy(0, 4)
+
+                controls.ButtonRow({
+                    { label = "Clear on Tab Open: " .. (notifClearOnOpen and "ON" or "OFF"),
+                      style = notifClearOnOpen and "active" or "inactive",
+                      onClick = function() notifClearOnOpen = not notifClearOnOpen end },
+                    { label = "Clear Now", style = "inactive",
+                      onClick = function() notifBadgeCount = 0 end },
                 })
             end
             end)
@@ -915,14 +950,25 @@ registerForEvent("onDraw", function()
         local cw, ch = ImGui.GetContentRegionAvail()
         local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
         ImGui.BeginChild("##testmod_content", cw, ch, false, noScroll)
-        tabs.bar("##testmod_tabs", {
-            { label = "Controls",    content = drawControlsDemo },
+        local controlsBadge = nil
+        if notifBadgeMode == "dot" and notifBadgeCount > 0 then
+            controlsBadge = true
+        elseif notifBadgeMode == "count" and notifBadgeCount > 0 then
+            controlsBadge = notifBadgeCount
+        end
+
+        local selected, changed = tabs.bar("##testmod_tabs", {
+            { label = "Controls",    content = drawControlsDemo, badge = controlsBadge },
             { label = "Drag & Drop", content = drawDragDropDemo },
             { label = "Splitters",   content = drawSplitterDemo },
             { label = "Multi-Split", content = drawMultiSplitterDemo },
             { label = "Toggle",      content = drawTogglePanelDemo },
             { label = "Edge Toggle", content = drawEdgeToggleDemo },
         })
+
+        if changed and selected == 1 and notifClearOnOpen then
+            notifBadgeCount = 0
+        end
         ImGui.EndChild()
     end
     ImGui.End()
