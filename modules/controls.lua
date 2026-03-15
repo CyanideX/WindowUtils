@@ -940,13 +940,12 @@ function controls.BeginFillChild(id, opts)
         ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0))
     end
 
-    local windowHeight = ImGui.GetWindowHeight()
-    local _, cursorY = ImGui.GetCursorPos()
-    local paddingY = frameCache.windowPaddingY
-    local childHeight = math.max(windowHeight - cursorY - paddingY - footerHeight, 1)
+    local width, contentAvailH = ImGui.GetContentRegionAvail()
+    -- Subtract footer + item spacing between child and footer (if any)
+    local spacingBeforeFooter = footerHeight > 0 and ImGui.GetStyle().ItemSpacing.y or 0
+    local childHeight = math.max(contentAvailH - footerHeight - spacingBeforeFooter, 1)
 
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + extraFlags
-    local width = ImGui.GetContentRegionAvail()
 
     return ImGui.BeginChild(childId, width, childHeight, border, flags)
 end
@@ -1031,58 +1030,81 @@ end
 -- Layout: Column (vertical child windows)
 --------------------------------------------------------------------------------
 
---- Vertical column of child windows that fills available height
+-- Auto-size cache for Column: [columnId] = { [childIndex] = measuredHeight }
+local columnAutoCache = {}
+
+--- Vertical column of child windows that fills available height.
+--- Children can be flex (fill proportional space), fixed height, or auto-sized.
 ---@param id string Unique column ID prefix
----@param defs table Array of row defs: {height?, flex?, bg?, border?, flags?, content?}
+---@param defs table Array of row defs: {flex?, height?, auto?, bg?, border?, flags?, content?}
 ---@param opts? table Currently unused, reserved for future options
 ---@return nil
 function controls.Column(id, defs, opts)
     if not defs or #defs == 0 then return end
     opts = opts or {}
 
-    -- Phase 1: calculate heights
-    -- ImGui adds itemSpacingY between each child automatically
-    local spacingY = frameCache.itemSpacingY
-    local windowH = ImGui.GetWindowHeight()
-    local _, cursorY = ImGui.GetCursorPos()
-    local paddingY = frameCache.windowPaddingY
-    local availH = math.max(windowH - cursorY - paddingY, 1)
-    local implicitGap = spacingY * (#defs - 1)
+    -- Phase 1: calculate heights (cancel spacing between children, matching splitter pattern)
+    local style = ImGui.GetStyle()
+    local spacingY = style.ItemSpacing.y
+    local padY = style.WindowPadding.y
+    local availW, availH = ImGui.GetContentRegionAvail()
+    availH = math.max(availH, 1)
     local fixedH = 0
     local totalFlex = 0
 
-    for _, def in ipairs(defs) do
-        if def.height then
-            fixedH = fixedH + def.height
+    local autoCache = columnAutoCache[id]
+    if not autoCache then
+        autoCache = {}
+        columnAutoCache[id] = autoCache
+    end
+
+    for i, def in ipairs(defs) do
+        if def.auto then
+            fixedH = fixedH + (autoCache[i] or 0)
+        elseif def.height then
+            -- height = content height; child window needs +2*padY for AlwaysUseWindowPadding
+            fixedH = fixedH + def.height + 2 * padY
         else
             totalFlex = totalFlex + (def.flex or 1)
         end
     end
 
-    local remainingH = math.max(availH - implicitGap - fixedH, 0)
-    local availW = ImGui.GetContentRegionAvail()
+    local remainingH = math.max(availH - fixedH, 0)
 
-    -- Phase 2: render children
+    -- Phase 2: render children, cancelling implicit item spacing between them
     for i, def in ipairs(defs) do
-        local childH
-        if def.height then
-            childH = def.height
+        if i > 1 then
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
+        end
+
+        if def.auto then
+            -- Auto-sized: render inline (no child window), measure content height
+            local _, startY = ImGui.GetCursorPos()
+            if def.content then def.content() end
+            local _, endY = ImGui.GetCursorPos()
+            autoCache[i] = math.max(endY - startY - spacingY, 0)
         else
-            childH = totalFlex > 0
-                and math.floor(remainingH * (def.flex or 1) / totalFlex)
-                or 0
+            local childH
+            if def.height then
+                childH = def.height + 2 * padY
+            else
+                childH = totalFlex > 0
+                    and math.floor(remainingH * (def.flex or 1) / totalFlex)
+                    or 0
+            end
+
+            if def.bg then
+                ImGui.PushStyleColor(ImGuiCol.ChildBg, def.bg[1], def.bg[2], def.bg[3], def.bg[4] or 1.0)
+            end
+
+            local childId = "##col_" .. id .. "_" .. i
+            local childFlags = ImGuiWindowFlags.AlwaysUseWindowPadding + (def.flags or 0)
+            ImGui.BeginChild(childId, availW, childH, def.border or false, childFlags)
+            if def.content then def.content() end
+            ImGui.EndChild()
+
+            if def.bg then ImGui.PopStyleColor() end
         end
-
-        if def.bg then
-            ImGui.PushStyleColor(ImGuiCol.ChildBg, def.bg[1], def.bg[2], def.bg[3], def.bg[4] or 1.0)
-        end
-
-        local childId = "##col_" .. id .. "_" .. i
-        ImGui.BeginChild(childId, availW, childH, def.border or false, def.flags or 0)
-        if def.content then def.content() end
-        ImGui.EndChild()
-
-        if def.bg then ImGui.PopStyleColor() end
     end
 end
 
