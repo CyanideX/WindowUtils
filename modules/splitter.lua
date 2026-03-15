@@ -568,6 +568,9 @@ local function drawToggleBar(id, state, side)
 
     if state.hovering and ImGui.IsItemClicked(0) then
         state.isOpen = not state.isOpen
+        if not state.animate then
+            state.animProgress = state.isOpen and 1.0 or 0.0
+        end
     end
 
     if state.hovering then
@@ -670,9 +673,28 @@ function splitter.multi(id, panels, opts)
 
     -- Core panel space = total minus toggle panels and bars
     local toggleSpace = leadSize + leadBarW + trailSize + trailBarW
+    local grabTotal = coreN > 1 and (coreN - 1) * grabW or 0
+    local minCoreSpace = grabTotal + coreN  -- at least 1px per core panel
     local coreAvail = totalAvail - toggleSpace
-    local coreUsable = coreAvail - (coreN > 1 and (coreN - 1) * grabW or 0)
-    if coreUsable < 1 then return end
+
+    -- If toggles consume too much, compress them proportionally
+    if coreAvail < minCoreSpace and (leadSize + trailSize) > 0 then
+        local excess = minCoreSpace - coreAvail
+        local toggleTotal = leadSize + trailSize
+        if excess >= toggleTotal then
+            leadSize = 0
+            trailSize = 0
+        else
+            local ratio = excess / toggleTotal
+            leadSize = math.max(0, math.floor(leadSize - leadSize * ratio))
+            trailSize = math.max(0, math.floor(trailSize - trailSize * ratio))
+        end
+        toggleSpace = leadSize + leadBarW + trailSize + trailBarW
+        coreAvail = totalAvail - toggleSpace
+    end
+
+    local coreUsable = coreAvail - grabTotal
+    if coreUsable < 1 then return end  -- only fires if totalAvail is truly tiny
     local totalSize = coreUsable
 
     -- Compute core panel pixel sizes from breakpoints
@@ -708,7 +730,7 @@ function splitter.multi(id, panels, opts)
             local cw = isVertical and availW or leadSize
             local ch = isVertical and leadSize or 0
             ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_lead", cw, ch, false, noScroll)
-            if leadToggle.content then leadToggle.content() end
+            if leadSize > leadBarW and leadToggle.content then leadToggle.content() end
             ImGui.EndChild()
             cancelSpacing()
         end
@@ -741,7 +763,7 @@ function splitter.multi(id, panels, opts)
             local cw = isVertical and availW or trailSize
             local ch = isVertical and trailSize or 0
             ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_trail", cw, ch, false, noScroll)
-            if trailToggle.content then trailToggle.content() end
+            if trailSize > trailBarW and trailToggle.content then trailToggle.content() end
             ImGui.EndChild()
         end
     end
@@ -885,7 +907,7 @@ function splitter.toggle(id, panels, opts)
             local cw = isVert and availW or panelSize
             local ch = isVert and panelSize or 0
             ImGui.BeginChild("##toggle_fixed_" .. id, cw, ch, false, noScroll)
-            if fixedPanel.content then fixedPanel.content() end
+            if panelSize > state.barWidth and fixedPanel.content then fixedPanel.content() end
             ImGui.EndChild()
         end
     end

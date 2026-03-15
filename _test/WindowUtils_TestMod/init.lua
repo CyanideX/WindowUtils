@@ -903,6 +903,7 @@ registerForEvent("onDraw", function()
 
     local tabs = wu.Tabs
 
+    ImGui.SetNextWindowSizeConstraints(400, 300, 9999, 9999)
     ImGui.SetNextWindowSize(620, 550, ImGuiCond.FirstUseEver)
 
     if ImGui.Begin("WindowUtils Demo") then
