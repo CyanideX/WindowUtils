@@ -1099,6 +1099,9 @@ function controls.Column(id, defs, opts)
 
             local childId = "##col_" .. id .. "_" .. i
             local childFlags = ImGuiWindowFlags.AlwaysUseWindowPadding + (def.flags or 0)
+            if def.height then
+                childFlags = childFlags + ImGuiWindowFlags.NoScrollbar
+            end
             ImGui.BeginChild(childId, availW, childH, def.border or false, childFlags)
             if def.content then def.content() end
             ImGui.EndChild()
@@ -1384,27 +1387,40 @@ end
 
 --- Render a child window panel with default styling (opts: bg, border, width, height, flags)
 ---@param id string Unique panel ID (## prefix added automatically if missing)
+local panelHoverState = {}
+
 ---@param contentFn? function Callback that renders panel content
----@param opts? table {bg?, border?, width?, height?, flags?}
+---@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?}
 ---@return nil
 function controls.Panel(id, contentFn, opts)
     opts = opts or {}
-    local border = opts.border ~= false
+    local border = opts.border == true
+    local borderOnHover = opts.borderOnHover or false
     local bg = opts.bg
     if bg == nil then bg = { 0.65, 0.7, 1.0, 0.045 } end
     local width = opts.width or 0
     local height = opts.height or 0
-    local flags = opts.flags or 0
+    local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + (opts.flags or 0)
+
+    -- Show border on hover using previous frame's hover state
+    local showBorder = border
+    if borderOnHover and not border then
+        showBorder = panelHoverState[id] or false
+    end
 
     local childId = id:find("^##") and id or ("##" .. id)
 
     if bg then
         ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0))
     end
-    ImGui.BeginChild(childId, width, height, border, flags)
+    ImGui.BeginChild(childId, width, height, showBorder, flags)
     if contentFn then contentFn() end
     ImGui.EndChild()
     if bg then ImGui.PopStyleColor() end
+
+    if borderOnHover then
+        panelHoverState[id] = ImGui.IsItemHovered()
+    end
 end
 
 return controls
