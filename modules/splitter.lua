@@ -660,6 +660,15 @@ function splitter.multi(id, panels, opts)
         local expandedSize = parseSizeSpec(leadToggle.size, totalAvail) or 0
         leadSize = math.floor(expandedSize * eased)
         leadBarW = leadState.barWidth
+        -- Skip sub-barW sizes to avoid CET min-height mismatch
+        if leadSize > 0 and leadSize <= leadBarW then
+            if leadState.isOpen then
+                leadSize = leadBarW + 1
+            else
+                leadSize = 0
+                leadState.animProgress = 0
+            end
+        end
     end
 
     local trailState, trailSize, trailBarW = nil, 0, 0
@@ -669,6 +678,14 @@ function splitter.multi(id, panels, opts)
         local expandedSize = parseSizeSpec(trailToggle.size, totalAvail) or 0
         trailSize = math.floor(expandedSize * eased)
         trailBarW = trailState.barWidth
+        if trailSize > 0 and trailSize <= trailBarW then
+            if trailState.isOpen then
+                trailSize = trailBarW + 1
+            else
+                trailSize = 0
+                trailState.animProgress = 0
+            end
+        end
     end
 
     -- Core panel space = total minus toggle panels and bars
@@ -893,6 +910,15 @@ function splitter.toggle(id, panels, opts)
     -- Compute panel size (spacing cancelled by SetCursorPos like regular splitters)
     local panelSize = math.floor(expandedSize * eased)
     local barW = state.barWidth
+    -- Skip sub-barW sizes to avoid CET min-height mismatch
+    if panelSize > 0 and panelSize <= barW then
+        if state.isOpen then
+            panelSize = barW + 1
+        else
+            panelSize = 0
+            state.animProgress = 0
+        end
+    end
     local spacing = isVert and ImGui.GetStyle().ItemSpacing.y or ImGui.GetStyle().ItemSpacing.x
     local flexSize = math.max(totalAvail - panelSize - barW, 1)
 
