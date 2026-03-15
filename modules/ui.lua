@@ -279,7 +279,14 @@ local function drawGridVisualization()
         return
     end
 
-    local anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    local displayWidth, displayHeight = GetDisplayResolution()
+
+    -- Only check drag state when a drag-only feature needs it (avoids O(n) window iteration)
+    local anyDragging = false
+    if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
+        or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
+        anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    end
     local now = os.clock()
 
     -- Dim background (independent of grid viz)
@@ -313,7 +320,6 @@ local function drawGridVisualization()
         -- Draw if visible
         if dimFade.opacity > 0.001 then
             local drawList = ImGui.GetBackgroundDrawList()
-            local displayWidth, displayHeight = GetDisplayResolution()
             local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
             ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
         end
@@ -397,7 +403,6 @@ local function drawGridVisualization()
     -- Use dragging window's grid size, preserved size during fade-out, or master settings
     local gridSize = anyDragging and core.getDraggingWindowGridSize() or gridFade.lastGridSize or (settings.master.gridUnits * settings.GRID_UNIT_SIZE)
     local drawList = ImGui.GetBackgroundDrawList()
-    local displayWidth, displayHeight = GetDisplayResolution()
     local thickness = settings.master.gridLineThickness or settings.defaults.gridLineThickness
     local color = settings.master.gridLineColor or settings.defaults.gridLineColor
     if not color or not color[4] then return end  -- Safety check

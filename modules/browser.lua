@@ -155,16 +155,14 @@ function browser.draw()
     ImGui.SetColumnWidth(2, totalWidth * 0.15)  -- Enabled
     ImGui.SetColumnWidth(3, totalWidth * 0.15)  -- pOpen
 
-    styles.PushTextMuted()
-    ImGui.Text("Window Name")
+    controls.TextMuted("Window Name")
     ImGui.NextColumn()
-    ImGui.Text("Status")
+    controls.TextMuted("Status")
     ImGui.NextColumn()
-    ImGui.Text("Enabled")
+    controls.TextMuted("Enabled")
     ImGui.NextColumn()
-    ImGui.Text("pOpen")
+    controls.TextMuted("pOpen")
     ImGui.NextColumn()
-    styles.PopTextMuted()
 
     ImGui.Separator()
 
@@ -200,7 +198,7 @@ function browser.draw()
                 ImGui.NextColumn()
 
                 local isEnabled = not excludedSet[name]
-                local newEnabled, changed = ImGui.Checkbox("##en_" .. name, isEnabled)
+                local newEnabled, changed = controls.Checkbox("##en_" .. name, isEnabled)
                 if changed then
                     if newEnabled then
                         core.removeExclusion(name)
@@ -214,7 +212,7 @@ function browser.draw()
 
                 local hasPOpen = pOpenSet[name] == true
                 local newPOpen
-                newPOpen, changed = ImGui.Checkbox("##po_" .. name, hasPOpen)
+                newPOpen, changed = controls.Checkbox("##po_" .. name, hasPOpen)
                 if changed then
                     core.setPOpen(name, newPOpen or nil)
                     pOpenSet[name] = newPOpen or nil
