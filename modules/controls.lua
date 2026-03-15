@@ -1413,9 +1413,9 @@ function controls.Panel(id, contentFn, opts)
         ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0))
     end
     ImGui.BeginChild(childId, width, height, showBorder, flags)
+    if bg then ImGui.PopStyleColor() end
     if contentFn then contentFn() end
     ImGui.EndChild()
-    if bg then ImGui.PopStyleColor() end
 
     if borderOnHover then
         panelHoverState[id] = ImGui.IsItemHovered()

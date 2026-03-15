@@ -570,7 +570,6 @@ local function drawMultiSplitterDemo()
                         ImGui.Separator()
                         controls.TextMuted("API: splitter.multi(id, panels, opts)")
                         controls.TextMuted("3 equal panels with defaultPcts")
-                        controls.TextMuted("Dbl-click divider to collapse")
                     end)
                 end },
                 { content = function()
@@ -762,7 +761,7 @@ local function drawEdgeToggleDemo()
     -- Outer vertical: toolbar | core row | status bar
     splitter.multi("etgl_outer", {
         -- Top edge: toolbar (toggle)
-        { toggle = true, size = toolbarH, defaultOpen = true, content = function()
+        { toggle = true, size = toolbarH, defaultOpen = true, animate = false, content = function()
             controls.Panel("etgl_toolbar", function()
                 ImGui.Text("Toolbar")
                 ImGui.SameLine()
@@ -798,14 +797,57 @@ local function drawEdgeToggleDemo()
                         end
                     end)
                 end },
-                -- Core panel 2: output (flex)
+                -- Core panel 2: output + toggle controls (flex)
                 { content = function()
                     controls.Panel("etgl_output", function()
-                        ImGui.Text("Output")
-                        ImGui.Separator()
-                        for i = 1, 4 do
-                            controls.TextMuted("  [info] message " .. i)
-                        end
+                        controls.Column("etgl_out_col", {
+                            { flex = 1, content = function()
+                                ImGui.Text("Output")
+                                ImGui.Separator()
+                                for i = 1, 4 do
+                                    controls.TextMuted("  [info] message " .. i)
+                                end
+                            end },
+                            { auto = true, content = function()
+                                controls.TextMuted("Toggle Controls:")
+                                ImGui.Dummy(0, 2)
+                                local toggleIds = {
+                                    { id = "etgl_outer_tgl_lead",  label = "Toolbar" },
+                                    { id = "etgl_inner_tgl_lead",  label = "Explorer" },
+                                    { id = "etgl_inner_tgl_trail", label = "Properties" },
+                                    { id = "etgl_outer_tgl_trail", label = "Status Bar" },
+                                }
+                                if controls.DynamicButton("Expand All", "ArrowExpandAll", { style = "active" }) then
+                                    for _, t in ipairs(toggleIds) do splitter.setToggle(t.id, true) end
+                                end
+                                if controls.DynamicButton("Collapse All", "ArrowCollapseAll", { style = "danger" }) then
+                                    for _, t in ipairs(toggleIds) do splitter.setToggle(t.id, false) end
+                                end
+                                local animIds = { "etgl_outer_tgl_lead", "etgl_outer_tgl_trail" }
+                                local animOn = splitter.getToggleAnimate(animIds[1])
+                                local animLabel = animOn and "Disable Animation" or "Enable Animation"
+                                local animIcon = animOn and "AnimationPlayOutline" or "AnimationPlay"
+                                if controls.DynamicButton(animLabel, animIcon, { style = animOn and "inactive" or "active" }) then
+                                    for _, aid in ipairs(animIds) do splitter.setToggleAnimate(aid, not animOn) end
+                                end
+                                if ImGui.IsItemHovered() then
+                                    ImGui.BeginTooltip()
+                                    ImGui.Text("Toggles collapse animation for Toolbar and Status Bar.")
+                                    ImGui.Text("Use animate=false on any toggle panel definition,")
+                                    ImGui.Text("or splitter.setToggleAnimate(id, bool) at runtime.")
+                                    ImGui.EndTooltip()
+                                end
+                                ImGui.Dummy(0, 2)
+                                for _, t in ipairs(toggleIds) do
+                                    local isOpen = splitter.getToggle(t.id)
+                                    local label = isOpen and ("Hide " .. t.label) or ("Show " .. t.label)
+                                    local icon = isOpen and "EyeOff" or "Eye"
+                                    if controls.DynamicButton(label, icon, { style = isOpen and "inactive" or "active" }) then
+                                        splitter.setToggle(t.id, not isOpen)
+                                    end
+                                end
+                            end },
+                        }, { gap = 0 })
                     end)
                 end },
                 -- Right edge: properties (toggle, default closed)
@@ -820,7 +862,7 @@ local function drawEdgeToggleDemo()
             }, { direction = "horizontal" })
         end },
         -- Bottom edge: status bar (toggle)
-        { toggle = true, size = statusH, defaultOpen = true, content = function()
+        { toggle = true, size = statusH, defaultOpen = true, animate = false, content = function()
             controls.Panel("etgl_status", function()
                 ImGui.Text("Status Bar")
                 ImGui.Separator()
@@ -868,6 +910,10 @@ registerForEvent("onDraw", function()
         wu.Controls.TextMuted("Hover elements for API usage. Right-click bound controls to reset.")
         ImGui.Dummy(0, 4)
 
+        -- Wrap tabs in NoScrollbar child to prevent main window scrollbar flash
+        local cw, ch = ImGui.GetContentRegionAvail()
+        local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+        ImGui.BeginChild("##testmod_content", cw, ch, false, noScroll)
         tabs.bar("##testmod_tabs", {
             { label = "Controls",    content = drawControlsDemo },
             { label = "Drag & Drop", content = drawDragDropDemo },
@@ -876,6 +922,7 @@ registerForEvent("onDraw", function()
             { label = "Toggle",      content = drawTogglePanelDemo },
             { label = "Edge Toggle", content = drawEdgeToggleDemo },
         })
+        ImGui.EndChild()
     end
     ImGui.End()
 end)

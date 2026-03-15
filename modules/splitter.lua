@@ -515,6 +515,7 @@ local function getToggleState(id, opts)
             animProgress = (opts.defaultOpen ~= false) and 1.0 or 0.0,
             lastTime = os.clock(),
             speed = opts.speed or COLLAPSE_SPEED,
+            animate = opts.animate ~= false,
             barWidth = opts.barWidth or ImGui.GetStyle().ItemSpacing.x,
             hovering = false,
         }
@@ -623,6 +624,8 @@ function splitter.multi(id, panels, opts)
     local grabW = ms.grabWidth
     local minGap = ms.minGap
 
+    local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+
     -- Available space
     local availW, availH = ImGui.GetContentRegionAvail()
     local totalAvail = isVertical and availH or availW
@@ -635,7 +638,9 @@ function splitter.multi(id, panels, opts)
         local dt = now - tglState.lastTime
         tglState.lastTime = now
         local target = tglState.isOpen and 1.0 or 0.0
-        if tglState.animProgress < target then
+        if not tglState.animate then
+            tglState.animProgress = target
+        elseif tglState.animProgress < target then
             tglState.animProgress = math.min(target, tglState.animProgress + tglState.speed * dt)
         elseif tglState.animProgress > target then
             tglState.animProgress = math.max(target, tglState.animProgress - tglState.speed * dt)
@@ -694,7 +699,6 @@ function splitter.multi(id, panels, opts)
         end
     end
 
-    local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
     local leadSide = isVertical and "top" or "left"
     local trailSide = isVertical and "bottom" or "right"
 
@@ -716,7 +720,7 @@ function splitter.multi(id, panels, opts)
     for i = 1, coreN do
         local cw = isVertical and availW or sizes[i]
         local ch = isVertical and sizes[i] or 0
-        ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, cw, ch, false)
+        ImGui.BeginChild("##splitter_multi_" .. id .. "_p" .. i, cw, ch, false, noScroll)
         if corePanels[i].content then corePanels[i].content() end
         ImGui.EndChild()
 
@@ -855,7 +859,9 @@ function splitter.toggle(id, panels, opts)
     local dt = now - state.lastTime
     state.lastTime = now
     local target = state.isOpen and 1.0 or 0.0
-    if state.animProgress < target then
+    if not state.animate then
+        state.animProgress = target
+    elseif state.animProgress < target then
         state.animProgress = math.min(target, state.animProgress + state.speed * dt)
     elseif state.animProgress > target then
         state.animProgress = math.max(target, state.animProgress - state.speed * dt)
@@ -924,7 +930,12 @@ end
 ---@param open boolean Desired open state
 function splitter.setToggle(id, open)
     local state = toggleStates[id]
-    if state then state.isOpen = open end
+    if state then
+        state.isOpen = open
+        if not state.animate then
+            state.animProgress = open and 1.0 or 0.0
+        end
+    end
 end
 
 --- Query toggle state
@@ -933,6 +944,22 @@ end
 function splitter.getToggle(id)
     local state = toggleStates[id]
     return state and state.isOpen or nil
+end
+
+--- Set toggle animation enabled/disabled
+---@param id string Toggle identifier
+---@param enabled boolean Whether animation is enabled
+function splitter.setToggleAnimate(id, enabled)
+    local state = toggleStates[id]
+    if state then state.animate = enabled end
+end
+
+--- Query toggle animation state
+---@param id string Toggle identifier
+---@return boolean|nil animate Whether animation is enabled, or nil if not found
+function splitter.getToggleAnimate(id)
+    local state = toggleStates[id]
+    return state and state.animate or nil
 end
 
 -- Aliases for brevity

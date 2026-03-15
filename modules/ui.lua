@@ -768,7 +768,7 @@ function ui.drawSettingsWindow()
     local discoveryAvailable = core.isDiscoveryAvailable()
 
     if discoveryAvailable then
-        _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", { tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nDoes not work with collapsed windows and may break the grid.\nMay conflict with windows using older versions of WindowUtils.", alwaysShowTooltip = true })
+        _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", { tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.", alwaysShowTooltip = true })
         if changed then core.invalidateGridCache() end
     else
         controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
