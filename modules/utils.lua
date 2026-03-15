@@ -110,11 +110,11 @@ end
 --- Based on live ImGui measurements: icon glyph width + frame padding.
 --- Must be called during onDraw (requires ImGui context).
 --- @return number minWidth Minimum pixel width for one icon button
-function utils.minIconButtonWidth()
+function utils.minIconButtonWidth(framePaddingX)
     local sampleIcon = IconGlyphs and IconGlyphs.DotsVertical or "..."
     local glyphWidth = ImGui.CalcTextSize(sampleIcon)
-    local padX = ImGui.GetStyle().FramePadding.x * 2
-    return glyphWidth + padX
+    framePaddingX = framePaddingX or ImGui.GetStyle().FramePadding.x
+    return glyphWidth + framePaddingX * 2
 end
 
 return utils
