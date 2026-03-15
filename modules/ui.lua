@@ -267,7 +267,7 @@ end
 
 local function drawGridVisualization()
     -- Early exit when both features are fully disabled
-    if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
+    if not settings.master.gridDimBackground and (not settings.master.gridVisualizationEnabled or not settings.master.gridEnabled) then
         dimFade.opacity = 0
         dimFade.wasDragging = false
         gridFade.opacity = 0
@@ -324,7 +324,7 @@ local function drawGridVisualization()
     end
 
     -- Grid visualization works independently of master override
-    if not settings.master.gridVisualizationEnabled then
+    if not settings.master.gridVisualizationEnabled or not settings.master.gridEnabled then
         gridFade.opacity = 0
         gridFade.wasDragging = false
         gridFade.wasFeathering = false
@@ -526,6 +526,7 @@ function ui.drawSettingsWindow()
     if not ui.state.showWindow then return end
 
     ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
+    core.setNextWindowSizeConstraintsPercent(15, 15, 100, 100, settings.NAME)
     -- No close button (use toggle/hotkey to hide), allow collapse
     if not ImGui.Begin(settings.NAME) then
         -- Window is collapsed - still update for grid snapping when dragging collapsed window
@@ -542,14 +543,8 @@ function ui.drawSettingsWindow()
     local c = controls.bind(settings.master, settings.defaults, settings.save)
 
     -- Master override toggle
-    local _, changed = c:Checkbox("Enable Master Override", "enabled")
+    local _, changed = c:Checkbox("Enable Master Override", "enabled", { tooltip = "Override all mod settings with master configuration" })
     if changed then core.invalidateGridCache() end
-
-    if settings.master.enabled then
-        controls.TextSuccess("Master Settings Active - Overriding All mods")
-    else
-        controls.TextMuted("Master Settings Disabled - Mods Use Their Own Settings")
-    end
 
     controls.SectionHeader("General", 10, 0)
     c:Checkbox("Show Tooltips", "tooltipsEnabled", { tooltip = "Show Tooltips on Hover", alwaysShowTooltip = true })
@@ -558,36 +553,134 @@ function ui.drawSettingsWindow()
     _, changed = c:Checkbox("Debug Output", "debugOutput", { tooltip = "Print Debug Messages to Console", alwaysShowTooltip = true })
     if changed then settings.debugPrint("Debug Output Enabled") end
 
-    -- Grid Visualization section (always enabled, independent of master override)
+    -- Grid Snapping and Animation (requires master override)
+    if not settings.master.enabled then
+        ImGui.BeginDisabled()
+    end
+
+    controls.SectionHeader("Grid Snapping", 10, 0)
+    c:Checkbox("Enable Grid Snapping", "gridEnabled", { tooltip = "Snap Windows to Grid When Released" })
+
+    if not settings.master.gridEnabled then
+        ImGui.BeginDisabled()
+    end
+
+    ImGui.SameLine()
+    c:Checkbox("Snap Collapsed", "snapCollapsed", { tooltip = "Snap Collapsed Windows When Dragged" })
+
+    -- Grid scale uses validUnits mapping — use raw API
+    local validUnits = settings.getValidGridUnits(10)
+    local maxScale = math.min(#validUnits, 5)
+    local currentScale = 1
+    local defaultScale = 1
+
+    for i, units in ipairs(validUnits) do
+        if i <= maxScale then
+            if units == settings.master.gridUnits then
+                currentScale = i
+            end
+            if units == settings.defaults.gridUnits then
+                defaultScale = i
+            end
+        end
+    end
+
+    local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
+    local newScale
+    newScale, changed = controls.SliderInt("Grid", "gridScale", currentScale, 1, maxScale, { format = "Scale %d (" .. gridSize .. "px)", default = defaultScale, tooltip = "Grid Scale (maps to valid grid sizes for your resolution)" })
+    if changed then
+        settings.master.gridUnits = validUnits[newScale]
+        settings.save()
+        core.invalidateGridCache()
+    end
+
+    -- Animation settings
+    controls.SectionHeader("Animation", 10, 0)
+    c:Checkbox("Snap Animation", "animationEnabled", { tooltip = "Animate Window Snapping" })
+
+    if not settings.master.animationEnabled then
+        ImGui.BeginDisabled()
+    end
+
+    c:SliderFloat("TimerOutline", "animationDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Animation Duration" })
+
+    c:Combo("SineWave", "easeFunction", settings.easingNames, {
+        tooltip = "Easing Function",
+        transform = {
+            read  = function(v) return findEasingIndex(v) end,
+            write = function(v) return settings.easingKeys[v + 1] end,
+        },
+    })
+
+    if not settings.master.animationEnabled then
+        ImGui.EndDisabled()
+    end
+
+    if not settings.master.gridEnabled then
+        ImGui.EndDisabled()
+    end
+
+    if not settings.master.enabled then
+        ImGui.EndDisabled()
+    end
+
+    -- Grid Visualization (gated on grid snapping)
+    if not settings.master.gridEnabled then
+        ImGui.BeginDisabled()
+    end
+
     controls.SectionHeader("Grid Visualization", 10, 0)
     c:Checkbox("Enable", "gridVisualizationEnabled", { tooltip = "Display Grid Lines on Screen" })
 
-    -- Grid visualization sub-options (only when visualization enabled)
-    if settings.master.gridVisualizationEnabled then
-        ImGui.SameLine()
-        c:Checkbox("On Drag Only ##grid", "gridShowOnDragOnly", { tooltip = "Only Show Grid While Dragging Windows" })
+    -- Grid visualization sub-options
+    if not settings.master.gridVisualizationEnabled then
+        ImGui.BeginDisabled()
+    end
 
-        if settings.master.gridShowOnDragOnly then
-            ImGui.SameLine()
-            c:Checkbox("Guides", "gridGuidesEnabled", { tooltip = "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis" })
+    ImGui.SameLine()
+    c:Checkbox("On Drag Only ##grid", "gridShowOnDragOnly", { tooltip = "Only Show Grid While Dragging Windows" })
 
-            if settings.master.gridGuidesEnabled then
-                c:SliderFloat("Brightness5", "gridGuidesDimming", 0, 1, { percent = true, tooltip = "Grid Dimming (opacity of grid lines when guides active)" })
-            end
+    if not settings.master.gridShowOnDragOnly then
+        ImGui.BeginDisabled()
+    end
 
-            -- Grid feathering (only available when Show on Drag Only is enabled)
-            c:Checkbox("Feathered Grid", "gridFeatherEnabled", { tooltip = "Show Grid Only Around Active Window" })
+    ImGui.SameLine()
+    c:Checkbox("Guides", "gridGuidesEnabled", { tooltip = "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis" })
 
-            if settings.master.gridFeatherEnabled then
-                c:SliderFloat("BlurRadial", "gridFeatherRadius", 200, 1200, { format = "%.0f px", tooltip = "Feather Radius (distance where grid fades to zero)" })
-                c:SliderFloat("SelectionEllipse", "gridFeatherPadding", 0, 120, { format = "%.0f px", tooltip = "Window Padding (area around window with full opacity)" })
-                c:SliderFloat("ChartBellCurveCumulative", "gridFeatherCurve", 1.0, 12.0, { format = "%.1f", tooltip = "Feather Curve (higher = faster drop near window, gradual fade at edges)" })
-            end
-        end
+    if not settings.master.gridGuidesEnabled then
+        ImGui.BeginDisabled()
+    end
+    c:SliderFloat("Brightness5", "gridGuidesDimming", 0, 1, { percent = true, tooltip = "Grid Dimming (opacity of grid lines when guides active)" })
+    if not settings.master.gridGuidesEnabled then
+        ImGui.EndDisabled()
+    end
 
-        c:SliderFloat("FormatLineWeight", "gridLineThickness", 0.5, 5.0, { format = "%.1f px", tooltip = "Grid Line Thickness" })
-        c:ColorEdit4("Palette", "gridLineColor", { tooltip = "Grid Line Color" })
+    -- Grid feathering (only available when Show on Drag Only is enabled)
+    c:Checkbox("Feathered Grid", "gridFeatherEnabled", { tooltip = "Show Grid Only Around Active Window" })
 
+    if not settings.master.gridFeatherEnabled then
+        ImGui.BeginDisabled()
+    end
+    c:SliderFloat("BlurRadial", "gridFeatherRadius", 200, 1200, { format = "%.0f px", tooltip = "Feather Radius (distance where grid fades to zero)" })
+    c:SliderFloat("SelectionEllipse", "gridFeatherPadding", 0, 120, { format = "%.0f px", tooltip = "Window Padding (area around window with full opacity)" })
+    c:SliderFloat("ChartBellCurveCumulative", "gridFeatherCurve", 1.0, 12.0, { format = "%.1f", tooltip = "Feather Curve (higher = faster drop near window, gradual fade at edges)" })
+    if not settings.master.gridFeatherEnabled then
+        ImGui.EndDisabled()
+    end
+
+    if not settings.master.gridShowOnDragOnly then
+        ImGui.EndDisabled()
+    end
+
+    c:SliderFloat("FormatLineWeight", "gridLineThickness", 0.5, 5.0, { format = "%.1f px", tooltip = "Grid Line Thickness" })
+    c:ColorEdit4("Palette", "gridLineColor", { tooltip = "Grid Line Color" })
+
+    if not settings.master.gridVisualizationEnabled then
+        ImGui.EndDisabled()
+    end
+
+    if not settings.master.gridEnabled then
+        ImGui.EndDisabled()
     end
 
     -- Background section (independent of grid visualization)
@@ -595,11 +688,15 @@ function ui.drawSettingsWindow()
 
     c:Checkbox("Dim Background", "gridDimBackground", { tooltip = "Darken Screen When Grid Overlay Visible" })
 
-    if settings.master.gridDimBackground then
-        ImGui.SameLine()
-        c:Checkbox("On Drag Only##dimBg", "gridDimBackgroundOnDragOnly", { tooltip = "Only Dim Background While Dragging Windows" })
-        -- Display as 0-100%, store as 0-1 (transformed — use raw API)
-        c:SliderFloat("Brightness4", "gridDimBackgroundOpacity", 0.1, 0.9, { percent = true, tooltip = "Background Dimming Opacity" })
+    if not settings.master.gridDimBackground then
+        ImGui.BeginDisabled()
+    end
+    ImGui.SameLine()
+    c:Checkbox("On Drag Only##dimBg", "gridDimBackgroundOnDragOnly", { tooltip = "Only Dim Background While Dragging Windows" })
+    -- Display as 0-100%, store as 0-1 (transformed — use raw API)
+    c:SliderFloat("Brightness4", "gridDimBackgroundOpacity", 0.1, 0.9, { percent = true, tooltip = "Background Dimming Opacity" })
+    if not settings.master.gridDimBackground then
+        ImGui.EndDisabled()
     end
 
     -- Blur settings
@@ -627,87 +724,38 @@ function ui.drawSettingsWindow()
         controls.TextWarning("XUtils Not Installed")
     end
 
-    if settings.master.blurOnOverlayOpen and blurAvailable then
-        ImGui.SameLine()
-        -- Blur drag-only has complex side-effects — use raw API
-        local newBlurDragOnly
-        newBlurDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, { default = settings.defaults.blurOnDragOnly, tooltip = "Only Blur While Dragging Windows" })
-        if changed then
-            settings.master.blurOnDragOnly = newBlurDragOnly
-            settings.save()
-            if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
-                ui.enableBlur()
-            elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
-                ui.disableBlur()
-            end
-        end
-
-        _, changed = c:SliderFloat("Blur", "blurIntensity", 0.001, 0.02, { format = "%.4f", tooltip = "Blur Intensity" })
-        if changed then ui.updateBlurIntensity(settings.master.blurIntensity) end
-
-        c:SliderFloat("TransitionMasked", "blurFadeInDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade In Duration" })
-        c:SliderFloat("TransitionMasked", "blurFadeOutDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade Out Duration" })
-    end
-
-    -- Master override dependent settings
-    if not settings.master.enabled then
+    if not settings.master.blurOnOverlayOpen or not blurAvailable then
         ImGui.BeginDisabled()
     end
 
-    -- Grid settings
-    controls.SectionHeader("Grid Snapping", 10, 0)
-    c:Checkbox("Enable Grid Snapping", "gridEnabled", { tooltip = "Snap Windows to Grid When Released" })
-
-    if settings.master.gridEnabled then
-        ImGui.SameLine()
-        c:Checkbox("Snap Collapsed", "snapCollapsed", { tooltip = "Snap Collapsed Windows When Dragged" })
-
-        -- Grid scale uses validUnits mapping — use raw API
-        local validUnits = settings.getValidGridUnits(10)
-        local maxScale = math.min(#validUnits, 5)
-        local currentScale = 1
-        local defaultScale = 1
-
-        for i, units in ipairs(validUnits) do
-            if i <= maxScale then
-                if units == settings.master.gridUnits then
-                    currentScale = i
-                end
-                if units == settings.defaults.gridUnits then
-                    defaultScale = i
-                end
-            end
-        end
-
-        local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
-        local newScale
-        newScale, changed = controls.SliderInt("Grid", "gridScale", currentScale, 1, maxScale, { format = "Scale %d (" .. gridSize .. "px)", default = defaultScale, tooltip = "Grid Scale (maps to valid grid sizes for your resolution)" })
-        if changed then
-            settings.master.gridUnits = validUnits[newScale]
-            settings.save()
-            core.invalidateGridCache()
+    ImGui.SameLine()
+    -- Blur drag-only has complex side-effects — use raw API
+    local newBlurDragOnly
+    newBlurDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, { default = settings.defaults.blurOnDragOnly, tooltip = "Only Blur While Dragging Windows" })
+    if changed then
+        settings.master.blurOnDragOnly = newBlurDragOnly
+        settings.save()
+        if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
+            ui.enableBlur()
+        elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
+            ui.disableBlur()
         end
     end
 
-    -- Animation settings (only meaningful when grid snapping is on)
-    if settings.master.gridEnabled then
-        controls.SectionHeader("Animation", 10, 0)
-        c:Checkbox("Snap Animation", "animationEnabled", { tooltip = "Animate Window Snapping" })
+    _, changed = c:SliderFloat("Blur", "blurIntensity", 0.001, 0.02, { format = "%.4f", tooltip = "Blur Intensity" })
+    if changed then ui.updateBlurIntensity(settings.master.blurIntensity) end
 
-        if settings.master.animationEnabled then
-            c:SliderFloat("TimerOutline", "animationDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Animation Duration" })
+    c:SliderFloat("TransitionMasked", "blurFadeInDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade In Duration" })
+    c:SliderFloat("TransitionMasked", "blurFadeOutDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade Out Duration" })
 
-            c:Combo("SineWave", "easeFunction", settings.easingNames, {
-                tooltip = "Easing Function",
-                transform = {
-                    read  = function(v) return findEasingIndex(v) end,
-                    write = function(v) return settings.easingKeys[v + 1] end,
-                },
-            })
-        end
+    if not settings.master.blurOnOverlayOpen or not blurAvailable then
+        ImGui.EndDisabled()
     end
 
-    -- Experimental settings
+    -- Experimental settings (requires master override)
+    if not settings.master.enabled then
+        ImGui.BeginDisabled()
+    end
     controls.SectionHeader("Experimental", 10, 0)
 
     local discoveryAvailable = core.isDiscoveryAvailable()

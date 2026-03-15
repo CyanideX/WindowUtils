@@ -121,7 +121,7 @@ function settings.load()
         end
     end
 
-    settings.debugPrint("Settings Loaded", true)
+    settings.debugPrint("Settings Loaded")
     return true
 end
 
@@ -181,7 +181,7 @@ end
 --- Configure with an external settings object reference.
 function settings.configure(settingsObj)
     settings.external = settingsObj
-    settings.debugPrint("Configured", true)
+    settings.debugPrint("Configured")
 end
 
 --- Set per-window configuration overrides.

@@ -520,33 +520,27 @@ function core.update(windowName, options)
         useGrid = false
     end
 
-    if useGrid then
-        -- Use RootAndChildWindows flag to detect focus even when child windows were last interacted with
-        -- This ensures grid snapping works after interacting with child elements (splitters, panels, etc.)
-        local isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)
-        local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
-        local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
-        local shiftHeld = isShiftHeld()
+    -- Drag detection runs unconditionally (dim/blur need isDragging state)
+    local isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)
+    local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
+    local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+    local shiftHeld = isShiftHeld()
 
-        local action
-        currentPosX, currentPosY, action = handleDragDetection(
-            state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
-            isFocused, isDragging, isReleased, shiftHeld, treatAllDragsAsWindowDrag
-        )
+    local action
+    currentPosX, currentPosY, action = handleDragDetection(
+        state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
+        isFocused, isDragging, isReleased, shiftHeld, treatAllDragsAsWindowDrag
+    )
 
-        if action == "changed" then
-            -- Was a window drag - trigger snap
-            local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
-            local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
-            handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
+    if action == "changed" and useGrid then
+        local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
+        local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+        handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
 
-            if useAnimation then
-                state.animating = true
-                state.animationStartTime = os.clock()
-            end
+        if useAnimation then
+            state.animating = true
+            state.animationStartTime = os.clock()
         end
-        -- "unchanged": child element drag - do nothing
-        -- "focus_lost": no additional cleanup needed for internal windows
     end
 
     -- After constraint animation completes, trigger a one-time grid snap
@@ -1156,7 +1150,6 @@ function core.updateExternalWindows()
                         draggingWindowName = nil
                     end
                     state.pendingDragCheck = false
-                    settings.debugPrint("Window no longer active: " .. windowName)
                 end
 
             elseif state.probePhase == PROBE_ACTIVE then
