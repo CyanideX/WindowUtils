@@ -441,7 +441,7 @@ local function drawDragDropDemo()
     local tooltips = wu.Tooltips
 
     controls.Column("dd_layout", {
-        { flex = 1, border = true, content = function()
+        { flex = 1, content = function()
             controls.TextMuted("Drag items to reorder:")
             ImGui.Dummy(0, 4)
             dragdrop.list("##demo_dd_list", dragItems, function(item, index, ctx)
@@ -452,7 +452,7 @@ local function drawDragDropDemo()
                 wu.Notify.info("Moved item from " .. from .. " to " .. to)
             end)
         end },
-        { flex = 1, border = true, content = function()
+        { flex = 1, content = function()
             controls.TextMuted("With drag handle and custom colors:")
             ImGui.Dummy(0, 4)
             dragdrop.list("##demo_dd_handle", dragItems, function(item, index, ctx)
@@ -502,7 +502,7 @@ local function drawSplitterDemo()
     local tooltips = wu.Tooltips
 
     controls.Column("sp_layout", {
-        { flex = 1, border = true, content = function()
+        { flex = 1, content = function()
             controls.TextMuted("Horizontal splitter - drag the bar to resize panels:")
             ImGui.Dummy(0, 4)
             splitter.horizontal("##demo_h_split", function()
@@ -532,7 +532,7 @@ local function drawSplitterDemo()
                 "Position persists per ID",
             })
         end },
-        { flex = 1, border = true, content = function()
+        { flex = 1, content = function()
             controls.TextMuted("Vertical splitter:")
             ImGui.Dummy(0, 4)
             splitter.vertical("##demo_v_split", function()
@@ -577,17 +577,21 @@ local function drawMultiSplitterDemo()
                     controls.Panel("ms3_p2", function()
                         ImGui.Text("Panel 2")
                         ImGui.Separator()
+                        controls.TextMuted("Border on hover:")
+                        controls.TextMuted("borderOnHover = true")
+                        ImGui.Dummy(0, 2)
                         controls.TextMuted("Shift+drag: proportional scale")
                         controls.TextMuted("Ctrl+drag: snap to 5% grid")
                         controls.TextMuted("Right-click: context menu")
-                    end)
+                    end, { borderOnHover = true })
                 end },
                 { content = function()
                     controls.Panel("ms3_p3", function()
                         ImGui.Text("Panel 3")
                         ImGui.Separator()
-                        controls.TextMuted("defaultPcts = {0.33, 0.34, 0.33}")
-                    end)
+                        controls.TextMuted("Enabled panel border:")
+                        controls.TextMuted("border = true")
+                    end, { border = true })
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.33, 0.34, 0.33 } })
         end },
@@ -657,8 +661,9 @@ local function drawTogglePanelDemo()
     local tooltips = wu.Tooltips
 
     controls.Column("tgl_layout", {
-        { flex = 1, border = true, content = function()
-            controls.SectionHeader("Left Sidebar (200px)", 0, 4)
+        { flex = 1, content = function()
+            ImGui.Text("Left Sidebar (200px)")
+            ImGui.Dummy(0, 4)
             splitter.toggle("tgl_left", {
                 { content = function()
                     controls.Panel("tgl_left_panel", function()
@@ -668,14 +673,14 @@ local function drawTogglePanelDemo()
                         controls.Button("  Nav A  ", "active")
                         controls.Button("  Nav B  ", "inactive")
                         controls.Button("  Nav C  ", "inactive")
-                    end, { bg = { 0.1, 0.15, 0.2, 1.0 } })
+                    end, { bg = { 0.1, 0.15, 0.2, 1.0 }, borderOnHover = true })
                 end },
                 { content = function()
                     controls.Panel("tgl_left_main", function()
                         ImGui.Text("Main Content")
                         ImGui.Separator()
                         controls.TextMuted("Click the chevron bar to toggle.")
-                    end)
+                    end, { borderOnHover = true })
                 end },
             }, { side = "left", size = 200, defaultOpen = true })
             tooltips.ShowBullets("wu.Splitter.toggle(id, panels, opts)", {
@@ -684,15 +689,16 @@ local function drawTogglePanelDemo()
                 "Panels: [{content}] (toggle panel first, main second)",
             })
         end },
-        { flex = 1, border = true, content = function()
-            controls.SectionHeader("Top Toolbar (50px)", 0, 4)
+        { flex = 1, content = function()
+            ImGui.Text("Top Toolbar (50px)")
+            ImGui.Dummy(0, 4)
             splitter.toggle("tgl_top", {
                 { content = function()
                     controls.Panel("tgl_top_bar", function()
                         ImGui.Text("Toolbar")
                         ImGui.SameLine()
                         controls.TextMuted("  side = \"top\", size = 50")
-                    end, { bg = { 0.15, 0.15, 0.2, 1.0 } })
+                    end, { bg = { 0.15, 0.15, 0.2, 1.0 }, borderOnHover = true })
                 end },
                 { content = function()
                     controls.Panel("tgl_top_main", function()
@@ -702,7 +708,7 @@ local function drawTogglePanelDemo()
                         for i = 1, 5 do
                             ImGui.Text("  Item " .. i)
                         end
-                    end)
+                    end, { borderOnHover = true })
                 end },
             }, { side = "top", size = 50, defaultOpen = true })
             tooltips.ShowBullets("wu.Splitter.toggle(id, panels, opts)", {
@@ -711,7 +717,8 @@ local function drawTogglePanelDemo()
             })
         end },
         { auto = true, content = function()
-            controls.SectionHeader("Programmatic Control", 0, 4)
+            ImGui.Text("Programmatic Control")
+            ImGui.Dummy(0, 4)
             controls.TextMuted("Use setToggle(id, bool) / getToggle(id) to control from code:")
             ImGui.Dummy(0, 2)
 
@@ -802,7 +809,7 @@ local function drawEdgeToggleDemo()
                     end)
                 end },
                 -- Right edge: properties (toggle, default closed)
-                { toggle = true, size = 180, defaultOpen = false, content = function()
+                { toggle = true, size = 360, defaultOpen = false, content = function()
                     controls.Panel("etgl_props", function()
                         ImGui.Text("Properties")
                         ImGui.Separator()
