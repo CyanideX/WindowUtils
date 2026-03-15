@@ -747,7 +747,12 @@ function splitter.multi(id, panels, opts)
             local cw = isVertical and availW or leadSize
             local ch = isVertical and leadSize or 0
             ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_lead", cw, ch, false, noScroll)
-            if leadSize > leadBarW and leadToggle.content then leadToggle.content() end
+            if leadSize > leadBarW and leadToggle.content then
+                local animating = leadState.animProgress > 0 and leadState.animProgress < 1
+                if animating then ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 0) end
+                leadToggle.content()
+                if animating then ImGui.PopStyleVar() end
+            end
             ImGui.EndChild()
             cancelSpacing()
         end
@@ -780,7 +785,12 @@ function splitter.multi(id, panels, opts)
             local cw = isVertical and availW or trailSize
             local ch = isVertical and trailSize or 0
             ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_trail", cw, ch, false, noScroll)
-            if trailSize > trailBarW and trailToggle.content then trailToggle.content() end
+            if trailSize > trailBarW and trailToggle.content then
+                local animating = trailState.animProgress > 0 and trailState.animProgress < 1
+                if animating then ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 0) end
+                trailToggle.content()
+                if animating then ImGui.PopStyleVar() end
+            end
             ImGui.EndChild()
         end
     end
@@ -933,7 +943,12 @@ function splitter.toggle(id, panels, opts)
             local cw = isVert and availW or panelSize
             local ch = isVert and panelSize or 0
             ImGui.BeginChild("##toggle_fixed_" .. id, cw, ch, false, noScroll)
-            if panelSize > state.barWidth and fixedPanel.content then fixedPanel.content() end
+            if panelSize > state.barWidth and fixedPanel.content then
+                local animating = state.animProgress > 0 and state.animProgress < 1
+                if animating then ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 0) end
+                fixedPanel.content()
+                if animating then ImGui.PopStyleVar() end
+            end
             ImGui.EndChild()
         end
     end
