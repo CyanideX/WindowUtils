@@ -61,7 +61,8 @@ local function createDefaultSettings()
         probeInterval = 0.5,
         autoRemoveEmptyWindows = true,
         autoRemoveInterval = 0.5,
-        batchAutoRemove = true
+        batchAutoRemove = true,
+        autoAdjustOnResize = false
     }
 end
 

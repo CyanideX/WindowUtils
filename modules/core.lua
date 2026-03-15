@@ -42,6 +42,7 @@ local windowCache = {}
 local deferredSnapOperations = {}
 local deferredSnapCount = 0
 
+
 -- Currently dragging window bounds (reused table, updated in place)
 local draggingWindowBounds = { x = 0, y = 0, width = 0, height = 0 }
 local draggingWindowBoundsValid = false
@@ -1311,6 +1312,59 @@ function core.saveWindowCache()
     if not file then return end
     file:write(content)
     file:close()
+end
+
+--------------------------------------------------------------------------------
+-- Snap All Windows
+--------------------------------------------------------------------------------
+
+--- Re-snap all active windows (external and internal) to the current grid.
+function core.snapAllWindows()
+    if not settings.master.overrideAllWindows then return end
+    if not discovery.isAvailable() then return end
+
+    local windows = discovery.getActiveWindows()
+    for _, windowInfo in ipairs(windows) do
+        local name = windowInfo.name
+        if not coreExcludedWindows[name]
+            and windowInfo.posX < OFFSCREEN_THRESHOLD
+            and windowInfo.posY < OFFSCREEN_THRESHOLD
+            and not windowInfo.collapsed
+        then
+            -- Check if window is tracked (external or internal)
+            local extState = externalWindowStates[name]
+            local intState = windowStates[name]
+            if (extState and extState.probePhase == PROBE_ACTIVE) or intState then
+                local targetX = core.snapToGrid(windowInfo.posX)
+                local targetY = core.snapToGrid(windowInfo.posY)
+                local targetW = core.snapToGrid(windowInfo.sizeX)
+                local targetH = core.snapToGrid(windowInfo.sizeY)
+
+                local state = extState or intState
+                if settings.master.animationEnabled then
+                    state.animating = true
+                    state.animationStartTime = os.clock()
+                    state.startPosX = windowInfo.posX
+                    state.startPosY = windowInfo.posY
+                    state.targetPosX = targetX
+                    state.targetPosY = targetY
+                    state.startSizeX = windowInfo.sizeX
+                    state.startSizeY = windowInfo.sizeY
+                    state.targetSizeX = targetW
+                    state.targetSizeY = targetH
+                else
+                    deferredSnapCount = deferredSnapCount + 1
+                    deferredSnapOperations[deferredSnapCount] = {
+                        windowName = name,
+                        targetPosX = targetX,
+                        targetPosY = targetY,
+                        targetSizeX = targetW,
+                        targetSizeY = targetH,
+                    }
+                end
+            end
+        end
+    end
 end
 
 return core

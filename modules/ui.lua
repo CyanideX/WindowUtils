@@ -594,7 +594,12 @@ function ui.drawSettingsWindow()
         settings.master.gridUnits = validUnits[newScale]
         settings.save()
         core.invalidateGridCache()
+        if settings.master.autoAdjustOnResize then
+            core.snapAllWindows()
+        end
     end
+
+    c:Checkbox("Auto Adjust", "autoAdjustOnResize", { tooltip = "Automatically re-snap all windows to the new grid when scale changes" })
 
     -- Animation settings
     controls.SectionHeader("Animation", 10, 0)
