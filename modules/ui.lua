@@ -1,576 +1,106 @@
 ------------------------------------------------------
 -- WindowUtils - UI Module
--- Settings window and GUI components
+-- Settings window using library components
 ------------------------------------------------------
 
 local settings = require("modules/settings")
-local core = require("modules/core")
+local core     = require("modules/core")
 local controls = require("modules/controls")
+local splitter = require("modules/splitter")
+local effects  = require("modules/effects")
 
 local ui = {}
 
--- GUI state
+-- Window state
 ui.state = {
-    isOverlayOpen = false,
     showWindow = false
 }
 
--- Blur state management
-ui.blur = {
-    isActive = false,
-    service = nil,
-    originalEnabled = nil,
-    originalRadius = 0.0,
-    -- Animation state
-    isAnimating = false,
-    animationType = "none", -- "fade_in" or "fade_out"
-    startTime = 0,
-    currentRadius = 0.0,
-    targetRadius = 0.0,
-    -- Drag tracking
-    wasDragging = false
-}
+-- Navigation state
+ui.selectedSection = 1
 
--- Dim background fade state (shares fade durations with blur)
-local dimFade = {
-    opacity = 0,
-    startTime = 0,
-    wasDragging = false  -- tracks previous "should dim" state
-}
+-- Section definitions (populated in ui.init after IconGlyphs is available)
+ui.sections = {}
 
-local function getBlurService()
-    if ui.blur.service then return ui.blur.service end
+-- Cached experimental panel content height (measured each frame, used next frame)
+local cachedExperimentalH = nil
 
-    local success, result = pcall(function()
-        local container = Game.GetScriptableServiceContainer()
-        if container then
-            return container:GetService("CyanideX.BlurUtils.BlurUtils")
-        end
-        return nil
-    end)
-
-    if success and result then
-        ui.blur.service = result
-        return result
-    end
-    return nil
-end
-
-local easeInOut = core.easeInOut
+-- Content panel background: same hue as Panel default but half opacity
+local CONTENT_BG = { 0.65, 0.7, 1.0, 0.0225 }
 
 --------------------------------------------------------------------------------
--- Blur Control
+-- Helpers
 --------------------------------------------------------------------------------
-
---- Activate background blur with a fade-in animation.
-function ui.enableBlur()
-    if ui.blur.isActive and not ui.blur.isAnimating then return end
-
-    local service = getBlurService()
-    if not service then return end
-
-    -- Store original settings (only if not already active)
-    if not ui.blur.isActive then
-        ui.blur.originalEnabled = service:GetEnable()
-        ui.blur.originalRadius = service:GetBlurAreaCircularBlurRadius()
-    end
-
-    -- Enable service
-    service:SetEnable(true)
-
-    -- Start fade-in animation
-    ui.blur.isAnimating = true
-    ui.blur.animationType = "fade_in"
-    ui.blur.startTime = os.clock()
-    ui.blur.targetRadius = settings.master.blurIntensity
-    -- Start from current radius (allows smooth transition if already animating)
-    if not ui.blur.isActive then
-        ui.blur.currentRadius = 0.0
-    end
-
-    ui.blur.isActive = true
-end
-
---- Start a fade-out animation and deactivate background blur on completion.
-function ui.disableBlur()
-    if not ui.blur.isActive then return end
-
-    -- Start fade-out animation
-    ui.blur.isAnimating = true
-    ui.blur.animationType = "fade_out"
-    ui.blur.startTime = os.clock()
-    -- targetRadius stays the same, we fade from currentRadius to 0
-end
-
---- Advance the blur fade-in/fade-out animation by one tick. Call every frame.
-function ui.updateBlurAnimation()
-    if not ui.blur.isAnimating then return end
-
-    local service = getBlurService()
-    if not service then return end
-
-    -- Use appropriate duration based on animation type
-    local duration = ui.blur.animationType == "fade_in"
-        and settings.master.blurFadeInDuration
-        or settings.master.blurFadeOutDuration
-
-    local elapsed = os.clock() - ui.blur.startTime
-    local progress = math.min(elapsed / duration, 1.0)
-    local easedProgress = easeInOut(progress)
-
-    if ui.blur.animationType == "fade_in" then
-        ui.blur.currentRadius = easedProgress * ui.blur.targetRadius
-    else -- fade_out
-        ui.blur.currentRadius = ui.blur.targetRadius * (1.0 - easedProgress)
-    end
-
-    -- Apply current blur radius
-    service:SetBlurAreaCircularBlurRadius(ui.blur.currentRadius)
-
-    -- Handle animation completion
-    if progress >= 1.0 then
-        ui.blur.isAnimating = false
-
-        if ui.blur.animationType == "fade_out" then
-            -- Cleanup after fade-out
-            ui.blur.currentRadius = 0.0
-            ui.blur.animationType = "none"
-            service:SetBlurAreaCircularBlurRadius(0.0)
-            service:SetEnable(false)
-            ui.blur.isActive = false
-            ui.blur.service = nil
-        end
-    end
-end
-
---- Update the blur target radius, applying immediately when not animating.
----@param intensity number New blur radius value
-function ui.updateBlurIntensity(intensity)
-    if not ui.blur.isActive then return end
-
-    ui.blur.targetRadius = intensity
-
-    -- If not animating, apply immediately
-    if not ui.blur.isAnimating then
-        ui.blur.currentRadius = intensity
-        local service = getBlurService()
-        if service then
-            service:SetBlurAreaCircularBlurRadius(intensity)
-        end
-    end
-end
-
---- Check whether the BlurUtils service is installed and reachable.
----@return boolean
-function ui.isBlurAvailable()
-    return getBlurService() ~= nil
-end
-
---- Enable/disable blur in response to drag state changes (drag-only mode). Call every frame.
-function ui.updateBlurDragState()
-    if not settings.master.blurOnOverlayOpen then return end
-    if not settings.master.blurOnDragOnly then return end
-    if not ui.state.isOverlayOpen then return end
-
-    local isDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
-
-    -- Detect drag state changes
-    if isDragging and not ui.blur.wasDragging then
-        -- Started dragging - enable blur
-        ui.enableBlur()
-    elseif not isDragging and ui.blur.wasDragging then
-        -- Stopped dragging - disable blur
-        ui.disableBlur()
-    end
-
-    ui.blur.wasDragging = isDragging
-end
-
---------------------------------------------------------------------------------
--- Initialization / Dim Control
---------------------------------------------------------------------------------
-
---- Initialize UI state from persisted settings.
-function ui.init()
-    ui.state.showWindow = settings.master.showSettingsWindow or false
-end
-
---- Reset the dim-background fade to fully transparent.
-function ui.disableDim()
-    dimFade.opacity = 0
-    dimFade.wasDragging = false
-    dimFade.startTime = 0
-end
-
--- Grid fade state
-local gridFade = {
-    opacity = 0,           -- Current opacity multiplier (0 to 1)
-    wasDragging = false,   -- Was dragging last frame
-    fadeStartTime = 0,     -- When fade started
-    wasFeathering = false, -- Was feathering active when drag ended
-    lastBounds = nil,      -- Last window bounds (preserved for fade-out)
-    lastGridSize = nil,    -- Last grid size (preserved for fade-out)
-    lastWindowName = nil   -- Last window name (preserved for fade-out guides)
-}
-
--- Hardcoded fade durations (in seconds)
-local GRID_FADE_IN_DURATION = 0.15
-local GRID_FADE_OUT_DURATION = 0.25
 
 local function findEasingIndex(key)
     for i, k in ipairs(settings.easingKeys) do
-        if k == key then
-            return i - 1  -- ImGui combo is 0-indexed
-        end
+        if k == key then return i - 1 end
     end
-    return 3  -- default to easeInOut
+    return 3 -- default to easeInOut
 end
 
 --------------------------------------------------------------------------------
--- Grid Visualization
+-- Section 1: General
 --------------------------------------------------------------------------------
 
--- Distance from point to rectangle (0 if inside/within padding).
-local function distanceToRect(px, py, rx, ry, rw, rh, padding)
-    padding = padding or 0
-    local left = rx - padding
-    local right = rx + rw + padding
-    local top = ry - padding
-    local bottom = ry + rh + padding
-
-    -- Check if point is inside padded rectangle
-    if px >= left and px <= right and py >= top and py <= bottom then
-        return 0
-    end
-
-    -- Calculate distance to nearest edge
-    local dx = 0
-    local dy = 0
-
-    if px < left then
-        dx = left - px
-    elseif px > right then
-        dx = px - right
-    end
-
-    if py < top then
-        dy = top - py
-    elseif py > bottom then
-        dy = py - bottom
-    end
-
-    return math.sqrt(dx * dx + dy * dy)
-end
-
-local function drawGridVisualization()
-    -- Early exit when both features are fully disabled
-    if not settings.master.gridDimBackground and (not settings.master.gridVisualizationEnabled or not settings.master.gridEnabled) then
-        dimFade.opacity = 0
-        dimFade.wasDragging = false
-        gridFade.opacity = 0
-        gridFade.wasDragging = false
-        gridFade.wasFeathering = false
-        gridFade.lastBounds = nil
-        gridFade.lastGridSize = nil
-        core.clearDraggingWindowBounds()
-        return
-    end
-
-    local displayWidth, displayHeight = GetDisplayResolution()
-
-    -- Only check drag state when a drag-only feature needs it (avoids O(n) window iteration)
-    local anyDragging = false
-    if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
-        or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
-        anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
-    end
-    local now = os.clock()
-
-    -- Dim background (independent of grid viz)
-    if settings.master.gridDimBackground then
-        local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
-
-        -- Detect state changes for fade animation (including overlay open)
-        if shouldDim and not dimFade.wasDragging then
-            -- Start fade in (overlay just opened, or drag started in drag-only mode)
-            dimFade.startTime = now
-        elseif not shouldDim and dimFade.wasDragging then
-            -- Start fade out (drag ended in drag-only mode)
-            dimFade.startTime = now
-        end
-        dimFade.wasDragging = shouldDim
-
-        -- Calculate current opacity with fade (using blur fade durations)
-        local elapsed = now - dimFade.startTime
-        if shouldDim then
-            -- Fading in
-            local fadeIn = settings.master.blurFadeInDuration
-            local t = math.min(1, elapsed / fadeIn)
-            dimFade.opacity = t * settings.master.gridDimBackgroundOpacity
-        else
-            -- Fading out
-            local fadeOut = settings.master.blurFadeOutDuration
-            local t = math.min(1, elapsed / fadeOut)
-            dimFade.opacity = (1 - t) * settings.master.gridDimBackgroundOpacity
-        end
-
-        -- Draw if visible
-        if dimFade.opacity > 0.001 then
-            local drawList = ImGui.GetBackgroundDrawList()
-            local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
-            ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
-        end
-    else
-        -- Reset fade state when dim background is disabled
-        dimFade.opacity = 0
-        dimFade.wasDragging = false
-    end
-
-    -- Grid visualization works independently of master override
-    if not settings.master.gridVisualizationEnabled or not settings.master.gridEnabled then
-        gridFade.opacity = 0
-        gridFade.wasDragging = false
-        gridFade.wasFeathering = false
-        gridFade.lastBounds = nil
-        gridFade.lastGridSize = nil
-        core.clearDraggingWindowBounds()
-        return
-    end
-    local featherEnabled = settings.master.gridFeatherEnabled
-
-    -- Handle fade transitions for "show on drag only" mode
-    if settings.master.gridShowOnDragOnly then
-        -- Detect drag state changes
-        if anyDragging and not gridFade.wasDragging then
-            -- Started dragging - begin fade in
-            gridFade.fadeStartTime = now
-            gridFade.wasFeathering = featherEnabled
-        elseif not anyDragging and gridFade.wasDragging then
-            -- Stopped dragging - begin fade out
-            gridFade.fadeStartTime = now
-            -- Preserve state for fade-out
-            gridFade.lastGridSize = core.getDraggingWindowGridSize()
-            gridFade.lastWindowName = core.getDraggingWindowName()
-            -- Deep copy bounds (reused table would go stale)
-            if featherEnabled or (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) then
-                local bounds = core.getDraggingWindowBounds()
-                if bounds then
-                    gridFade.lastBounds = { x = bounds.x, y = bounds.y, width = bounds.width, height = bounds.height }
-                end
-                gridFade.wasFeathering = featherEnabled
-            end
-        end
-        gridFade.wasDragging = anyDragging
-
-        -- Calculate current opacity based on fade state
-        local elapsed = now - gridFade.fadeStartTime
-        if anyDragging then
-            -- Fading in or fully visible
-            gridFade.opacity = math.min(1, elapsed / GRID_FADE_IN_DURATION)
-        else
-            -- Fading out or fully hidden
-            gridFade.opacity = math.max(0, 1 - (elapsed / GRID_FADE_OUT_DURATION))
-        end
-
-        -- Skip drawing grid if fully faded out
-        if gridFade.opacity <= 0 then
-            -- Clear preserved state after fade-out completes
-            gridFade.lastBounds = nil
-            gridFade.lastGridSize = nil
-            gridFade.lastWindowName = nil
-            gridFade.wasFeathering = false
-            core.clearDraggingWindowBounds()
-            return
-        end
-    else
-        -- Not in "show on drag only" mode - always fully visible
-        gridFade.opacity = 1
-        gridFade.wasDragging = false
-        gridFade.wasFeathering = false
-        gridFade.lastBounds = nil
-        gridFade.lastGridSize = nil
-        gridFade.lastWindowName = nil
-    end
-
-    -- Clear live bounds when not dragging (but preserve lastBounds for fade-out)
-    if not anyDragging then
-        core.clearDraggingWindowBounds()
-    end
-
-    -- Use dragging window's grid size, preserved size during fade-out, or master settings
-    local gridSize = anyDragging and core.getDraggingWindowGridSize() or gridFade.lastGridSize or (settings.master.gridUnits * settings.GRID_UNIT_SIZE)
-    local drawList = ImGui.GetBackgroundDrawList()
-    local thickness = settings.master.gridLineThickness or settings.defaults.gridLineThickness
-    local color = settings.master.gridLineColor or settings.defaults.gridLineColor
-    if not color or not color[4] then return end  -- Safety check
-    local baseAlpha = color[4] * gridFade.opacity
-
-    -- Get feather settings
-    local featherRadius = settings.master.gridFeatherRadius
-    local featherPadding = settings.master.gridFeatherPadding
-    local featherCurve = settings.master.gridFeatherCurve
-
-    -- Use feathering if currently dragging with feather enabled, OR fading out with preserved bounds
-    local useFeather = settings.master.gridShowOnDragOnly and featherEnabled and (anyDragging or gridFade.wasFeathering)
-
-    -- Guides active when setting enabled, OR when axis lock (shift+drag) is active
-    local axisLockActive = core.isAxisLockActive()
-    local guidesActive = (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) or axisLockActive
-
-    -- Get window bounds (needed for feathering AND guides)
-    local needBounds = useFeather or guidesActive
-    local windowBounds = nil
-    if needBounds then
-        -- Use live bounds if dragging, otherwise use preserved bounds from fade-out
-        windowBounds = anyDragging and core.getDraggingWindowBounds() or gridFade.lastBounds
-    end
-
-    -- If no bounds available but needed, fall back to mouse position
-    if needBounds and not windowBounds then
-        local mx, my = ImGui.GetMousePos()
-        windowBounds = { x = mx - 100, y = my - 50, width = 200, height = 100 }
-    end
-
-    -- Apply grid dimming when guides are enabled
-    local gridAlpha = baseAlpha
-    if guidesActive then
-        gridAlpha = baseAlpha * settings.master.gridGuidesDimming
-    end
-
-    -- Draw full grid lines (dimmed if guides enabled)
-    -- Draw vertical lines (skip x=0 and x=displayWidth edges)
-    local x = gridSize
-    while x < displayWidth do
-        if useFeather and windowBounds then
-            -- Draw line in segments with varying opacity
-            local y1 = 0
-            while y1 < displayHeight do
-                local y2 = math.min(y1 + gridSize, displayHeight)
-                -- Use whichever segment endpoint is CLOSEST to the window
-                local dist1 = distanceToRect(x, y1, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist2 = distanceToRect(x, y2, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist = math.min(dist1, dist2)
-                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
-                local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = gridAlpha * featherAlpha
-
-                if lineAlpha > 0.001 then
-                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
-                    ImGui.ImDrawListAddLine(drawList, x, y1, x, y2, lineColor, thickness)
-                end
-                y1 = y2
-            end
-        else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
-            ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, lineColor, thickness)
-        end
-        x = x + gridSize
-    end
-
-    -- Draw horizontal lines (skip y=0 and y=displayHeight edges)
-    local y = gridSize
-    while y < displayHeight do
-        if useFeather and windowBounds then
-            -- Draw line in segments with varying opacity
-            local x1 = 0
-            while x1 < displayWidth do
-                local x2 = math.min(x1 + gridSize, displayWidth)
-                -- Use whichever segment endpoint is CLOSEST to the window
-                local dist1 = distanceToRect(x1, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist2 = distanceToRect(x2, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist = math.min(dist1, dist2)
-                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
-                local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = gridAlpha * featherAlpha
-
-                if lineAlpha > 0.001 then
-                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
-                    ImGui.ImDrawListAddLine(drawList, x1, y, x2, y, lineColor, thickness)
-                end
-                x1 = x2
-            end
-        else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
-            ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, lineColor, thickness)
-        end
-        y = y + gridSize
-    end
-
-    -- Draw alignment guides at window edges (full-width/height lines)
-    if guidesActive and windowBounds then
-        local guideColor = ImGui.GetColorU32(color[1], color[2], color[3], baseAlpha)
-
-        -- Snap window bounds to grid for guide positions (use dragging window's grid size, or preserved during fade-out)
-        local windowName = anyDragging and core.getDraggingWindowName() or gridFade.lastWindowName
-        local leftEdge = core.snapToGrid(windowBounds.x, windowName)
-        local rightEdge = core.snapToGrid(windowBounds.x + windowBounds.width, windowName)
-        local topEdge = core.snapToGrid(windowBounds.y, windowName)
-        local bottomEdge = core.snapToGrid(windowBounds.y + windowBounds.height, windowName)
-
-        -- Vertical guides (left and right edges) - full height
-        ImGui.ImDrawListAddLine(drawList, leftEdge, 0, leftEdge, displayHeight, guideColor, thickness)
-        ImGui.ImDrawListAddLine(drawList, rightEdge, 0, rightEdge, displayHeight, guideColor, thickness)
-
-        -- Horizontal guides (top and bottom edges) - full width
-        ImGui.ImDrawListAddLine(drawList, 0, topEdge, displayWidth, topEdge, guideColor, thickness)
-        ImGui.ImDrawListAddLine(drawList, 0, bottomEdge, displayWidth, bottomEdge, guideColor, thickness)
-    end
-end
-
---------------------------------------------------------------------------------
--- Settings Window
---------------------------------------------------------------------------------
-
---- Render the grid visualization overlay and the WindowUtils settings window.
-function ui.drawSettingsWindow()
-    drawGridVisualization()
-
-    if not ui.state.showWindow then return end
-
-    ImGui.SetNextWindowSize(320, 280, ImGuiCond.FirstUseEver)
-    core.setNextWindowSizeConstraintsPercent(15, 15, 100, 100, settings.NAME)
-    -- No close button (use toggle/hotkey to hide), allow collapse
-    if not ImGui.Begin(settings.NAME) then
-        -- Window is collapsed - still update for grid snapping when dragging collapsed window
-        core.update(settings.NAME, {
-            gridEnabled = settings.master.gridEnabled,
-            animationEnabled = settings.master.animationEnabled,
-            animationDuration = settings.master.animationDuration,
-            treatAllDragsAsWindowDrag = true
-        })
-        ImGui.End()
-        return
-    end
-
+local function drawGeneralSection()
     local c = controls.bind(settings.master, settings.defaults, settings.save)
 
-    -- Master override toggle
-    local _, changed = c:Checkbox("Enable Master Override", "enabled", { tooltip = "Override all mod settings with master configuration" })
+    ImGui.Text("Master Override")
+    ImGui.Dummy(0, 0)
+    local _, changed = c:Checkbox("Enable Master Override", "enabled", {
+        tooltip = "Override all mod settings with master configuration"
+    })
     if changed then core.invalidateGridCache() end
 
     controls.SectionHeader("General", 10, 0)
-    c:Checkbox("Show Tooltips", "tooltipsEnabled", { tooltip = "Show Tooltips on Hover", alwaysShowTooltip = true })
+    c:Checkbox("Show Tooltips", "tooltipsEnabled", {
+        tooltip = "Show Tooltips on Hover",
+        alwaysShowTooltip = true
+    })
 
     ImGui.SameLine()
-    _, changed = c:Checkbox("Debug Output", "debugOutput", { tooltip = "Print Debug Messages to Console", alwaysShowTooltip = true })
+    _, changed = c:Checkbox("Debug Output", "debugOutput", {
+        tooltip = "Print Debug Messages to Console",
+        alwaysShowTooltip = true
+    })
     if changed then settings.debugPrint("Debug Output Enabled") end
 
-    -- Grid Snapping and Animation (requires master override)
-    if not settings.master.enabled then
-        ImGui.BeginDisabled()
+    controls.SectionHeader("Experimental", 10, 0)
+    local toggleId = "gui_outer_tgl_trail"
+    local isOpen = splitter.getToggle(toggleId) or false
+    local newOpen
+    newOpen, changed = controls.Checkbox("Show Experimental Settings", isOpen, {
+        tooltip = "Expand the Experimental panel at the bottom of the window\n\nYou can also toggle it by clicking the arrow at the bottom edge"
+    })
+    if changed then
+        splitter.setToggle(toggleId, newOpen)
     end
+end
 
-    controls.SectionHeader("Grid Snapping", 10, 0)
-    c:Checkbox("Enable Grid Snapping", "gridEnabled", { tooltip = "Snap Windows to Grid When Released" })
+--------------------------------------------------------------------------------
+-- Section 2: Grid
+--------------------------------------------------------------------------------
 
-    if not settings.master.gridEnabled then
-        ImGui.BeginDisabled()
-    end
+local function drawGridSection()
+    local c = controls.bind(settings.master, settings.defaults, settings.save)
+
+    if not settings.master.enabled then ImGui.BeginDisabled() end
+
+    ImGui.Text("Grid Snapping")
+    ImGui.Dummy(0, 0)
+    c:Checkbox("Enable Grid Snapping", "gridEnabled", {
+        tooltip = "Snap Windows to Grid When Released"
+    })
+
+    if not settings.master.gridEnabled then ImGui.BeginDisabled() end
 
     ImGui.SameLine()
-    c:Checkbox("Snap Collapsed", "snapCollapsed", { tooltip = "Snap Collapsed Windows When Dragged" })
+    c:Checkbox("Snap Collapsed", "snapCollapsed", {
+        tooltip = "Snap Collapsed Windows When Dragged"
+    })
 
-    -- Grid scale uses validUnits mapping — use raw API
+    -- Grid scale uses validUnits mapping
     local validUnits = settings.getValidGridUnits(10)
     local maxScale = math.min(#validUnits, 5)
     local currentScale = 1
@@ -578,18 +108,17 @@ function ui.drawSettingsWindow()
 
     for i, units in ipairs(validUnits) do
         if i <= maxScale then
-            if units == settings.master.gridUnits then
-                currentScale = i
-            end
-            if units == settings.defaults.gridUnits then
-                defaultScale = i
-            end
+            if units == settings.master.gridUnits then currentScale = i end
+            if units == settings.defaults.gridUnits then defaultScale = i end
         end
     end
 
     local gridSize = validUnits[currentScale] * settings.GRID_UNIT_SIZE
-    local newScale
-    newScale, changed = controls.SliderInt("Grid", "gridScale", currentScale, 1, maxScale, { format = "Scale %d (" .. gridSize .. "px)", default = defaultScale, tooltip = "Grid Scale (maps to valid grid sizes for your resolution)" })
+    local newScale, changed = controls.SliderInt("Grid", "gridScale", currentScale, 1, maxScale, {
+        format = "Scale %d (" .. gridSize .. "px)",
+        default = defaultScale,
+        tooltip = "Grid Scale (maps to valid grid sizes for your resolution)"
+    })
     if changed then
         settings.master.gridUnits = validUnits[newScale]
         settings.save()
@@ -599,17 +128,22 @@ function ui.drawSettingsWindow()
         end
     end
 
-    c:Checkbox("Auto Adjust", "autoAdjustOnResize", { tooltip = "Automatically re-snap all windows to the new grid when scale changes" })
+    c:Checkbox("Auto Adjust", "autoAdjustOnResize", {
+        tooltip = "Automatically re-snap all windows to the new grid when scale changes"
+    })
 
-    -- Animation settings
+    -- Animation
     controls.SectionHeader("Animation", 10, 0)
-    c:Checkbox("Snap Animation", "animationEnabled", { tooltip = "Animate Window Snapping" })
+    c:Checkbox("Snap Animation", "animationEnabled", {
+        tooltip = "Animate Window Snapping"
+    })
 
-    if not settings.master.animationEnabled then
-        ImGui.BeginDisabled()
-    end
+    if not settings.master.animationEnabled then ImGui.BeginDisabled() end
 
-    c:SliderFloat("TimerOutline", "animationDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Animation Duration" })
+    c:SliderFloat("TimerOutline", "animationDuration", 0.05, 1.0, {
+        format = "%.2f s",
+        tooltip = "Animation Duration"
+    })
 
     c:Combo("SineWave", "easeFunction", settings.easingNames, {
         tooltip = "Easing Function",
@@ -619,110 +153,128 @@ function ui.drawSettingsWindow()
         },
     })
 
-    if not settings.master.animationEnabled then
-        ImGui.EndDisabled()
-    end
+    if not settings.master.animationEnabled then ImGui.EndDisabled() end
+    if not settings.master.gridEnabled then ImGui.EndDisabled() end
+    if not settings.master.enabled then ImGui.EndDisabled() end
+end
 
-    if not settings.master.gridEnabled then
-        ImGui.EndDisabled()
-    end
+--------------------------------------------------------------------------------
+-- Section 3: Visuals
+--------------------------------------------------------------------------------
 
-    if not settings.master.enabled then
-        ImGui.EndDisabled()
-    end
+local function drawVisualsSection()
+    local c = controls.bind(settings.master, settings.defaults, settings.save)
 
-    -- Grid Visualization (gated on grid snapping)
-    if not settings.master.gridEnabled then
-        ImGui.BeginDisabled()
-    end
+    if not settings.master.gridEnabled then ImGui.BeginDisabled() end
 
-    controls.SectionHeader("Grid Visualization", 10, 0)
-    c:Checkbox("Enable", "gridVisualizationEnabled", { tooltip = "Display Grid Lines on Screen" })
+    ImGui.Text("Grid Visualization")
+    ImGui.Dummy(0, 0)
+    c:Checkbox("Enable", "gridVisualizationEnabled", {
+        tooltip = "Display Grid Lines on Screen"
+    })
 
-    -- Grid visualization sub-options
-    if not settings.master.gridVisualizationEnabled then
-        ImGui.BeginDisabled()
-    end
+    if not settings.master.gridVisualizationEnabled then ImGui.BeginDisabled() end
 
     ImGui.SameLine()
-    c:Checkbox("On Drag Only ##grid", "gridShowOnDragOnly", { tooltip = "Only Show Grid While Dragging Windows" })
+    c:Checkbox("On Drag Only ##grid", "gridShowOnDragOnly", {
+        tooltip = "Only Show Grid While Dragging Windows"
+    })
 
-    if not settings.master.gridShowOnDragOnly then
-        ImGui.BeginDisabled()
-    end
+    if not settings.master.gridShowOnDragOnly then ImGui.BeginDisabled() end
 
     ImGui.SameLine()
-    c:Checkbox("Guides", "gridGuidesEnabled", { tooltip = "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis" })
+    c:Checkbox("Guides", "gridGuidesEnabled", {
+        tooltip = "Highlight Alignment Lines at Window Edges\n(Dims full grid, shows full-brightness lines at snapped edges)\nCan be combined with Feathered Grid\n\nTip: Hold Shift while dragging to lock movement to one axis"
+    })
 
-    if not settings.master.gridGuidesEnabled then
-        ImGui.BeginDisabled()
-    end
-    c:SliderFloat("Brightness5", "gridGuidesDimming", 0, 1, { percent = true, tooltip = "Grid Dimming (opacity of grid lines when guides active)" })
-    if not settings.master.gridGuidesEnabled then
-        ImGui.EndDisabled()
-    end
+    if not settings.master.gridGuidesEnabled then ImGui.BeginDisabled() end
+    c:SliderFloat("Brightness5", "gridGuidesDimming", 0, 1, {
+        percent = true,
+        tooltip = "Grid Dimming (opacity of grid lines when guides active)"
+    })
+    if not settings.master.gridGuidesEnabled then ImGui.EndDisabled() end
 
-    -- Grid feathering (only available when Show on Drag Only is enabled)
-    c:Checkbox("Feathered Grid", "gridFeatherEnabled", { tooltip = "Show Grid Only Around Active Window" })
+    c:Checkbox("Feathered Grid", "gridFeatherEnabled", {
+        tooltip = "Show Grid Only Around Active Window"
+    })
 
-    if not settings.master.gridFeatherEnabled then
-        ImGui.BeginDisabled()
-    end
-    c:SliderFloat("BlurRadial", "gridFeatherRadius", 200, 1200, { format = "%.0f px", tooltip = "Feather Radius (distance where grid fades to zero)" })
-    c:SliderFloat("SelectionEllipse", "gridFeatherPadding", 0, 120, { format = "%.0f px", tooltip = "Window Padding (area around window with full opacity)" })
-    c:SliderFloat("ChartBellCurveCumulative", "gridFeatherCurve", 1.0, 12.0, { format = "%.1f", tooltip = "Feather Curve (higher = faster drop near window, gradual fade at edges)" })
-    if not settings.master.gridFeatherEnabled then
-        ImGui.EndDisabled()
-    end
+    if not settings.master.gridFeatherEnabled then ImGui.BeginDisabled() end
+    c:SliderFloat("BlurRadial", "gridFeatherRadius", 200, 1200, {
+        format = "%.0f px",
+        tooltip = "Feather Radius (distance where grid fades to zero)"
+    })
+    c:SliderFloat("SelectionEllipse", "gridFeatherPadding", 0, 120, {
+        format = "%.0f px",
+        tooltip = "Window Padding (area around window with full opacity)"
+    })
+    c:SliderFloat("ChartBellCurveCumulative", "gridFeatherCurve", 1.0, 12.0, {
+        format = "%.1f",
+        tooltip = "Feather Curve (higher = faster drop near window, gradual fade at edges)"
+    })
+    if not settings.master.gridFeatherEnabled then ImGui.EndDisabled() end
 
-    if not settings.master.gridShowOnDragOnly then
-        ImGui.EndDisabled()
-    end
+    if not settings.master.gridShowOnDragOnly then ImGui.EndDisabled() end
 
-    c:SliderFloat("FormatLineWeight", "gridLineThickness", 0.5, 5.0, { format = "%.1f px", tooltip = "Grid Line Thickness" })
-    c:ColorEdit4("Palette", "gridLineColor", { tooltip = "Grid Line Color" })
+    c:SliderFloat("FormatLineWeight", "gridLineThickness", 0.5, 5.0, {
+        format = "%.1f px",
+        tooltip = "Grid Line Thickness"
+    })
+    c:ColorEdit4("Palette", "gridLineColor", {
+        tooltip = "Grid Line Color"
+    })
 
-    if not settings.master.gridVisualizationEnabled then
-        ImGui.EndDisabled()
-    end
+    if not settings.master.gridVisualizationEnabled then ImGui.EndDisabled() end
+    if not settings.master.gridEnabled then ImGui.EndDisabled() end
+end
 
-    if not settings.master.gridEnabled then
-        ImGui.EndDisabled()
-    end
+--------------------------------------------------------------------------------
+-- Section 4: Background
+--------------------------------------------------------------------------------
 
-    -- Background section (independent of grid visualization)
-    controls.SectionHeader("Background", 10, 0)
+local function drawBackgroundSection()
+    local c = controls.bind(settings.master, settings.defaults, settings.save)
 
-    c:Checkbox("Dim Background", "gridDimBackground", { tooltip = "Darken Screen When Grid Overlay Visible" })
+    -- Dim Background
+    ImGui.Text("Dim Background")
+    ImGui.Dummy(0, 0)
+    c:Checkbox("Dim Background", "gridDimBackground", {
+        tooltip = "Darken Screen When Grid Overlay Visible"
+    })
 
-    if not settings.master.gridDimBackground then
-        ImGui.BeginDisabled()
-    end
+    if not settings.master.gridDimBackground then ImGui.BeginDisabled() end
     ImGui.SameLine()
-    c:Checkbox("On Drag Only##dimBg", "gridDimBackgroundOnDragOnly", { tooltip = "Only Dim Background While Dragging Windows" })
-    -- Display as 0-100%, store as 0-1 (transformed — use raw API)
-    c:SliderFloat("Brightness4", "gridDimBackgroundOpacity", 0.1, 0.9, { percent = true, tooltip = "Background Dimming Opacity" })
-    if not settings.master.gridDimBackground then
-        ImGui.EndDisabled()
-    end
+    c:Checkbox("On Drag Only##dimBg", "gridDimBackgroundOnDragOnly", {
+        tooltip = "Only Dim Background While Dragging Windows"
+    })
+    c:SliderFloat("Brightness4", "gridDimBackgroundOpacity", 0.1, 0.9, {
+        percent = true,
+        tooltip = "Background Dimming Opacity"
+    })
+    if not settings.master.gridDimBackground then ImGui.EndDisabled() end
 
-    -- Blur settings
-    local blurAvailable = ui.isBlurAvailable()
+    -- Blur
+    controls.SectionHeader("Blur", 10, 0)
 
-    if not blurAvailable then
-        ImGui.BeginDisabled()
-    end
+    local blurAvailable = effects.isBlurAvailable()
 
-    -- Blur checkbox has complex side-effects — use raw API
+    if not blurAvailable then ImGui.BeginDisabled() end
+
     local blurValue = blurAvailable and settings.master.blurOnOverlayOpen or false
-    blurValue, changed = controls.Checkbox("Blur on Overlay Open", blurValue, { default = settings.defaults.blurOnOverlayOpen, tooltip = blurAvailable and "Blur Game Background When CET Overlay Opens" or "Download the required library files" })
+    local changed
+    blurValue, changed = controls.Checkbox("Blur on Overlay Open", blurValue, {
+        default = settings.defaults.blurOnOverlayOpen,
+        tooltip = blurAvailable
+            and "Blur Game Background When CET Overlay Opens"
+            or "Download the required library files"
+    })
     if changed and blurAvailable then
         settings.master.blurOnOverlayOpen = blurValue
         settings.save()
-        if settings.master.blurOnOverlayOpen and ui.state.isOverlayOpen and not settings.master.blurOnDragOnly then
-            ui.enableBlur()
+        if settings.master.blurOnOverlayOpen and effects.state.isOverlayOpen
+           and not settings.master.blurOnDragOnly then
+            effects.enableBlur()
         elseif not settings.master.blurOnOverlayOpen then
-            ui.disableBlur()
+            effects.disableBlur()
         end
     end
 
@@ -736,64 +288,214 @@ function ui.drawSettingsWindow()
     end
 
     ImGui.SameLine()
-    -- Blur drag-only has complex side-effects — use raw API
     local newBlurDragOnly
-    newBlurDragOnly, changed = controls.Checkbox("On Drag Only##blur", settings.master.blurOnDragOnly, { default = settings.defaults.blurOnDragOnly, tooltip = "Only Blur While Dragging Windows" })
+    newBlurDragOnly, changed = controls.Checkbox("On Drag Only##blur",
+        settings.master.blurOnDragOnly, {
+            default = settings.defaults.blurOnDragOnly,
+            tooltip = "Only Blur While Dragging Windows"
+        })
     if changed then
         settings.master.blurOnDragOnly = newBlurDragOnly
         settings.save()
-        if not settings.master.blurOnDragOnly and ui.state.isOverlayOpen then
-            ui.enableBlur()
-        elseif settings.master.blurOnDragOnly and not ui.blur.wasDragging then
-            ui.disableBlur()
+        if not settings.master.blurOnDragOnly and effects.state.isOverlayOpen then
+            effects.enableBlur()
+        elseif settings.master.blurOnDragOnly and not effects.blur.wasDragging then
+            effects.disableBlur()
         end
     end
 
-    _, changed = c:SliderFloat("Blur", "blurIntensity", 0.001, 0.02, { format = "%.4f", tooltip = "Blur Intensity" })
-    if changed then ui.updateBlurIntensity(settings.master.blurIntensity) end
+    local _
+    _, changed = c:SliderFloat("Blur", "blurIntensity", 0.001, 0.02, {
+        format = "%.4f",
+        tooltip = "Blur Intensity"
+    })
+    if changed then effects.updateBlurIntensity(settings.master.blurIntensity) end
 
-    c:SliderFloat("TransitionMasked", "blurFadeInDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade In Duration" })
-    c:SliderFloat("TransitionMasked", "blurFadeOutDuration", 0.05, 1.0, { format = "%.2f s", tooltip = "Fade Out Duration" })
+    c:SliderFloat("TransitionMasked", "blurFadeInDuration", 0.05, 1.0, {
+        format = "%.2f s",
+        tooltip = "Fade In Duration"
+    })
+    c:SliderFloat("TransitionMasked", "blurFadeOutDuration", 0.05, 1.0, {
+        format = "%.2f s",
+        tooltip = "Fade Out Duration"
+    })
 
     if not settings.master.blurOnOverlayOpen or not blurAvailable then
         ImGui.EndDisabled()
     end
+end
 
-    -- Experimental settings (requires master override)
-    if not settings.master.enabled then
-        ImGui.BeginDisabled()
-    end
-    controls.SectionHeader("Experimental", 10, 0)
+--------------------------------------------------------------------------------
+-- Section 5: Experimental (bottom edge toggle)
+--------------------------------------------------------------------------------
+
+local function drawExperimentalSection()
+    local c = controls.bind(settings.master, settings.defaults, settings.save)
+
+    if not settings.master.enabled then ImGui.BeginDisabled() end
+
+    ImGui.Text("Experimental")
+    ImGui.Dummy(0, 0)
 
     local discoveryAvailable = core.isDiscoveryAvailable()
 
     if discoveryAvailable then
-        _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", { tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.", alwaysShowTooltip = true })
+        local _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", {
+            tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.",
+            alwaysShowTooltip = true
+        })
         if changed then core.invalidateGridCache() end
     else
         controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
     end
 
     if settings.master.overrideAllWindows and discoveryAvailable then
-        c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, { format = "%.1f s", tooltip = "Re-Probe Interval\nHow often to scan for newly-drawn windows" })
+        c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, {
+            format = "%.1f s",
+            tooltip = "Re-Probe Interval\nHow often to scan for newly-drawn windows"
+        })
 
-        c:Checkbox("Auto-Remove Empty Windows", "autoRemoveEmptyWindows", { tooltip = "Automatically stop managing windows that are no longer drawn by any mod\nAlso removes empty shells instantly when clicked", alwaysShowTooltip = true })
+        c:Checkbox("Auto-Remove Empty Windows", "autoRemoveEmptyWindows", {
+            tooltip = "Automatically stop managing windows that are no longer drawn by any mod\nAlso removes empty shells instantly when clicked",
+            alwaysShowTooltip = true
+        })
 
         if settings.master.autoRemoveEmptyWindows then
-            c:SliderFloat("TimerSand", "autoRemoveInterval", 0.1, 5.0, { format = "%.1f s", tooltip = "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing" })
+            c:SliderFloat("TimerSand", "autoRemoveInterval", 0.1, 5.0, {
+                format = "%.1f s",
+                tooltip = "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing"
+            })
 
-            c:Checkbox("Batch Auto-Remove", "batchAutoRemove", { tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)" })
+            c:Checkbox("Batch Auto-Remove", "batchAutoRemove", {
+                tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)"
+            })
         end
-
     end
 
-    if not settings.master.enabled then
-        ImGui.EndDisabled()
+    if not settings.master.enabled then ImGui.EndDisabled() end
+end
+
+--------------------------------------------------------------------------------
+-- Sidebar Navigation
+--------------------------------------------------------------------------------
+
+local function drawSidebar()
+    for _, entry in ipairs(ui.sections) do
+        if controls.DynamicButton(entry.label, entry.icon, {
+            style = ui.selectedSection == entry.page and "active" or "inactive",
+            width = -1,
+        }) then
+            ui.selectedSection = entry.page
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Content Panel (dispatches to selected section)
+--------------------------------------------------------------------------------
+
+local function drawContentPanel()
+    if controls.BeginFillChild("gui_section_scroll", { bg = CONTENT_BG }) then
+        if ui.selectedSection == 1 then
+            drawGeneralSection()
+        elseif ui.selectedSection == 2 then
+            drawGridSection()
+        elseif ui.selectedSection == 3 then
+            drawVisualsSection()
+        elseif ui.selectedSection == 4 then
+            drawBackgroundSection()
+        end
+    end
+    controls.EndFillChild()
+end
+
+--------------------------------------------------------------------------------
+-- Public API
+--------------------------------------------------------------------------------
+
+local GUI_WINDOW_NAME = settings.NAME
+
+--- Initialize section definitions and restore persisted state.
+--- Call after IconGlyphs is available.
+function ui.init()
+    local ic = IconGlyphs or {}
+    ui.sections = {
+        { label = "General",    icon = ic.Tune        or "?", page = 1 },
+        { label = "Grid",       icon = ic.Grid        or "?", page = 2 },
+        { label = "Visuals",    icon = ic.Eye         or "?", page = 3 },
+        { label = "Background", icon = ic.Brightness6 or "?", page = 4 },
+    }
+    -- Restore persisted window visibility
+    ui.state.showWindow = settings.master.showGuiWindow
+end
+
+--- Render the full settings window (ImGui.Begin/End + layout).
+function ui.drawWindow()
+    if not ui.state.showWindow then return end
+
+    -- Window constraints: percentage-of-screen floor + panel content minimums
+    local displayW, displayH = GetDisplayResolution()
+    local padX = ImGui.GetStyle().WindowPadding.x * 2
+    local padY2 = ImGui.GetStyle().WindowPadding.y * 2
+    local pctMinW = displayW * 0.25
+    local pctMinH = displayH * 0.30
+    local innerMinW = splitter.getMinSize("gui_inner") or 0
+    local outerMinH = splitter.getMinSize("gui_outer") or 0
+    local minW = math.max(innerMinW + padX, pctMinW)
+    local minH = math.max(outerMinH + padY2, pctMinH)
+
+    ImGui.SetNextWindowSize(displayW * 0.30, displayH * 0.40, ImGuiCond.FirstUseEver)
+    core.setNextWindowSizeConstraints(minW, minH, displayW * 0.45, displayH * 0.5, GUI_WINDOW_NAME)
+
+    if not ImGui.Begin(GUI_WINDOW_NAME) then
+        -- Collapsed
+        core.update(GUI_WINDOW_NAME, {
+            gridEnabled = settings.master.gridEnabled,
+            animationEnabled = settings.master.animationEnabled,
+            animationDuration = settings.master.animationDuration,
+            treatAllDragsAsWindowDrag = true
+        })
+        ImGui.End()
+        return
     end
 
-    -- Update with WindowUtils (for this window)
-    -- treatAllDragsAsWindowDrag enables live grid preview when adjusting sliders
-    core.update(settings.NAME, {
+    -- Experimental panel: use measured content height (previous frame), or text-metric estimate
+    local padY = ImGui.GetStyle().WindowPadding.y
+    local experimentalH = cachedExperimentalH
+        or (ImGui.GetTextLineHeightWithSpacing() * 6 + ImGui.GetStyle().ItemSpacing.y * 5 + padY * 2)
+
+    -- Sidebar max width: ~15% of display width (scales with resolution)
+    local sidebarMaxW = math.floor(displayW * 0.15)
+
+    -- Outer: vertical split (top area + experimental bottom toggle)
+    splitter.multi("gui_outer", {
+        -- Top: horizontal split (sidebar + content)
+        { content = function()
+            splitter.multi("gui_inner", {
+                -- Left: resizable sidebar (auto-min from splitter)
+                { maxWidth = sidebarMaxW, content = function()
+                    controls.Panel("gui_nav", function()
+                        drawSidebar()
+                    end)
+                end },
+                -- Right: content area
+                { content = function()
+                    drawContentPanel()
+                end },
+            }, { direction = "horizontal", defaultPcts = { 0.3, 0.7 } })
+        end },
+        -- Bottom: experimental edge toggle (full width)
+        { toggle = true, size = experimentalH, defaultOpen = false, content = function()
+            controls.Panel("gui_experimental", function()
+                drawExperimentalSection()
+                -- Measure actual content height for next frame
+                cachedExperimentalH = ImGui.GetCursorPosY() + padY
+            end)
+        end },
+    }, { direction = "vertical" })
+
+    -- Update with WindowUtils (for this window's grid snapping)
+    core.update(GUI_WINDOW_NAME, {
         gridEnabled = settings.master.gridEnabled,
         animationEnabled = settings.master.animationEnabled,
         animationDuration = settings.master.animationDuration,
@@ -810,21 +512,21 @@ end
 --- Show the settings window and persist the state.
 function ui.show()
     ui.state.showWindow = true
-    settings.master.showSettingsWindow = true
+    settings.master.showGuiWindow = true
     settings.save()
 end
 
 --- Hide the settings window and persist the state.
 function ui.hide()
     ui.state.showWindow = false
-    settings.master.showSettingsWindow = false
+    settings.master.showGuiWindow = false
     settings.save()
 end
 
 --- Toggle settings window visibility and persist the state.
 function ui.toggle()
     ui.state.showWindow = not ui.state.showWindow
-    settings.master.showSettingsWindow = ui.state.showWindow
+    settings.master.showGuiWindow = ui.state.showWindow
     settings.save()
 end
 

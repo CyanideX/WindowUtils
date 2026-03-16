@@ -17,6 +17,7 @@ local settings = require("modules/settings")
 local utils = require("modules/utils")
 local core = require("modules/core")
 local ui = require("modules/ui")
+local effects = require("modules/effects")
 local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")
@@ -131,13 +132,14 @@ registerForEvent("onDraw", function()
     styles.PushScrollbar()
 
     -- Update blur animation (runs even when overlay might be closing)
-    ui.updateBlurAnimation()
+    effects.updateBlurAnimation()
 
     if WindowUtils.runtimeData.cetOpen then
         -- Update blur based on drag state (for "blur on drag only" mode)
-        ui.updateBlurDragState()
+        effects.updateBlurDragState()
 
-        ui.drawSettingsWindow()
+        effects.drawGridOverlay()
+        ui.drawWindow()
 
         -- Process external windows if override is enabled
         core.updateExternalWindows()
@@ -154,23 +156,23 @@ end)
 
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
-    ui.state.isOverlayOpen = true
+    effects.state.isOverlayOpen = true
     -- Re-probe blocked external windows in case they became active while overlay was closed
     core.resetExternalProbes()
     -- Enable blur if setting is enabled (unless drag-only mode)
     if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
-        ui.enableBlur()
+        effects.enableBlur()
     end
 end)
 
 registerForEvent("onOverlayClose", function()
     WindowUtils.runtimeData.cetOpen = false
-    ui.state.isOverlayOpen = false
+    effects.state.isOverlayOpen = false
     -- Save cached external window sizes to disk
     core.saveWindowCache()
     -- Disable blur and dim when overlay closes
-    ui.disableBlur()
-    ui.disableDim()
+    effects.disableBlur()
+    effects.disableDim()
 end)
 
 return WindowUtils

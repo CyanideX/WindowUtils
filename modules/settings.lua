@@ -52,7 +52,7 @@ local function createDefaultSettings()
         gridDimBackground = true,
         gridDimBackgroundOnDragOnly = true,
         gridDimBackgroundOpacity = 0.2,
-        showSettingsWindow = false,
+        showGuiWindow = true,
         blurOnOverlayOpen = false,
         blurOnDragOnly = true,
         blurIntensity = 0.0028,
@@ -118,6 +118,11 @@ function settings.load()
         if settings.master[key] ~= nil then
             settings.master[key] = value
         end
+    end
+
+    -- Migrate old key name to new
+    if data.showSettingsWindow ~= nil and data.showGuiWindow == nil then
+        settings.master.showGuiWindow = data.showSettingsWindow
     end
 
     settings.debugPrint("Settings Loaded")
