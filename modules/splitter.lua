@@ -532,6 +532,7 @@ local function getToggleState(id, opts)
             speed = opts.speed or COLLAPSE_SPEED,
             animate = opts.animate ~= false,
             barWidth = opts.barWidth or ImGui.GetStyle().ItemSpacing.x,
+            barBg = opts.barBg,
             hovering = false,
         }
     end
@@ -545,7 +546,7 @@ local function drawToggleBar(id, state, side)
 
     local bgColor = state.hovering
         and (styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 })
-        or TRANSPARENT
+        or (state.barBg or TRANSPARENT)
     local iconColor = state.hovering
         and (styles.colors.splitterIconHi or styles.colors.textWhite)
         or (styles.colors.splitterIcon or styles.colors.greyLight)
