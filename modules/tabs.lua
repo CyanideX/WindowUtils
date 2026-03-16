@@ -29,10 +29,10 @@ local DOT_PAD_FACTOR    = 0.35  -- label padding width as fraction of font size
 
 local tabStates = {} -- [id] = { selected = 1 }
 
--- Cached badge colors (computed once on first use)
+-- Badge colors (lazy-init on first draw, when ImGui is available)
 local cachedBadgeColor = nil
-local cachedTextColor = nil
-local cachedDotColor = nil
+local cachedTextColor  = nil
+local cachedDotColor   = nil
 
 --------------------------------------------------------------------------------
 -- Public API
@@ -47,6 +47,12 @@ local cachedDotColor = nil
 function tabs.bar(id, tabDefs, opts)
     if not tabDefs or #tabDefs == 0 then return 0, false end
 
+    if not cachedBadgeColor then
+        cachedBadgeColor = styles.ToColor(styles.colors.red)
+        cachedTextColor  = styles.ToColor(styles.colors.textWhite)
+        cachedDotColor   = styles.ToColor(styles.colors.green)
+    end
+
     opts = opts or {}
     local flags = opts.flags or 0
 
@@ -58,6 +64,11 @@ function tabs.bar(id, tabDefs, opts)
     local prevSelected = state.selected
 
     if ImGui.BeginTabBar(id, flags) then
+        -- Hoist per-frame values outside the tab loop
+        local spaceW = ImGui.CalcTextSize(" ")
+        local fontSize = ImGui.GetFontSize()
+        local drawList = ImGui.GetWindowDrawList()
+
         for i, tab in ipairs(tabDefs) do
             local disabled = tab.disabled or false
             local tabFlags = 0
@@ -76,43 +87,32 @@ function tabs.bar(id, tabDefs, opts)
             local label = tab.label
             local hasBadgeNum = not disabled and type(tab.badge) == "number" and tab.badge > 0
             local hasBadgeDot = not disabled and tab.badge == true
+            local badgeTextW, badgeTextH, badgeRadius
             if hasBadgeNum or hasBadgeDot then
-                local spaceW = ImGui.CalcTextSize(" ")
                 if hasBadgeNum then
                     local badgeText = tostring(tab.badge)
-                    local textW, textH = ImGui.CalcTextSize(badgeText)
-                    local radius = math.max(textH * 0.5 + BADGE_CIRCLE_PAD, textW * 0.5 + BADGE_TEXT_PAD)
-                    local padCount = math.ceil((radius * 2) / spaceW)
+                    badgeTextW, badgeTextH = ImGui.CalcTextSize(badgeText)
+                    badgeRadius = math.max(badgeTextH * 0.5 + BADGE_CIRCLE_PAD, badgeTextW * 0.5 + BADGE_TEXT_PAD)
+                    local padCount = math.ceil((badgeRadius * 2) / spaceW)
                     label = label .. string.rep(" ", padCount)
                 else
-                    label = label .. string.rep(" ", math.ceil(ImGui.GetFontSize() * DOT_PAD_FACTOR / spaceW))
+                    label = label .. string.rep(" ", math.ceil(fontSize * DOT_PAD_FACTOR / spaceW))
                 end
             end
 
             local open = ImGui.BeginTabItem(label .. "##" .. id .. "_" .. i, tabFlags)
 
-            -- Badge rendering (small colored dot or number after the tab label)
+            -- Badge rendering (reuses measurements from padding calc above)
             if tab.badge and not disabled then
-                if not cachedBadgeColor then
-                    cachedBadgeColor = styles.ToColor(styles.colors.red)
-                    cachedTextColor = styles.ToColor(styles.colors.textWhite)
-                    cachedDotColor = styles.ToColor(styles.colors.green)
-                end
-
                 local _, minY = ImGui.GetItemRectMin()
                 local maxX = ImGui.GetItemRectMax()
-                local drawList = ImGui.GetWindowDrawList()
-                local fontSize = ImGui.GetFontSize()
 
                 if hasBadgeNum then
-                    local badgeText = tostring(tab.badge)
-                    local textW, textH = ImGui.CalcTextSize(badgeText)
-                    local radius = math.max(textH * 0.5 + BADGE_CIRCLE_PAD, textW * 0.5 + BADGE_TEXT_PAD)
-                    local cx = maxX - radius - BADGE_EDGE_OFFSET
-                    local cy = minY + radius + BADGE_EDGE_OFFSET
+                    local cx = maxX - badgeRadius - BADGE_EDGE_OFFSET
+                    local cy = minY + badgeRadius + BADGE_EDGE_OFFSET
 
-                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, radius, cachedBadgeColor, BADGE_SEGMENTS)
-                    ImGui.ImDrawListAddText(drawList, fontSize, cx - textW * 0.5, cy - textH * 0.5, cachedTextColor, badgeText)
+                    ImGui.ImDrawListAddCircleFilled(drawList, cx, cy, badgeRadius, cachedBadgeColor, BADGE_SEGMENTS)
+                    ImGui.ImDrawListAddText(drawList, fontSize, cx - badgeTextW * 0.5, cy - badgeTextH * 0.5, cachedTextColor, tostring(tab.badge))
                 elseif tab.badge == true then
                     local dotRadius = fontSize * DOT_RADIUS_FACTOR
                     local cx = maxX - dotRadius - fontSize * DOT_OFFSET_X

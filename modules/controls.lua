@@ -33,9 +33,14 @@ function controls.cacheFrameState()
     frameCache.itemSpacingX = style.ItemSpacing.x
     frameCache.itemSpacingY = style.ItemSpacing.y
     frameCache.framePaddingX = style.FramePadding.x
+    frameCache.windowPaddingX = style.WindowPadding.x
     frameCache.windowPaddingY = style.WindowPadding.y
     frameCache.frameHeight = ImGui.GetFrameHeight()
     frameCache.textLineHeight = ImGui.GetTextLineHeightWithSpacing()
+    -- Pre-compute values that are stable within a frame
+    frameCache.minIconButtonWidth = utils.minIconButtonWidth(style.FramePadding.x)
+    frameCache.charWidth = ImGui.CalcTextSize("M")
+    frameCache.ellipsisWidth = ImGui.CalcTextSize("...")
 end
 
 ---@return table frameCache Cached style values for the current frame
@@ -207,9 +212,7 @@ function controls.DynamicButton(label, icon, opts)
     local minChars = opts.minChars or 3
     local iconThreshold = opts.iconThreshold
     if not iconThreshold then
-        local charW = ImGui.CalcTextSize("M")
-        local ellipsisW = ImGui.CalcTextSize("...")
-        iconThreshold = (charW * minChars) + ellipsisW
+        iconThreshold = (frameCache.charWidth * minChars) + frameCache.ellipsisWidth
     end
 
     local displayLabel

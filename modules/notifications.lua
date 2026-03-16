@@ -33,7 +33,8 @@ local config = {
 
 local queue = {}  -- { message, level, spawnTime, ttl, fadeOut }
 local nextId = 1
-local toRemove = {}  -- reused each frame to avoid per-frame allocation
+local toRemove = {}       -- reused each frame to avoid per-frame allocation
+local toRemoveCount = 0   -- numeric counter (avoids pairs-clear each frame)
 
 -- Level colors mapped to styles.colors
 local levelColors = {
@@ -157,7 +158,7 @@ function notifications.draw()
 
     local now = os.clock()
     local visibleIndex = 0
-    for k in pairs(toRemove) do toRemove[k] = nil end
+    toRemoveCount = 0
 
     for i, toast in ipairs(queue) do
         local elapsed = now - toast.spawnTime
@@ -165,7 +166,8 @@ function notifications.draw()
 
         -- Mark for removal if fully expired
         if elapsed >= totalLife then
-            table.insert(toRemove, i)
+            toRemoveCount = toRemoveCount + 1
+            toRemove[toRemoveCount] = i
         else
             visibleIndex = visibleIndex + 1
             if visibleIndex > config.maxVisible then
@@ -228,7 +230,7 @@ function notifications.draw()
     end
 
     -- Remove expired toasts (iterate in reverse to preserve indices)
-    for i = #toRemove, 1, -1 do
+    for i = toRemoveCount, 1, -1 do
         table.remove(queue, toRemove[i])
     end
 end

@@ -6,6 +6,7 @@
 local styles = require("modules/styles")
 local utils = require("modules/utils")
 local core = require("modules/core")
+local controls = require("modules/controls")
 
 local easeInOut = core.easeInOut
 
@@ -444,7 +445,9 @@ local function getMultiState(id, n, opts, panels)
             grabWidth = grabWidth,
             minGap = minGap,
             panelDefs = panels,
-            isVertical = isVertical
+            isVertical = isVertical,
+            effectiveBps = {},  -- reused per-frame for clamping
+            minFracs = {}       -- reused per-frame for min fraction cache
         }
     end
     return multiStates[id]
@@ -461,12 +464,11 @@ local function getPanelMinFrac(panelDefs, panelIdx, totalSize, minGap, isVertica
     if type(spec) == "function" then spec = spec() end
     local px = parseSizeSpec(spec, totalSize)
 
-    -- Auto-detect minimum when no explicit min is set
+    -- Auto-detect minimum when no explicit min is set (uses per-frame cache)
     if not px and panel.autoMin ~= false then
-        local style = ImGui.GetStyle()
-        local autoMinPx = utils.minIconButtonWidth(style.FramePadding.x)
-        local padKey = isVertical and "y" or "x"
-        autoMinPx = autoMinPx + style.WindowPadding[padKey] * 2
+        local fc = controls.getFrameCache()
+        local autoMinPx = fc.minIconButtonWidth
+        autoMinPx = autoMinPx + (isVertical and fc.windowPaddingY or fc.windowPaddingX) * 2
         px = autoMinPx
     end
 
@@ -719,22 +721,26 @@ function splitter.multi(id, panels, opts)
     if coreUsable < 1 then return end  -- only fires if totalAvail is truly tiny
     local totalSize = coreUsable
 
+    -- Compute panel min fractions once (reuse for clamping, min-size cache, and drag)
+    local minFracs = ms.minFracs
+    for i = 1, coreN do
+        minFracs[i] = getPanelMinFrac(corePanels, i, totalSize, minGap, isVertical)
+    end
+
     -- Per-frame enforcement of panel minimums (protects during window resize, not just drag)
-    local effectiveBps = {}
+    local effectiveBps = ms.effectiveBps
     for i = 1, coreN - 1 do
         effectiveBps[i] = ms.breakpoints[i]
     end
     -- Forward pass: protect panels from left
     for i = 1, coreN - 1 do
         local prev = (i > 1) and effectiveBps[i - 1] or 0
-        local minF = getPanelMinFrac(corePanels, i, totalSize, minGap, isVertical)
-        effectiveBps[i] = math.max(effectiveBps[i], prev + minF)
+        effectiveBps[i] = math.max(effectiveBps[i], prev + minFracs[i])
     end
     -- Backward pass: protect panels from right
     for i = coreN - 1, 1, -1 do
         local nxt = (i < coreN - 1) and effectiveBps[i + 1] or 1
-        local minF = getPanelMinFrac(corePanels, i + 1, totalSize, minGap, isVertical)
-        effectiveBps[i] = math.min(effectiveBps[i], nxt - minF)
+        effectiveBps[i] = math.min(effectiveBps[i], nxt - minFracs[i + 1])
     end
 
     -- Compute core panel pixel sizes from effective breakpoints
@@ -754,8 +760,7 @@ function splitter.multi(id, panels, opts)
     -- Cache total minimum size for window-level constraints
     local totalMinPx = 0
     for i = 1, coreN do
-        local minF = getPanelMinFrac(corePanels, i, totalSize, minGap, isVertical)
-        totalMinPx = totalMinPx + math.max(math.ceil(minF * totalSize), 1)
+        totalMinPx = totalMinPx + math.max(math.ceil(minFracs[i] * totalSize), 1)
     end
     splitterMinSizes[id] = totalMinPx + grabTotal + toggleSpace
 
@@ -972,9 +977,9 @@ function splitter.toggle(id, panels, opts)
     if type(flexMinSpec) == "function" then flexMinSpec = flexMinSpec() end
     local flexMinPx = parseSizeSpec(flexMinSpec, totalAvail)
     if not flexMinPx then
-        local style = ImGui.GetStyle()
-        flexMinPx = utils.minIconButtonWidth(style.FramePadding.x)
-                  + style.WindowPadding[isVert and "y" or "x"] * 2
+        local fc = controls.getFrameCache()
+        flexMinPx = fc.minIconButtonWidth
+                  + (isVert and fc.windowPaddingY or fc.windowPaddingX) * 2
     end
     splitterMinSizes[id] = panelSize + barW + flexMinPx
 
