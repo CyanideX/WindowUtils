@@ -15,6 +15,9 @@ local TRANSPARENT = { 0, 0, 0, 0 }
 local COLLAPSE_SPEED = 6.0
 local COLLAPSE_MIN = 0.01
 
+-- Cached minimum sizes per splitter (computed per-frame, used for window constraints)
+local splitterMinSizes = {}
+
 local isCtrlHeld = utils.isCtrlHeld
 local isShiftHeld = utils.isShiftHeld
 local snapValue = function(val) return utils.snapToIncrement(val) end
@@ -455,6 +458,7 @@ local function getPanelMinFrac(panelDefs, panelIdx, totalSize, minGap, isVertica
     local panel = panelDefs[panelIdx]
     local key = isVertical and "minHeight" or "minWidth"
     local spec = panel[key]
+    if type(spec) == "function" then spec = spec() end
     local px = parseSizeSpec(spec, totalSize)
 
     -- Auto-detect minimum when no explicit min is set
@@ -715,12 +719,30 @@ function splitter.multi(id, panels, opts)
     if coreUsable < 1 then return end  -- only fires if totalAvail is truly tiny
     local totalSize = coreUsable
 
-    -- Compute core panel pixel sizes from breakpoints
+    -- Per-frame enforcement of panel minimums (protects during window resize, not just drag)
+    local effectiveBps = {}
+    for i = 1, coreN - 1 do
+        effectiveBps[i] = ms.breakpoints[i]
+    end
+    -- Forward pass: protect panels from left
+    for i = 1, coreN - 1 do
+        local prev = (i > 1) and effectiveBps[i - 1] or 0
+        local minF = getPanelMinFrac(corePanels, i, totalSize, minGap, isVertical)
+        effectiveBps[i] = math.max(effectiveBps[i], prev + minF)
+    end
+    -- Backward pass: protect panels from right
+    for i = coreN - 1, 1, -1 do
+        local nxt = (i < coreN - 1) and effectiveBps[i + 1] or 1
+        local minF = getPanelMinFrac(corePanels, i + 1, totalSize, minGap, isVertical)
+        effectiveBps[i] = math.min(effectiveBps[i], nxt - minF)
+    end
+
+    -- Compute core panel pixel sizes from effective breakpoints
     local sizes = {}
     local consumed = 0
     for i = 1, coreN do
-        local startFrac = (i == 1) and 0 or ms.breakpoints[i - 1]
-        local endFrac = (i == coreN) and 1 or ms.breakpoints[i]
+        local startFrac = (i == 1) and 0 or effectiveBps[i - 1]
+        local endFrac = (i == coreN) and 1 or effectiveBps[i]
         if i == coreN then
             sizes[i] = coreUsable - consumed
         else
@@ -728,6 +750,14 @@ function splitter.multi(id, panels, opts)
             consumed = consumed + sizes[i]
         end
     end
+
+    -- Cache total minimum size for window-level constraints
+    local totalMinPx = 0
+    for i = 1, coreN do
+        local minF = getPanelMinFrac(corePanels, i, totalSize, minGap, isVertical)
+        totalMinPx = totalMinPx + math.max(math.ceil(minF * totalSize), 1)
+    end
+    splitterMinSizes[id] = totalMinPx + grabTotal + toggleSpace
 
     -- Cancel ItemSpacing between elements (matches splitter.horizontal / .vertical)
     local function cancelSpacing()
@@ -937,6 +967,17 @@ function splitter.toggle(id, panels, opts)
     local fixedPanel = panels[1]
     local flexPanel = panels[2]
 
+    -- Cache total minimum size: fixed panel (current) + bar + flex minimum
+    local flexMinSpec = flexPanel and (isVert and flexPanel.minHeight or flexPanel.minWidth)
+    if type(flexMinSpec) == "function" then flexMinSpec = flexMinSpec() end
+    local flexMinPx = parseSizeSpec(flexMinSpec, totalAvail)
+    if not flexMinPx then
+        local style = ImGui.GetStyle()
+        flexMinPx = utils.minIconButtonWidth(style.FramePadding.x)
+                  + style.WindowPadding[isVert and "y" or "x"] * 2
+    end
+    splitterMinSizes[id] = panelSize + barW + flexMinPx
+
     local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
 
     local function renderFixed()
@@ -1024,6 +1065,15 @@ end
 function splitter.getToggleAnimate(id)
     local state = toggleStates[id]
     return state and state.animate or nil
+end
+
+--- Get the cached minimum size (in pixels) for a splitter's primary direction.
+--- Returns the minimum content-region size needed so all panels fit at their minimums.
+--- Use this value (+ window padding) for SetNextWindowSizeConstraints.
+---@param id string Splitter identifier
+---@return number|nil minSize Minimum pixels, or nil if splitter hasn't rendered yet
+function splitter.getMinSize(id)
+    return splitterMinSizes[id]
 end
 
 -- Aliases for brevity

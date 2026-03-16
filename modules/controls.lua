@@ -15,6 +15,18 @@ local controls = {}
 
 local frameCache = {}
 
+--------------------------------------------------------------------------------
+-- ButtonRow minimum width cache (measured per-frame, keyed by opts.id)
+--------------------------------------------------------------------------------
+
+local buttonRowMinWidths = {}
+
+---@param id string ButtonRow id (from opts.id)
+---@return number|nil minWidth Cached minimum width in pixels, or nil if unknown
+function controls.getButtonRowMinWidth(id)
+    return buttonRowMinWidths[id]
+end
+
 ---@return nil
 function controls.cacheFrameState()
     local style = ImGui.GetStyle()
@@ -1121,7 +1133,7 @@ end
 --- Render a row of buttons with automatic width distribution.
 --- Icon-only buttons (def.icon, no def.label) auto-size. Text buttons share remaining space by weight.
 ---@param defs table Array of button defs: {label?, icon?, style?, weight?, width?, height?, disabled?, tooltip?, onClick?, onHold?, holdDuration?, progressFrom?, progressStyle?, progressDisplay?, id?}
----@param opts? table {gap?}
+---@param opts? table {gap?, id?}
 ---@return nil
 function controls.ButtonRow(defs, opts)
     if not defs or #defs == 0 then return end
@@ -1133,18 +1145,29 @@ function controls.ButtonRow(defs, opts)
     local fixedW = gap * (#defs - 1)
     local totalWeight = 0
     local measured = {}
+    local totalMinWidth = fixedW  -- minimum = gaps + all buttons at natural size
 
     for i, def in ipairs(defs) do
         if def.width then
             measured[i] = def.width
             fixedW = fixedW + def.width
+            totalMinWidth = totalMinWidth + def.width
         elseif def.icon and not def.label and not def.weight then
             local icon = resolveIcon(def.icon) or def.icon
             measured[i] = ImGui.CalcTextSize(icon) + frameCache.framePaddingX * 2
             fixedW = fixedW + measured[i]
+            totalMinWidth = totalMinWidth + measured[i]
         else
             totalWeight = totalWeight + (def.weight or 1)
+            -- Natural width of text/weighted button
+            local text = (def.icon and resolveIcon(def.icon)) or def.label or def[1] or ""
+            totalMinWidth = totalMinWidth + ImGui.CalcTextSize(text) + frameCache.framePaddingX * 2
         end
+    end
+
+    -- Cache minimum width by id for panel constraint use
+    if opts.id then
+        buttonRowMinWidths[opts.id] = totalMinWidth
     end
 
     local remainingW = math.max(availW - fixedW, 0)
@@ -1335,18 +1358,27 @@ function controls.bind(data, defaults, onSave, bindOpts)
         local fixedW = gap * (#defs - 1)
         local totalWeight = 0
         local measured = {}
+        local totalMinWidth = fixedW
 
         for i, def in ipairs(defs) do
             if def.width then
                 measured[i] = def.width
                 fixedW = fixedW + def.width
+                totalMinWidth = totalMinWidth + def.width
             elseif def.icon and not def.label and not def.weight then
                 local icon = resolveIcon(def.icon) or def.icon
                 measured[i] = ImGui.CalcTextSize(icon) + frameCache.framePaddingX * 2
                 fixedW = fixedW + measured[i]
+                totalMinWidth = totalMinWidth + measured[i]
             else
                 totalWeight = totalWeight + (def.weight or 1)
+                local text = (def.icon and resolveIcon(def.icon)) or def.label or def.key or ""
+                totalMinWidth = totalMinWidth + ImGui.CalcTextSize(text) + frameCache.framePaddingX * 2
             end
+        end
+
+        if opts.id then
+            buttonRowMinWidths[opts.id] = totalMinWidth
         end
 
         local remainingW = math.max(availW - fixedW, 0)
