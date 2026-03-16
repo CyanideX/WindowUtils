@@ -165,8 +165,6 @@ end
 local function drawVisualsSection()
     local c = controls.bind(settings.master, settings.defaults, settings.save)
 
-    if not settings.master.gridEnabled then ImGui.BeginDisabled() end
-
     ImGui.Text("Grid Visualization")
     ImGui.Dummy(0, 0)
     c:Checkbox("Enable", "gridVisualizationEnabled", {
@@ -224,7 +222,6 @@ local function drawVisualsSection()
     })
 
     if not settings.master.gridVisualizationEnabled then ImGui.EndDisabled() end
-    if not settings.master.gridEnabled then ImGui.EndDisabled() end
 end
 
 --------------------------------------------------------------------------------
@@ -280,7 +277,6 @@ local function drawBackgroundSection()
 
     if not blurAvailable then
         ImGui.EndDisabled()
-        controls.TextWarning("XUtils Not Installed")
     end
 
     if not settings.master.blurOnOverlayOpen or not blurAvailable then
@@ -322,6 +318,10 @@ local function drawBackgroundSection()
 
     if not settings.master.blurOnOverlayOpen or not blurAvailable then
         ImGui.EndDisabled()
+    end
+
+    if not blurAvailable then
+        controls.StatusBar("XUtils Not Installed")
     end
 end
 

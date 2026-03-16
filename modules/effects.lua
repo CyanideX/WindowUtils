@@ -248,7 +248,7 @@ end
 
 local function drawGridVisualization()
     -- Early exit when both features are fully disabled
-    if not settings.master.gridDimBackground and (not settings.master.gridVisualizationEnabled or not settings.master.gridEnabled) then
+    if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
         dimFade.opacity = 0
         dimFade.wasDragging = false
         gridFade.opacity = 0
@@ -265,7 +265,7 @@ local function drawGridVisualization()
     -- Only check drag state when a drag-only feature needs it (avoids O(n) window iteration)
     local anyDragging = false
     if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
-        or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
+        or (settings.master.gridVisualizationEnabled and settings.master.gridShowOnDragOnly) then
         anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
     end
     local now = os.clock()
@@ -311,7 +311,7 @@ local function drawGridVisualization()
     end
 
     -- Grid visualization works independently of master override
-    if not settings.master.gridVisualizationEnabled or not settings.master.gridEnabled then
+    if not settings.master.gridVisualizationEnabled then
         gridFade.opacity = 0
         gridFade.wasDragging = false
         gridFade.wasFeathering = false

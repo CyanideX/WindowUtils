@@ -99,7 +99,8 @@ styles.buttonDefaults = {
     danger   = { bg = { 1.0, 0.30, 0.30, 0.88 },  hover = { 1.0, 0.38, 0.38, 1.0 },  active = { 0.93, 0.27, 0.27, 1.0 }, text = { 0.17, 0.0, 0.0, 1.0 } },
     warning  = { bg = { 1.0, 0.76, 0.24, 0.88 },  hover = { 1.0, 0.76, 0.24, 1.0 },  active = { 0.91, 0.63, 0.23, 1.0 }, text = { 0.16, 0.07, 0.0, 1.0 } },
     update   = { bg = { 0.0, 1.0, 0.70, 0.88 },   hover = { 0.25, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 0.88 },  text = { 0.0, 0.11, 0.08, 1.0 } },
-    disabled = { bg = { 0.30, 0.30, 0.30, 0.71 }, hover = { 0.30, 0.30, 0.30, 0.71 }, active = { 0.30, 0.30, 0.30, 0.71 }, text = { 0.5, 0.5, 0.5, 1.0 } },
+    disabled  = { bg = { 0.30, 0.30, 0.30, 0.71 }, hover = { 0.30, 0.30, 0.30, 0.71 }, active = { 0.30, 0.30, 0.30, 0.71 }, text = { 0.5, 0.5, 0.5, 1.0 } },
+    statusbar = { bg = { 0.65, 0.7, 1.0, 0.045 }, hover = { 0.65, 0.7, 1.0, 0.045 }, active = { 0.65, 0.7, 1.0, 0.045 }, text = { 1.0, 0.8, 0.0, 0.8 } },
 }
 
 --------------------------------------------------------------------------------
@@ -124,8 +125,10 @@ styles.PushButtonWarning  = pushBtnDef("warning")
 styles.PopButtonWarning   = popBtnDef()
 styles.PushButtonUpdate   = pushBtnDef("update")
 styles.PopButtonUpdate    = popBtnDef()
-styles.PushButtonDisabled = pushBtnDef("disabled")
-styles.PopButtonDisabled  = popBtnDef()
+styles.PushButtonDisabled  = pushBtnDef("disabled")
+styles.PopButtonDisabled   = popBtnDef()
+styles.PushButtonStatusbar = pushBtnDef("statusbar")
+styles.PopButtonStatusbar  = popBtnDef()
 
 --- Transparent button (invisible background)
 function styles.PushButtonTransparent()
@@ -313,6 +316,7 @@ local styleMap = {
     warning = { push = styles.PushButtonWarning, pop = styles.PopButtonWarning },
     update = { push = styles.PushButtonUpdate, pop = styles.PopButtonUpdate },
     disabled = { push = styles.PushButtonDisabled, pop = styles.PopButtonDisabled },
+    statusbar = { push = styles.PushButtonStatusbar, pop = styles.PopButtonStatusbar },
     transparent = { push = styles.PushButtonTransparent, pop = styles.PopButtonTransparent }
 }
 

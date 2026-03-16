@@ -162,6 +162,25 @@ function controls.DisabledButton(label, width, height)
     styles.PopButtonDisabled()
 end
 
+--- Create a non-interactive status bar with a label and optional value.
+---@param label string Left-side label text (rendered inside button)
+---@param value? any Right-side value text (rendered after button via SameLine)
+---@param opts? {widthFraction: number, style: string} widthFraction divides available width (default 1), style name (default "statusbar")
+function controls.StatusBar(label, value, opts)
+    opts = opts or {}
+    local style = opts.style or "statusbar"
+    local w = ImGui.GetContentRegionAvail() / (opts.widthFraction or 1)
+
+    styles.PushButton(style)
+    ImGui.Button(label, w, 0)
+    styles.PopButton(style)
+
+    if value ~= nil then
+        ImGui.SameLine()
+        ImGui.Text(tostring(value))
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Helpers: icon prefix + width calculation (shared by sliders, inputs, combo)
 --------------------------------------------------------------------------------
