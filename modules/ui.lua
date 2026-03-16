@@ -164,9 +164,15 @@ end
 
 local function drawVisualsSection()
     local c = controls.bind(settings.master, settings.defaults, settings.save)
+    local previewActive = false
 
     ImGui.Text("Grid Visualization")
     ImGui.Dummy(0, 0)
+
+    if not settings.master.gridEnabled then
+        controls.StatusBar("Grid Snapping Disabled - Preview Only")
+    end
+
     c:Checkbox("Enable", "gridVisualizationEnabled", {
         tooltip = "Display Grid Lines on Screen"
     })
@@ -190,6 +196,7 @@ local function drawVisualsSection()
         percent = true,
         tooltip = "Grid Dimming (opacity of grid lines when guides active)"
     })
+    previewActive = previewActive or ImGui.IsItemActive()
     if not settings.master.gridGuidesEnabled then ImGui.EndDisabled() end
 
     c:Checkbox("Feathered Grid", "gridFeatherEnabled", {
@@ -201,14 +208,17 @@ local function drawVisualsSection()
         format = "%.0f px",
         tooltip = "Feather Radius (distance where grid fades to zero)"
     })
+    previewActive = previewActive or ImGui.IsItemActive()
     c:SliderFloat("SelectionEllipse", "gridFeatherPadding", 0, 120, {
         format = "%.0f px",
         tooltip = "Window Padding (area around window with full opacity)"
     })
+    previewActive = previewActive or ImGui.IsItemActive()
     c:SliderFloat("ChartBellCurveCumulative", "gridFeatherCurve", 1.0, 12.0, {
         format = "%.1f",
         tooltip = "Feather Curve (higher = faster drop near window, gradual fade at edges)"
     })
+    previewActive = previewActive or ImGui.IsItemActive()
     if not settings.master.gridFeatherEnabled then ImGui.EndDisabled() end
 
     if not settings.master.gridShowOnDragOnly then ImGui.EndDisabled() end
@@ -217,11 +227,15 @@ local function drawVisualsSection()
         format = "%.1f px",
         tooltip = "Grid Line Thickness"
     })
+    previewActive = previewActive or ImGui.IsItemActive()
     c:ColorEdit4("Palette", "gridLineColor", {
         tooltip = "Grid Line Color"
     })
+    previewActive = previewActive or ImGui.IsItemActive()
 
     if not settings.master.gridVisualizationEnabled then ImGui.EndDisabled() end
+
+    effects.state.previewActive = previewActive
 end
 
 --------------------------------------------------------------------------------
@@ -254,7 +268,10 @@ local function drawBackgroundSection()
 
     local blurAvailable = effects.isBlurAvailable()
 
-    if not blurAvailable then ImGui.BeginDisabled() end
+    if not blurAvailable then
+        controls.StatusBar("XUtils Not Installed")
+        ImGui.BeginDisabled()
+    end
 
     local blurValue = blurAvailable and settings.master.blurOnOverlayOpen or false
     local changed
@@ -319,10 +336,6 @@ local function drawBackgroundSection()
     if not settings.master.blurOnOverlayOpen or not blurAvailable then
         ImGui.EndDisabled()
     end
-
-    if not blurAvailable then
-        controls.StatusBar("XUtils Not Installed")
-    end
 end
 
 --------------------------------------------------------------------------------
@@ -339,15 +352,19 @@ local function drawExperimentalSection()
 
     local discoveryAvailable = core.isDiscoveryAvailable()
 
-    if discoveryAvailable then
-        local _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", {
-            tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.",
-            alwaysShowTooltip = true
-        })
-        if changed then core.invalidateGridCache() end
-    else
-        controls.TextWarning("RedCetWM plugin not found - Install Window Manager")
+    if not discoveryAvailable then
+        controls.StatusBar("RedCetWM Plugin Not Installed")
     end
+
+    if not discoveryAvailable then ImGui.BeginDisabled() end
+
+    local _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", {
+        tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.",
+        alwaysShowTooltip = true
+    })
+    if changed then core.invalidateGridCache() end
+
+    if not discoveryAvailable then ImGui.EndDisabled() end
 
     if settings.master.overrideAllWindows and discoveryAvailable then
         c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, {
