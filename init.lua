@@ -127,6 +127,9 @@ registerForEvent("onDraw", function()
     -- Cache style values for controls (GetStyle() once per frame)
     controls.cacheFrameState()
 
+    -- Apply themed scrollbar defaults for all WU-rendered content
+    styles.PushScrollbar()
+
     -- Update blur animation (runs even when overlay might be closing)
     ui.updateBlurAnimation()
 
@@ -145,6 +148,8 @@ registerForEvent("onDraw", function()
 
     -- Draw toast notifications LAST so they render on top of all other windows
     notifications.draw()
+
+    styles.PopScrollbar()
 end)
 
 registerForEvent("onOverlayOpen", function()

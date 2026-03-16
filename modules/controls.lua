@@ -835,103 +835,6 @@ function controls.resetAllHoldStates()
 end
 
 --------------------------------------------------------------------------------
--- Collapsing Section (animated)
---------------------------------------------------------------------------------
-
--- State for collapsible sections: [id] = { open, measuredHeight, animProgress }
-local collapseStates = {}
-
--- Arrow icons (lazy-loaded)
-local _arrowRight = nil
-local _arrowDown = nil
-local function ensureArrows()
-    if _arrowRight then return end
-    _arrowRight = IconGlyphs and IconGlyphs.ChevronRight or ">"
-    _arrowDown = IconGlyphs and IconGlyphs.ChevronDown or "v"
-end
-
---- Begin an animated collapsible section
----@param label string Section header text
----@param id? string Unique section ID (defaults to label)
----@param defaultOpen? boolean Initial open state (default true)
----@return boolean isOpen True if the section content should be rendered (call EndCollapsingSection after)
-function controls.CollapsingSection(label, id, defaultOpen)
-    ensureArrows()
-
-    id = id or label
-    if defaultOpen == nil then defaultOpen = true end
-
-    -- Initialize state
-    if not collapseStates[id] then
-        collapseStates[id] = {
-            open = defaultOpen,
-            measuredHeight = 0,
-            animProgress = defaultOpen and 1.0 or 0.0,
-            lastTime = os.clock(),
-            childId = "##collapse_" .. id,
-            label = label,
-        }
-    end
-    local state = collapseStates[id]
-
-    -- Draw header button
-    local arrow = state.open and _arrowDown or _arrowRight
-    local headerLabel = arrow .. "  " .. state.label
-
-    styles.PushButtonTransparent()
-    if ImGui.Button(headerLabel, ImGui.GetContentRegionAvail(), 0) then
-        state.open = not state.open
-    end
-    styles.PopButtonTransparent()
-
-    -- Animate progress toward target
-    local target = state.open and 1.0 or 0.0
-    local speed = 8.0
-    local now = os.clock()
-    local dt = now - state.lastTime
-    state.lastTime = now
-    if state.animProgress < target then
-        state.animProgress = math.min(target, state.animProgress + speed * dt)
-    elseif state.animProgress > target then
-        state.animProgress = math.max(target, state.animProgress - speed * dt)
-    end
-
-    -- If fully closed and animation complete, skip content entirely
-    if state.animProgress <= 0 then
-        return false
-    end
-
-    -- Begin content region with animated height
-    if state.measuredHeight > 0 and state.animProgress < 1.0 then
-        local height = state.measuredHeight * state.animProgress
-        ImGui.BeginChild(state.childId, 0, height, false, ImGuiWindowFlags.NoScrollbar)
-    else
-        ImGui.BeginChild(state.childId, 0, 0, false,
-            ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.AlwaysAutoResize)
-    end
-
-    return true
-end
-
---- End a collapsing section (must be called after CollapsingSection returns true)
----@param id? string Section ID matching the CollapsingSection call
----@return nil
-function controls.EndCollapsingSection(id)
-    id = id or ""
-    local state = collapseStates[id]
-
-    -- Measure content height for animation
-    if state then
-        local _, cursorY = ImGui.GetCursorPos()
-        if cursorY > 0 then
-            state.measuredHeight = cursorY
-        end
-    end
-
-    ImGui.EndChild()
-end
-
---------------------------------------------------------------------------------
 -- Fill-Available-Space Child Region
 --------------------------------------------------------------------------------
 
@@ -962,6 +865,7 @@ function controls.BeginFillChild(id, opts)
 
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + extraFlags
 
+    styles.PushScrollbar()
     return ImGui.BeginChild(childId, width, childHeight, border, flags)
 end
 
@@ -970,6 +874,7 @@ end
 ---@return nil
 function controls.EndFillChild(opts)
     ImGui.EndChild()
+    styles.PopScrollbar()
     opts = opts or {}
     if opts.bg then
         ImGui.PopStyleColor()

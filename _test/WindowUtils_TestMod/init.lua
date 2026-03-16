@@ -91,6 +91,39 @@ local function drawControlsDemo()
                 ImGui.Dummy(0, 2)
                 controls.TextMuted("All controls use controls.bind(data, defaults) for auto-read/write/reset.")
 
+                controls.Separator(8, 8)
+
+                local ac = controls.bind(advState, advDefaults)
+
+                ac:SliderFloat("Brightness6", "opacity", 0, 1, {
+                    percent = true,
+                    tooltip = "ctx:SliderFloat(icon, key, 0, 1, {percent=true})\nDisplays 0-100% for a 0.0-1.0 float",
+                })
+
+                ac:SliderInt("TuneVariant", "quality", 1, 23, {
+                    percent = true,
+                    tooltip = "ctx:SliderInt(icon, key, 1, 23, {percent=true})\nDisplays percentage of range for integers",
+                })
+
+                ac:SliderInt("Speedometer", "speed", 0, 10, {
+                    tooltip = "ctx:SliderInt(icon, key, min, max, opts)\nNormal slider (no percent) for comparison",
+                })
+
+                ImGui.Dummy(0, 6)
+
+                controls.TextMuted("Combo with transform (stored as string, shown as index):")
+                local findIdx = function(key)
+                    for i, k in ipairs(easingKeys) do if k == key then return i - 1 end end
+                    return 0
+                end
+                ac:Combo("SineWave", "easeFunction", easingNames, {
+                    tooltip = "ctx:Combo(icon, key, items, {transform={read, write}})\nStored as \"" .. tostring(advState.easeFunction) .. "\", displayed as dropdown index",
+                    transform = {
+                        read  = function(v) return findIdx(v) end,
+                        write = function(v) return easingKeys[v + 1] end,
+                    },
+                })
+
             elseif controlsPage == 2 then
                 -- Buttons: HoldButton variants + ActionButton
                 controls.TextMuted("Overlay mode: progress overlays the button")
@@ -285,39 +318,6 @@ local function drawControlsDemo()
                 })
 
             elseif controlsPage == 4 then
-                -- Sliders: percent + transform
-                local c = controls.bind(advState, advDefaults)
-
-                c:SliderFloat("Brightness6", "opacity", 0, 1, {
-                    percent = true,
-                    tooltip = "ctx:SliderFloat(icon, key, 0, 1, {percent=true})\nDisplays 0-100% for a 0.0-1.0 float",
-                })
-
-                c:SliderInt("TuneVariant", "quality", 1, 23, {
-                    percent = true,
-                    tooltip = "ctx:SliderInt(icon, key, 1, 23, {percent=true})\nDisplays percentage of range for integers",
-                })
-
-                c:SliderInt("Speedometer", "speed", 0, 10, {
-                    tooltip = "ctx:SliderInt(icon, key, min, max, opts)\nNormal slider (no percent) for comparison",
-                })
-
-                ImGui.Dummy(0, 6)
-
-                controls.TextMuted("Combo with transform (stored as string, shown as index):")
-                local findIdx = function(key)
-                    for i, k in ipairs(easingKeys) do if k == key then return i - 1 end end
-                    return 0
-                end
-                c:Combo("SineWave", "easeFunction", easingNames, {
-                    tooltip = "ctx:Combo(icon, key, items, {transform={read, write}})\nStored as \"" .. tostring(advState.easeFunction) .. "\", displayed as dropdown index",
-                    transform = {
-                        read  = function(v) return findIdx(v) end,
-                        write = function(v) return easingKeys[v + 1] end,
-                    },
-                })
-
-            elseif controlsPage == 5 then
                 -- Grid System
                 controls.TextMuted("controls.ColWidth(n) sizes widgets to n/12 of available width.")
                 ImGui.Dummy(0, 4)
@@ -355,30 +355,8 @@ local function drawControlsDemo()
                 ImGui.SameLine()
                 controls.Button("  col-3  ", "inactive", w3b)
 
-            elseif controlsPage == 6 then
+            elseif controlsPage == 5 then
                 -- Layout Helpers
-                controls.TextMuted("CollapsingSection: animated expand/collapse")
-                ImGui.Dummy(0, 2)
-
-                if controls.CollapsingSection("Nested Section A", "ctl_nested_a", true) then
-                    controls.TextMuted("Open by default (3rd arg = true).")
-                    ImGui.Text("Any content can go here.")
-                    ImGui.Dummy(0, 4)
-                    controls.EndCollapsingSection("ctl_nested_a")
-                end
-                tooltips.ShowBullets("controls.CollapsingSection(label, id, defaultOpen)", {
-                    "Returns true when open",
-                    "Call EndCollapsingSection(id) after content",
-                })
-
-                if controls.CollapsingSection("Nested Section B", "ctl_nested_b", false) then
-                    controls.TextMuted("Starts closed (3rd arg = false).")
-                    ImGui.Dummy(0, 4)
-                    controls.EndCollapsingSection("ctl_nested_b")
-                end
-
-                ImGui.Dummy(0, 6)
-
                 controls.TextMuted("BeginFillChild: scrollable child filling remaining space")
                 ImGui.Dummy(0, 2)
                 if controls.BeginFillChild("demo_fill", { bg = { 0.65, 0.7, 1.0, 0.045 } }) then
@@ -392,7 +370,7 @@ local function drawControlsDemo()
                     "Call EndFillChild(opts) to close",
                 })
 
-            elseif controlsPage == 7 then
+            elseif controlsPage == 6 then
                 -- Notifications
                 controls.TextMuted("Toast notifications drawn by WindowUtils:")
                 ImGui.Dummy(0, 4)
@@ -922,10 +900,9 @@ registerForEvent("onInit", function()
         { label = "Standard", icon = ic.Tune              or "?", page = 1 },
         { label = "Buttons",  icon = ic.GestureTapButton  or "?", page = 2 },
         { label = "Rows",     icon = ic.TableRow          or "?", page = 3 },
-        { label = "Sliders",  icon = ic.TuneVariant       or "?", page = 4 },
-        { label = "Grid",     icon = ic.Grid              or "?", page = 5 },
-        { label = "Layout",   icon = ic.ViewDashboard     or "?", page = 6 },
-        { label = "Notify",   icon = ic.BellOutline       or "?", page = 7 },
+        { label = "Grid",     icon = ic.Grid              or "?", page = 4 },
+        { label = "Layout",   icon = ic.ViewDashboard     or "?", page = 5 },
+        { label = "Notify",   icon = ic.BellOutline       or "?", page = 6 },
     }
 end)
 

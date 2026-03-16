@@ -251,29 +251,6 @@ c.ActionButton("preset_1", "My Preset", {
 
 Clear hold button state for cleanup.
 
-## Collapsing Section
-
-### `CollapsingSection(label, id?, defaultOpen?)`
-
-Animated collapsible section with arrow toggle.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| label | string | — | Header label |
-| id | string\|nil | label | Unique ID |
-| defaultOpen | boolean\|nil | true | Default state |
-
-**Returns:** `boolean` — true if content should be rendered
-
-Must be paired with `EndCollapsingSection(id)`:
-
-```lua
-if c.CollapsingSection("Advanced Settings", "adv") then
-    -- render content here
-    c.EndCollapsingSection("adv")
-end
-```
-
 ## Fill Child
 
 ### `BeginFillChild(id, opts?)`

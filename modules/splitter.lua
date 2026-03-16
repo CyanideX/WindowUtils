@@ -284,6 +284,8 @@ function splitter.horizontal(id, leftFn, rightFn, opts)
     local leftW = math.floor(usableW * state.pct)
     local rightW = usableW - leftW
 
+    styles.PushScrollbar()
+
     ImGui.BeginChild("##splitter_left_" .. id, leftW, 0, false)
     if leftFn then leftFn() end
     ImGui.EndChild()
@@ -299,6 +301,8 @@ function splitter.horizontal(id, leftFn, rightFn, opts)
     ImGui.BeginChild("##splitter_right_" .. id, rightW, 0, false)
     if rightFn then rightFn() end
     ImGui.EndChild()
+
+    styles.PopScrollbar()
 
     return state.pct
 end
@@ -319,6 +323,8 @@ function splitter.vertical(id, topFn, bottomFn, opts)
     local topH = math.floor(usableH * state.pct)
     local bottomH = usableH - topH
 
+    styles.PushScrollbar()
+
     ImGui.BeginChild("##splitter_top_" .. id, availW, topH, false)
     if topFn then topFn() end
     ImGui.EndChild()
@@ -332,6 +338,8 @@ function splitter.vertical(id, topFn, bottomFn, opts)
     ImGui.BeginChild("##splitter_bottom_" .. id, availW, bottomH, false)
     if bottomFn then bottomFn() end
     ImGui.EndChild()
+
+    styles.PopScrollbar()
 
     return state.pct
 end
@@ -777,6 +785,8 @@ function splitter.multi(id, panels, opts)
     local leadSide = isVertical and "top" or "left"
     local trailSide = isVertical and "bottom" or "right"
 
+    styles.PushScrollbar()
+
     -- 1. Lead toggle panel + toggle bar
     if leadToggle then
         if leadSize > 0 then
@@ -830,6 +840,8 @@ function splitter.multi(id, panels, opts)
             ImGui.EndChild()
         end
     end
+
+    styles.PopScrollbar()
 
     -- Animation tick for multi dividers (used by context menu "Reset")
     for i = 1, coreN - 1 do
@@ -1018,6 +1030,8 @@ function splitter.toggle(id, panels, opts)
         end
     end
 
+    styles.PushScrollbar()
+
     if fixedFirst then
         renderFixed()
         if panelSize > 0 then cancelSpacing() end
@@ -1031,6 +1045,8 @@ function splitter.toggle(id, panels, opts)
         if panelSize > 0 then cancelSpacing() end
         renderFixed()
     end
+
+    styles.PopScrollbar()
 
     return state.isOpen
 end
