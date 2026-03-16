@@ -938,7 +938,15 @@ registerForEvent("onDraw", function()
 
     local tabs = wu.Tabs
 
-    ImGui.SetNextWindowSizeConstraints(400, 300, 9999, 9999)
+    local splitter = wu.Splitter
+    local padX = ImGui.GetStyle().WindowPadding.x * 2
+    local minW = math.max(
+        splitter.getMinSize("etgl_inner") or 0,
+        splitter.getMinSize("ms_dynbtn") or 0,
+        splitter.getMinSize("ms_weighted") or 0,
+        400 - padX
+    ) + padX
+    wu.SetNextWindowSizeConstraints(minW, 300, 9999, 9999, "WindowUtils Demo")
     ImGui.SetNextWindowSize(620, 550, ImGuiCond.FirstUseEver)
 
     if ImGui.Begin("WindowUtils Demo") then
