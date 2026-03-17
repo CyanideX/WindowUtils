@@ -602,18 +602,22 @@ local function drawToggleBar(id, state, side)
         -- === Expand mode: double-click to toggle, drag to resize (when open) ===
 
         -- Double-click: toggle open/close (works in all modes including auto)
-        if state.hovering and ImGui.IsMouseDoubleClicked(0) then
+        local doubleClicked = state.hovering and ImGui.IsMouseDoubleClicked(0)
+        if doubleClicked then
             state.dragging = false
             state.expandDragStart = nil
             expand.commitDrag(state.expandId)
             state.isOpen = not state.isOpen
+            if not state.animate then
+                state.animProgress = state.isOpen and 1.0 or 0.0
+            end
             expand.onToggle(state.expandId, state.isOpen)
         end
 
         -- Drag is disabled in auto mode (panel size is content-driven)
         if state.sizeMode ~= "auto" then
-            -- Start drag (only when panel is fully open)
-            if state.hovering and ImGui.IsMouseDragging(0, 0) and state.isOpen and state.animProgress >= 1.0 then
+            -- Start drag (only when panel is fully open, not on the double-click frame)
+            if not doubleClicked and state.hovering and ImGui.IsMouseDragging(0, 0) and state.isOpen and state.animProgress >= 1.0 then
                 state.dragging = true
             end
             -- Stop drag
@@ -1035,7 +1039,13 @@ function splitter.toggle(id, panels, opts)
             expandDuration = opts.expandDuration,
             expandEasing = opts.expandEasing,
         })
+        local prevMode = state.sizeMode
         state.sizeMode = opts.sizeMode or "fixed"
+        if state.sizeMode ~= prevMode and prevMode ~= nil then
+            state.dragging = false
+            state.expandDragStart = nil
+            expand.commitDrag(id)
+        end
         expandedSize = expand.getTargetSize(id) or defaultSize
     end
 
@@ -1051,7 +1061,7 @@ function splitter.toggle(id, panels, opts)
     elseif state.animProgress > target then
         state.animProgress = math.max(target, state.animProgress - state.speed * dt)
     end
-    local eased = state.animProgress * state.animProgress * (3 - 2 * state.animProgress)
+    local eased = easeInOut(state.animProgress)
 
     -- Compute panel size (spacing cancelled by SetCursorPos like regular splitters)
     local panelSize = math.floor(expandedSize * eased)
@@ -1066,34 +1076,17 @@ function splitter.toggle(id, panels, opts)
         end
     end
     local spacing = isVert and ImGui.GetStyle().ItemSpacing.y or ImGui.GetStyle().ItemSpacing.x
-    -- In expand mode, use cached base during animation (keeps flex stable while
-    -- SetWindowSize catches up). During drag or when settled, use live computation
-    -- so layout always fills available space exactly.
+    -- In expand mode, lock content to cached base size whenever the panel is visible.
+    -- baseAvail is frozen when panelSize > 0 and updated by Phase 6 for manual window
+    -- resizes, so it always reflects the correct content size without 1-frame lag.
+    -- During drag, use live computation so content adapts to size redistribution.
     local flexSize
     if opts.expand then
         expand.cacheBase(id, totalAvail, panelSize)
-        local isAnimating = state.animProgress > 0 and state.animProgress < 1
-        if isAnimating and not state.dragging then
-            if state.sizeMode == "flex" and not state.isOpen then
-                -- Flex close: use live computation so content stays at its
-                -- current size instead of snapping back to pre-drag width
-                flexSize = math.max(totalAvail - panelSize - barW, 1)
-            else
-                -- Open animation: use cached base for stable sizing during SetWindowSize lag
-                local baseAvail = expand.getBaseAvail(id)
-                flexSize = math.max((baseAvail or totalAvail) - barW, 1)
-                -- Cap to available space to prevent overflow
-                -- Skip for flex open: SetWindowSize lag makes totalAvail stale for 1 frame,
-                -- causing the cap to shrink content (visible bounce). The window will catch up.
-                if not (state.sizeMode == "flex" and state.isOpen) then
-                    local maxFlex = totalAvail - panelSize - barW
-                    if maxFlex > 0 and flexSize > maxFlex then
-                        flexSize = maxFlex
-                    end
-                end
-            end
+        if panelSize > 0 and not state.dragging then
+            local baseAvail = expand.getBaseAvail(id)
+            flexSize = math.max((baseAvail or totalAvail) - barW, 1)
         else
-            -- Drag or settled: fill available space exactly
             flexSize = math.max(totalAvail - panelSize - barW, 1)
         end
     else
@@ -1168,10 +1161,19 @@ function splitter.toggle(id, panels, opts)
 
     styles.PopScrollbar()
 
-    -- Expand mode: drive window sizing after all content is rendered
+    -- Expand mode: drive window sizing after all content is rendered.
+    -- For no-animation, recompute panelSize in case a toggle happened mid-frame
+    -- (via button click or double-click) — the panelSize computed at the top of
+    -- this function would be stale, causing applyWindowSize to miss the resize.
     if opts.expand then
+        local reportedSize = panelSize
+        if not state.animate then
+            state.animProgress = state.isOpen and 1.0 or 0.0
+            local e = easeInOut(state.animProgress)
+            reportedSize = math.floor(expandedSize * e)
+        end
         local isAnimating = state.animProgress > 0 and state.animProgress < 1
-        expand.afterRender(id, panelSize, isAnimating, state.dragging)
+        expand.afterRender(id, reportedSize, isAnimating, state.dragging)
     end
 
     return state.isOpen

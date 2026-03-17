@@ -934,6 +934,30 @@ local function drawExpandDemo()
                 ImGui.Separator()
                 controls.TextMuted("Window grows to fit the panel.")
                 controls.TextMuted("Mode: " .. expSizeMode)
+                ImGui.Dummy(0, 4)
+
+                local isOpen = splitter.getToggle("exp_right")
+                local openLabel = isOpen and "Close Panel" or "Open Panel"
+                local openIcon = isOpen and "ArrowCollapseRight" or "ArrowExpandLeft"
+                if controls.DynamicButton(openLabel, openIcon, { style = isOpen and "danger" or "active" }) then
+                    splitter.setToggle("exp_right", not isOpen)
+                end
+
+                local animOn = splitter.getToggleAnimate("exp_right")
+                local animLabel = animOn and "Disable Animation" or "Enable Animation"
+                local animIcon = animOn and "AnimationPlayOutline" or "AnimationPlay"
+                if controls.DynamicButton(animLabel, animIcon, { style = animOn and "inactive" or "active" }) then
+                    splitter.setToggleAnimate("exp_right", not animOn)
+                end
+                tooltips.ShowBullets("Animation control", {
+                    "splitter.setToggleAnimate(id, bool)",
+                    "Works for both toggle and expand panels",
+                })
+
+                ImGui.Dummy(0, 4)
+                for i = 1, 6 do
+                    controls.TextMuted(string.format("  Content line %d", i))
+                end
             end, { borderOnHover = true })
         end },
     }, {
@@ -995,6 +1019,30 @@ local function drawExpandVertDemo()
                 ImGui.Separator()
                 controls.TextMuted("Window grows to fit the panel.")
                 controls.TextMuted("Mode: " .. expVertSizeMode)
+                ImGui.Dummy(0, 4)
+
+                local isOpen = splitter.getToggle("exp_bottom")
+                local openLabel = isOpen and "Close Panel" or "Open Panel"
+                local openIcon = isOpen and "ArrowCollapseDown" or "ArrowExpandUp"
+                if controls.DynamicButton(openLabel, openIcon, { style = isOpen and "danger" or "active" }) then
+                    splitter.setToggle("exp_bottom", not isOpen)
+                end
+
+                local animOn = splitter.getToggleAnimate("exp_bottom")
+                local animLabel = animOn and "Disable Animation" or "Enable Animation"
+                local animIcon = animOn and "AnimationPlayOutline" or "AnimationPlay"
+                if controls.DynamicButton(animLabel, animIcon, { style = animOn and "inactive" or "active" }) then
+                    splitter.setToggleAnimate("exp_bottom", not animOn)
+                end
+                tooltips.ShowBullets("Animation control", {
+                    "splitter.setToggleAnimate(id, bool)",
+                    "Works for both toggle and expand panels",
+                })
+
+                ImGui.Dummy(0, 4)
+                for i = 1, 6 do
+                    controls.TextMuted(string.format("  Content line %d", i))
+                end
             end, { borderOnHover = true })
         end },
     }, {

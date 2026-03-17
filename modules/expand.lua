@@ -16,7 +16,6 @@
 local core = require("modules/core")
 
 local expand = {}
-local LOG_FLEX = true   -- set false to silence flex debug logging
 
 --- Per-panel expansion state
 local expandStates = {}
@@ -27,7 +26,7 @@ local windowBases = {}
 
 local function getWindowBase(windowName)
     if not windowBases[windowName] then
-        windowBases[windowName] = { w = nil, h = nil }
+        windowBases[windowName] = { w = nil, h = nil, resizeCooldown = 0 }
     end
     return windowBases[windowName]
 end
@@ -87,13 +86,17 @@ function expand.init(id, opts)
             s.dragSize = nil
             s.dragOffset = nil
             s.flexRatio = nil
-            s.baseAvail = nil
+            -- baseAvail intentionally NOT cleared: it represents the base content
+            -- region size (window-level property), independent of panel mode.
             s.settled = false
             s.flexClosePending = false
             s.flexDragSettled = false
             s.flexWasDragging = false
-        elseif opts.sizeMode then
-            s.sizeMode = opts.sizeMode
+            s.lastCachePanelSize = nil
+            s.panelDragStart = nil
+            s.measuredSize = nil
+        else
+            s.sizeMode = opts.sizeMode or s.sizeMode
         end
     end
 end
@@ -106,18 +109,16 @@ function expand.onToggle(id, isOpen)
     local s = expandStates[id]
     if not s then return end
 
+    -- Mark unsettled so Phase 4 fires on the next applyWindowSize() call.
+    -- Critical for no-animation mode where isAnimating is never true.
+    s.settled = false
+
     -- Capture base window size on the next applyWindowSize() call (click-to-open frame)
     if isOpen then
         s.pendingCapture = true
-        s.flexClosePending = false    -- cancel any pending close restore on reopen
+        s.flexClosePending = false
     elseif s.sizeMode == "flex" then
-        s.flexClosePending = true     -- arm close restore for Phase 4 settling
-    end
-
-    if LOG_FLEX and s.sizeMode == "flex" then
-        print(("[FLEX] onToggle id=%s isOpen=%s dragSize=%s panelSizePx=%s flexClosePending=%s")
-            :format(id, tostring(isOpen), tostring(s.dragSize), tostring(s.panelSizePx),
-                    tostring(s.flexClosePending)))
+        s.flexClosePending = true
     end
 
     -- Trigger constraint animation if normalPct is configured
@@ -138,8 +139,10 @@ function expand.onToggle(id, isOpen)
 end
 
 --- Cache the content-region available space.
---- Updates baseAvail when panel is fully closed (panelSize <= 0) or on first frame.
---- Safe inside children — baseAvail feeds flex sizing only, not SetWindowSize.
+--- Only updates baseAvail when the panel has been closed for 2+ consecutive frames,
+--- ensuring SetWindowSize has caught up from any prior close (1-frame lag). Without
+--- this guard, no-animation close captures the stale expanded totalAvail on the first
+--- closed frame, causing flexSize to grow on subsequent open cycles.
 ---@param id string Panel identifier
 ---@param totalAvail number Current content region available (from GetContentRegionAvail)
 ---@param panelSize number Current animated panel size (0 when closed)
@@ -147,9 +150,15 @@ function expand.cacheBase(id, totalAvail, panelSize)
     local s = expandStates[id]
     if not s then return end
 
-    if s.baseAvail == nil or panelSize <= 0 then
+    if s.baseAvail == nil then
+        -- First capture or after mode-switch reset.
+        -- If panel is open, totalAvail includes panel contribution — subtract it.
+        s.baseAvail = panelSize > 0 and (totalAvail - panelSize) or totalAvail
+    elseif panelSize <= 0 and (s.lastCachePanelSize or 0) <= 0 then
+        -- Panel closed for 2+ consecutive frames: safe to update (SetWindowSize lag resolved)
         s.baseAvail = totalAvail
     end
+    s.lastCachePanelSize = panelSize
 end
 
 --- Get the cached base content-region available space (stable flex sizing).
@@ -192,35 +201,25 @@ function expand.applyDrag(id, delta, dirMul)
     if not s then return end
 
     if s.sizeMode == "flex" then
-        -- Flex mode: redistribute content/panel within same window size.
         if not s.panelDragStart then
             s.panelDragStart = s.dragSize or s.panelSizePx
         end
         s.dragSize = math.max(0, s.panelDragStart + (-dirMul) * delta)
     else
-        -- Fixed mode: panel stays same, content (base) changes via offset.
-        -- Window size changes with content.
         s.dragOffset = dirMul * delta
     end
 end
 
 --- Finalize drag state. Fixed mode commits offset to base; flex mode clears
---- drag start and lets Phase 5 reconcile base on the settling frame.
+--- drag start and lets Phase 6 reconcile base on the settling frame.
 ---@param id string Panel identifier
 function expand.commitDrag(id)
     local s = expandStates[id]
     if not s then return end
 
     if s.sizeMode == "flex" then
-        -- Don't adjust base — Phase 6 will reconcile on settling.
-        -- Phase 4 close-settle forces resize to remove residual panel size.
-        if LOG_FLEX then
-            print(("[FLEX] commitDrag id=%s dragSize=%s panelDragStart=%s")
-                :format(id, tostring(s.dragSize), tostring(s.panelDragStart)))
-        end
         s.panelDragStart = nil
     else
-        -- Fixed mode: commit offset permanently to base
         local base = getWindowBase(s.windowName)
         if not base.w then return end
         if s.dragOffset then
@@ -279,34 +278,27 @@ function expand.applyWindowSize(windowName)
     end
     if #panels == 0 then return end
 
-    -- Phase 2: Base capture (naked window = curSize minus all panel contributions)
+    -- Phase 2: Base capture (naked window = curSize minus settled panel contributions).
+    -- Panels with pendingCapture just opened — their currentPanelSize is already set
+    -- by afterRender but curW/curH hasn't grown to include them yet (no SetWindowSize
+    -- fired). Exclude their contribution to avoid underestimating the base.
     local needsCapture = false
+    local excludeW, excludeH = 0, 0
     for _, s in ipairs(panels) do
         if s.pendingCapture then
             needsCapture = true
             s.pendingCapture = false
+            local ps = s.currentPanelSize or 0
+            if s.isVert then
+                excludeH = excludeH + ps
+            else
+                excludeW = excludeW + ps
+            end
         end
     end
     if needsCapture or base.w == nil then
-        base.w = curW - totalPanelW
-        base.h = curH - totalPanelH
-        if LOG_FLEX then
-            print(("[FLEX] Phase2 CAPTURE curW=%.1f curH=%.1f totalPanelW=%.1f totalPanelH=%.1f => base.w=%.1f base.h=%.1f")
-                :format(curW, curH, totalPanelW, totalPanelH, base.w, base.h))
-        end
-    end
-
-    -- Flex frame summary (log once per frame when any flex panel is animating or unsettled)
-    if LOG_FLEX then
-        for _, s in ipairs(panels) do
-            if s.sizeMode == "flex" and ((s.currentAnimating or false) or not s.settled) then
-                print(("[FLEX] --- FRAME side=%s curW=%.1f curH=%.1f base.w=%.1f base.h=%.1f panelSize=%.1f anim=%s drag=%s settled=%s dragSize=%s closePending=%s")
-                    :format(s.side, curW, curH, base.w, base.h,
-                            s.currentPanelSize or 0, tostring(s.currentAnimating),
-                            tostring(s.currentDragging), tostring(s.settled),
-                            tostring(s.dragSize), tostring(s.flexClosePending)))
-            end
-        end
+        base.w = curW - (totalPanelW - excludeW)
+        base.h = curH - (totalPanelH - excludeH)
     end
 
     -- Phase 3: Effective base (apply fixed-mode drag offsets from all panels)
@@ -335,7 +327,6 @@ function expand.applyWindowSize(windowName)
             s.settled = false
             if s.sizeMode == "flex" then s.flexWasDragging = false end
         elseif isDragging and s.sizeMode == "flex" then
-            -- Flex drag: window stays same size, no SetWindowSize needed
             s.settled = false
             s.flexWasDragging = true
         elseif s.sizeMode == "auto" and s.measuredSize
@@ -346,31 +337,13 @@ function expand.applyWindowSize(windowName)
         elseif not s.settled then
             if s.sizeMode == "flex" and s.flexClosePending
                     and (s.currentPanelSize or 0) <= 0 then
-                -- Flex close settling: force resize to shrink window to base
-                -- (removes residual panel size from last animation frame)
                 shouldResize = true
                 s.flexClosePending = false
-                if LOG_FLEX then
-                    print(("[FLEX] Phase4 CLOSE-SETTLE side=%s base.w=%.1f base.h=%.1f")
-                        :format(s.side, base.w, base.h))
-                end
             elseif s.sizeMode == "flex" and s.flexWasDragging then
-                -- Flex drag settling: protect dragSize from Phase 6 ratio snap-back
-                -- Phase 6 will correctly adjust base.w for the new panel size
                 s.flexDragSettled = true
                 s.flexWasDragging = false
-                if LOG_FLEX then
-                    print(("[FLEX] Phase4 DRAG-SETTLE side=%s panelSize=%.1f dragSize=%s")
-                        :format(s.side, s.currentPanelSize or 0, tostring(s.dragSize)))
-                end
             elseif s.sizeMode == "flex" then
-                -- Flex open settling: finalize window size (last anim frame may
-                -- have been 1 step short; Phase 5 SetWindowSize closes the gap)
                 shouldResize = true
-                if LOG_FLEX then
-                    print(("[FLEX] Phase4 OPEN-SETTLE side=%s panelSize=%.1f dragSize=%s")
-                        :format(s.side, s.currentPanelSize or 0, tostring(s.dragSize)))
-                end
             elseif s.sizeMode ~= "flex" then
                 shouldResize = true
             end
@@ -382,18 +355,15 @@ function expand.applyWindowSize(windowName)
     local targetW = effW + totalPanelW
     local targetH = effH + totalPanelH
     if shouldResize then
-        if LOG_FLEX then
-            print(("[FLEX] Phase5 SetWindowSize curW=%.1f curH=%.1f => targetW=%.1f targetH=%.1f (base.w=%.1f base.h=%.1f effW=%.1f effH=%.1f panelW=%.1f panelH=%.1f)")
-                :format(curW, curH, targetW, targetH, base.w, base.h, effW, effH, totalPanelW, totalPanelH))
-        end
         ImGui.SetWindowSize(windowName, targetW, targetH)
-        -- Suppress Phase 6 for 2 frames after SetWindowSize so the 1-frame
-        -- GetWindowSize lag doesn't corrupt base.w
+        -- Suppress Phase 6 for 2 frames so the 1-frame GetWindowSize lag
+        -- doesn't corrupt base.w
         base.resizeCooldown = 2
     end
 
     -- Phase 6: Manual resize detection (shared across all panels)
-    -- Skip during flex drag — the mismatch is intentional (panel redistributes within same window)
+    -- Skip during flex drag (mismatch is intentional) and while SetWindowSize
+    -- is catching up (1-frame lag would corrupt base.w)
     local anyFlexDrag = false
     for _, s in ipairs(panels) do
         if (s.currentDragging or false) and s.sizeMode == "flex" then
@@ -401,37 +371,29 @@ function expand.applyWindowSize(windowName)
             break
         end
     end
-    -- Skip while SetWindowSize is catching up (1-frame lag would corrupt base.w)
-    local resizePending = false
-    if base.resizeCooldown and base.resizeCooldown > 0 then
+    local resizePending = base.resizeCooldown > 0
+    if resizePending then
         base.resizeCooldown = base.resizeCooldown - 1
-        resizePending = true
     end
     if not shouldResize and not anyFlexDrag and not resizePending
             and (totalPanelW + totalPanelH) > 0 then
         if math.abs(curW - targetW) > 1 or math.abs(curH - targetH) > 1 then
             local newBaseW = curW - totalPanelW
             local newBaseH = curH - totalPanelH
-            if LOG_FLEX then
-                print(("[FLEX] Phase6 RESIZE DETECTED curW=%.1f targetW=%.1f curH=%.1f targetH=%.1f | base.w %.1f=>%.1f base.h %.1f=>%.1f")
-                    :format(curW, targetW, curH, targetH, base.w, newBaseW, base.h, newBaseH))
-            end
             for _, s in ipairs(panels) do
                 local oldBase = s.isVert and base.h or base.w
                 local newBase = s.isVert and newBaseH or newBaseW
                 if s.baseAvail then
                     s.baseAvail = s.baseAvail + (newBase - oldBase)
                 end
-                -- Flex mode: maintain panel/window ratio on manual resize
-                -- Skip on settling frame — stale ratio would snap dragSize back to pre-drag value
-                if s.sizeMode == "flex" and s.flexRatio and (s.currentPanelSize or 0) > 0
-                        and not s.flexDragSettled then
-                    local axisDim = s.isVert and curH or curW
-                    local newPanelSize = math.floor(axisDim * s.flexRatio)
-                    s.dragSize = newPanelSize
-                end
-                -- Flex mode: compute/update ratio from current panel state
                 if s.sizeMode == "flex" and (s.currentPanelSize or 0) > 0 then
+                    -- Maintain panel/window ratio on manual resize
+                    -- Skip on settling frame to protect dragSize from snap-back
+                    if s.flexRatio and not s.flexDragSettled then
+                        local axisDim = s.isVert and curH or curW
+                        s.dragSize = math.floor(axisDim * s.flexRatio)
+                    end
+                    -- Update ratio from current state
                     local axisDim = s.isVert and curH or curW
                     local panelForRatio = s.dragSize or s.currentPanelSize
                     if axisDim > 0 and panelForRatio > 0 then
@@ -443,13 +405,10 @@ function expand.applyWindowSize(windowName)
             base.h = newBaseH
         end
     end
-    -- Clear 1-frame flex settling flag unconditionally
+
+    -- Phase 7: Position anchoring for left/top panels + flag cleanup
     for _, s in ipairs(panels) do
         s.flexDragSettled = false
-    end
-
-    -- Phase 7: Position anchoring for left/top panels
-    for _, s in ipairs(panels) do
         if s.side == "left" or s.side == "top" then
             local isDragging = s.currentDragging or false
             local isAnimating = s.currentAnimating or false
