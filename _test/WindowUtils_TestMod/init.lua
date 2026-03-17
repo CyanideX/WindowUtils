@@ -6,6 +6,8 @@
 
 local wu = nil
 local visible = false
+local overlayOpen = false
+local DEMO_WINDOW_NAME = "WindowUtils Demo"
 
 -- Demo state for standard controls
 local demoDefaults = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
@@ -28,6 +30,10 @@ local advState = {
 }
 local easingNames = { "Linear", "Ease In", "Ease In Out", "Ease Out" }
 local easingKeys  = { "linear", "easeIn", "easeInOut", "easeOut" }
+
+-- Expand demo state
+local expSizeMode = "fixed"
+local expVertSizeMode = "fixed"
 
 -- Controls tab sidebar navigation
 local controlsPage = 1
@@ -886,6 +892,128 @@ local function drawEdgeToggleDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 7: Expand Demo
+--------------------------------------------------------------------------------
+
+local function drawExpandDemo()
+    local splitter = wu.Splitter
+    local controls = wu.Controls
+    local tooltips = wu.Tooltips
+
+    splitter.toggle("exp_right", {
+        { content = function()
+            controls.Panel("exp_props", function()
+                ImGui.Text("Properties")
+                ImGui.Separator()
+                controls.TextMuted("Drag bar to resize.")
+                controls.TextMuted("Double-click to toggle.")
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Size Mode:")
+                ImGui.Dummy(0, 2)
+                controls.ButtonRow({
+                    { label = "Fixed", style = expSizeMode == "fixed" and "active" or "inactive",
+                      onClick = function() expSizeMode = "fixed" end },
+                    { label = "Flex",  style = expSizeMode == "flex"  and "active" or "inactive",
+                      onClick = function() expSizeMode = "flex" end },
+                    { label = "Auto",  style = expSizeMode == "auto"  and "active" or "inactive",
+                      onClick = function() expSizeMode = "auto" end },
+                })
+                tooltips.ShowBullets("sizeMode option", {
+                    "\"fixed\" — panel keeps pixel size on window resize",
+                    "\"flex\" — panel scales proportionally with window",
+                    "\"auto\" — panel sizes to fit content",
+                })
+                -- Auto-fit measurement (inside Panel child where cursor reflects content)
+                local padY = ImGui.GetStyle().WindowPadding.y
+                wu.Expand.setMeasuredSize("exp_right", ImGui.GetCursorPosY() + padY)
+            end, { borderOnHover = true })
+        end },
+        { content = function()
+            controls.Panel("exp_main", function()
+                ImGui.Text("Main Content")
+                ImGui.Separator()
+                controls.TextMuted("Window grows to fit the panel.")
+                controls.TextMuted("Mode: " .. expSizeMode)
+            end, { borderOnHover = true })
+        end },
+    }, {
+        side = "right",
+        size = 400,
+        sizeMode = expSizeMode,
+        expand = true,
+        defaultOpen = false,
+        windowName = DEMO_WINDOW_NAME,
+    })
+
+    tooltips.ShowBullets("splitter.toggle(id, panels, { expand = true })", {
+        "expand = true — window grows instead of stealing space",
+        "Drag the bar to resize the panel",
+        "Double-click to fully open/close",
+    })
+end
+
+--------------------------------------------------------------------------------
+-- Tab 8: Expand (Vertical) Demo
+--------------------------------------------------------------------------------
+
+local function drawExpandVertDemo()
+    local splitter = wu.Splitter
+    local controls = wu.Controls
+    local tooltips = wu.Tooltips
+
+    splitter.toggle("exp_bottom", {
+        { content = function()
+            controls.Panel("exp_output", function()
+                ImGui.Text("Output")
+                ImGui.Separator()
+                controls.TextMuted("Drag bar to resize.")
+                controls.TextMuted("Double-click to toggle.")
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Size Mode:")
+                ImGui.Dummy(0, 2)
+                controls.ButtonRow({
+                    { label = "Fixed", style = expVertSizeMode == "fixed" and "active" or "inactive",
+                      onClick = function() expVertSizeMode = "fixed" end },
+                    { label = "Flex",  style = expVertSizeMode == "flex"  and "active" or "inactive",
+                      onClick = function() expVertSizeMode = "flex" end },
+                    { label = "Auto",  style = expVertSizeMode == "auto"  and "active" or "inactive",
+                      onClick = function() expVertSizeMode = "auto" end },
+                })
+                tooltips.ShowBullets("sizeMode option", {
+                    "\"fixed\" — panel keeps pixel size on window resize",
+                    "\"flex\" — panel scales proportionally with window",
+                    "\"auto\" — panel sizes to fit content",
+                })
+                -- Auto-fit measurement (inside Panel child where cursor reflects content)
+                local padY = ImGui.GetStyle().WindowPadding.y
+                wu.Expand.setMeasuredSize("exp_bottom", ImGui.GetCursorPosY() + padY)
+            end, { borderOnHover = true })
+        end },
+        { content = function()
+            controls.Panel("exp_editor", function()
+                ImGui.Text("Editor")
+                ImGui.Separator()
+                controls.TextMuted("Window grows to fit the panel.")
+                controls.TextMuted("Mode: " .. expVertSizeMode)
+            end, { borderOnHover = true })
+        end },
+    }, {
+        side = "bottom",
+        size = 200,
+        sizeMode = expVertSizeMode,
+        expand = true,
+        defaultOpen = false,
+        windowName = DEMO_WINDOW_NAME,
+    })
+
+    tooltips.ShowBullets("splitter.toggle(id, panels, { side = \"bottom\" })", {
+        "side = \"bottom\" — panel expands downward",
+        "Drag the bar to resize the panel",
+        "Double-click to fully open/close",
+    })
+end
+
+--------------------------------------------------------------------------------
 -- Main Draw
 --------------------------------------------------------------------------------
 
@@ -911,7 +1039,7 @@ registerHotkey("ToggleTestMod", "Toggle WindowUtils Test Mod", function()
 end)
 
 registerForEvent("onDraw", function()
-    if not wu or not visible then return end
+    if not wu or not visible or not overlayOpen then return end
 
     local tabs = wu.Tabs
 
@@ -949,17 +1077,24 @@ registerForEvent("onDraw", function()
             { label = "Multi-Split", content = drawMultiSplitterDemo },
             { label = "Toggle",      content = drawTogglePanelDemo },
             { label = "Edge Toggle", content = drawEdgeToggleDemo },
+            { label = "Expand",      content = drawExpandDemo },
+            { label = "Expand (V)", content = drawExpandVertDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then
             notifBadgeCount = 0
         end
         ImGui.EndChild()
+
+        -- Expand: drive window sizing at main window scope (after EndChild)
+        wu.Expand.applyWindowSize(DEMO_WINDOW_NAME)
     end
     ImGui.End()
 end)
 
-registerForEvent("onOverlayOpen", function() end)
+registerForEvent("onOverlayOpen", function()
+    overlayOpen = true
+end)
 registerForEvent("onOverlayClose", function()
-    visible = false
+    overlayOpen = false
 end)
