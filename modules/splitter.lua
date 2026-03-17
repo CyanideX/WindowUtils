@@ -91,7 +91,7 @@ local function getState(id, opts)
             defaultPct = opts.defaultPct or 0.5,
             minPct = opts.minPct or 0.1,
             maxPct = opts.maxPct or 0.9,
-            grabWidth = opts.grabWidth or ImGui.GetStyle().ItemSpacing.x,
+            grabWidth = opts.grabWidth or controls.getFrameCache().itemSpacingX,
             hovering = false,
             dragging = false,
             -- Collapse animation
@@ -128,41 +128,18 @@ local function getGrabIconV()
     return _grabIconV
 end
 
-local function drawGrabBar(id, state, isVertical)
-    -- Color based on state
-    local bgColor
-    if state.dragging then
-        bgColor = styles.colors.splitterDrag or styles.colors.green
-    elseif state.hovering then
-        bgColor = styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 }
-    else
-        bgColor = TRANSPARENT
-    end
+--- Shared bar rendering: styled child window with centered icon.
+--- Returns the hover state of the child.
+local BAR_FLAGS = ImGuiWindowFlags.NoMove + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
 
-    local iconColor
-    if state.dragging or state.hovering then
-        iconColor = styles.colors.splitterIconHi or styles.colors.textWhite
-    else
-        iconColor = styles.colors.splitterIcon or styles.colors.greyLight
-    end
-
-    local grabW = state.grabWidth
-    local icon = isVertical and getGrabIconV() or getGrabIcon()
-
+local function drawBar(childId, barWidth, icon, bgColor, iconColor, isVertical)
     ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bgColor[1], bgColor[2], bgColor[3], bgColor[4]))
     ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
 
-    local childW, childH
-    if isVertical then
-        childW = 0
-        childH = grabW
-    else
-        childW = grabW
-        childH = 0
-    end
+    local childW = isVertical and 0 or barWidth
+    local childH = isVertical and barWidth or 0
 
-    local grabFlags = ImGuiWindowFlags.NoMove + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
-    if ImGui.BeginChild("##splitter_grab_" .. id, childW, childH, false, grabFlags) then
+    if ImGui.BeginChild(childId, childW, childH, false, BAR_FLAGS) then
         local winW, winH = ImGui.GetWindowSize()
         if not iconSizeCache[icon] then
             iconSizeCache[icon] = { ImGui.CalcTextSize(icon) }
@@ -177,17 +154,61 @@ local function drawGrabBar(id, state, isVertical)
     end
     ImGui.EndChild()
 
-    state.hovering = ImGui.IsItemHovered()
+    local hovering = ImGui.IsItemHovered()
 
     ImGui.PopStyleVar()
     ImGui.PopStyleColor()
 
-    -- Start drag
+    return hovering
+end
+
+--- Tick a from→to easeInOut animation. Returns interpolated value.
+local function tickAnimation(anim, speed)
+    local now = os.clock()
+    local dt = now - (anim.animLastTime or now)
+    anim.animLastTime = now
+    anim.animProgress = math.min(1.0, anim.animProgress + speed * dt)
+    return anim.animFrom + (anim.animTo - anim.animFrom) * easeInOut(anim.animProgress)
+end
+
+--- Cancel ItemSpacing between adjacent elements.
+local function cancelSpacing(isVertical, spacing)
+    if isVertical then
+        ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacing)
+    else
+        ImGui.SameLine()
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacing)
+    end
+end
+
+--- Resolve bar colors from drag/hover state.
+local function resolveBarColors(state, customBg)
+    local bgColor, iconColor
+    if state.dragging then
+        bgColor = styles.colors.splitterDrag or styles.colors.green
+    elseif state.hovering then
+        bgColor = styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 }
+    else
+        bgColor = customBg or TRANSPARENT
+    end
+    if state.dragging or state.hovering then
+        iconColor = styles.colors.splitterIconHi or styles.colors.textWhite
+    else
+        iconColor = styles.colors.splitterIcon or styles.colors.greyLight
+    end
+    return bgColor, iconColor
+end
+
+local function drawGrabBar(id, state, isVertical)
+    local grabW = state.grabWidth
+    local icon = isVertical and getGrabIconV() or getGrabIcon()
+    local bgColor, iconColor = resolveBarColors(state)
+
+    state.hovering = drawBar("##splitter_grab_" .. id, grabW, icon, bgColor, iconColor, isVertical)
+
     if state.hovering and ImGui.IsMouseDragging(0, 0) then
         state.dragging = true
     end
-
-    -- Stop drag
     if state.dragging and not ImGui.IsMouseDragging(0, 0) then
         state.dragging = false
     end
@@ -219,12 +240,7 @@ local function drawGrabBar(id, state, isVertical)
 
     -- Animation tick
     if state.animProgress and state.animProgress < 1.0 and state.pct then
-        local now = os.clock()
-        local dt = now - (state.animLastTime or now)
-        state.animLastTime = now
-        state.animProgress = math.min(1.0, state.animProgress + COLLAPSE_SPEED * dt)
-        local t = state.animProgress
-        state.pct = state.animFrom + (state.animTo - state.animFrom) * easeInOut(t)
+        state.pct = tickAnimation(state, COLLAPSE_SPEED)
         state.dragging = false
     end
 
@@ -255,7 +271,6 @@ local function drawGrabBar(id, state, isVertical)
         state.dragStart = nil
     end
 
-    -- Resize cursor
     if state.hovering or state.dragging then
         if isVertical then
             ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNS)
@@ -278,7 +293,7 @@ end
 function splitter.horizontal(id, leftFn, rightFn, opts)
     local state = getState(id, opts)
     local grabW = state.grabWidth
-    local spacingX = ImGui.GetStyle().ItemSpacing.x
+    local spacingX = controls.getFrameCache().itemSpacingX
 
     local availW = ImGui.GetContentRegionAvail()
     local usableW = availW - grabW
@@ -317,7 +332,7 @@ end
 function splitter.vertical(id, topFn, bottomFn, opts)
     local state = getState(id, opts)
     local grabH = state.grabWidth
-    local spacingY = ImGui.GetStyle().ItemSpacing.y
+    local spacingY = controls.getFrameCache().itemSpacingY
 
     local availW, availH = ImGui.GetContentRegionAvail()
     local usableH = availH - grabH
@@ -387,7 +402,7 @@ local function getMultiState(id, n, opts, panels)
     end
     if not multiStates[id] then
         opts = opts or {}
-        local grabWidth = opts.grabWidth or ImGui.GetStyle().ItemSpacing.x
+        local grabWidth = opts.grabWidth or controls.getFrameCache().itemSpacingX
         local defaultPcts = opts.defaultPcts
         local minGap = opts.minPct or 0.05
         local isVertical = (opts.direction or "horizontal") == "vertical"
@@ -532,7 +547,7 @@ local function getToggleState(id, opts)
             lastTime = os.clock(),
             speed = opts.speed or COLLAPSE_SPEED,
             animate = opts.animate ~= false,
-            barWidth = opts.barWidth or ImGui.GetStyle().ItemSpacing.x,
+            barWidth = opts.barWidth or controls.getFrameCache().itemSpacingX,
             barBg = opts.barBg,
             hovering = false,
             dragging = false,           -- expand mode: drag-in-progress
@@ -547,56 +562,12 @@ local function drawToggleBar(id, state, side)
     local isVert = (side == "top" or side == "bottom")
     local barW = state.barWidth
 
-    -- Expand mode uses grab handle icon; normal mode uses chevron
-    local icon
-    if state.expandId then
-        icon = isVert and getGrabIconV() or getGrabIcon()
-    else
-        icon = getToggleIcon(side, state.isOpen)
-    end
+    local icon = state.expandId
+        and (isVert and getGrabIconV() or getGrabIcon())
+        or getToggleIcon(side, state.isOpen)
 
-    local bgColor
-    if state.dragging then
-        bgColor = styles.colors.splitterDrag or styles.colors.green
-    elseif state.hovering then
-        bgColor = styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 }
-    else
-        bgColor = state.barBg or TRANSPARENT
-    end
-    local iconColor = (state.dragging or state.hovering)
-        and (styles.colors.splitterIconHi or styles.colors.textWhite)
-        or (styles.colors.splitterIcon or styles.colors.greyLight)
-
-    ImGui.PushStyleColor(ImGuiCol.ChildBg,
-        ImGui.GetColorU32(bgColor[1], bgColor[2], bgColor[3], bgColor[4]))
-    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
-
-    local childW = isVert and 0 or barW
-    local childH = isVert and barW or 0
-    local grabFlags = ImGuiWindowFlags.NoMove
-        + ImGuiWindowFlags.NoScrollbar
-        + ImGuiWindowFlags.NoScrollWithMouse
-
-    if ImGui.BeginChild("##toggle_bar_" .. id, childW, childH, false, grabFlags) then
-        local winW, winH = ImGui.GetWindowSize()
-        if not iconSizeCache[icon] then
-            iconSizeCache[icon] = { ImGui.CalcTextSize(icon) }
-        end
-        local textW, textH = iconSizeCache[icon][1], iconSizeCache[icon][2]
-        ImGui.SetCursorPosX((winW - textW) / 2)
-        ImGui.SetCursorPosY((winH - textH) / 2)
-
-        ImGui.PushStyleColor(ImGuiCol.Text,
-            ImGui.GetColorU32(iconColor[1], iconColor[2], iconColor[3], iconColor[4]))
-        ImGui.Text(icon)
-        ImGui.PopStyleColor()
-    end
-    ImGui.EndChild()
-
-    state.hovering = ImGui.IsItemHovered()
-
-    ImGui.PopStyleVar()
-    ImGui.PopStyleColor()
+    local bgColor, iconColor = resolveBarColors(state, state.barBg)
+    state.hovering = drawBar("##toggle_bar_" .. id, barW, icon, bgColor, iconColor, isVert)
 
     if state.expandId then
         -- === Expand mode: double-click to toggle, drag to resize (when open) ===
@@ -719,11 +690,10 @@ function splitter.multi(id, panels, opts)
 
     local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
 
-    -- Available space
     local availW, availH = ImGui.GetContentRegionAvail()
     local totalAvail = isVertical and availH or availW
-    local spacing = isVertical and ImGui.GetStyle().ItemSpacing.y
-                                or ImGui.GetStyle().ItemSpacing.x
+    local fc = controls.getFrameCache()
+    local spacing = isVertical and fc.itemSpacingY or fc.itemSpacingX
 
     -- Toggle animation helper (same smoothstep as splitter.toggle)
     local function tickToggle(tglState)
@@ -847,16 +817,6 @@ function splitter.multi(id, panels, opts)
     end
     splitterMinSizes[id] = totalMinPx + grabTotal + toggleSpace
 
-    -- Cancel ItemSpacing between elements (matches splitter.horizontal / .vertical)
-    local function cancelSpacing()
-        if isVertical then
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacing)
-        else
-            ImGui.SameLine()
-            ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacing)
-        end
-    end
-
     local leadSide = isVertical and "top" or "left"
     local trailSide = isVertical and "bottom" or "right"
 
@@ -875,10 +835,10 @@ function splitter.multi(id, panels, opts)
                 if animating then ImGui.PopStyleVar() end
             end
             ImGui.EndChild()
-            cancelSpacing()
+            cancelSpacing(isVertical, spacing)
         end
         drawToggleBar(id .. "_tgl_lead", leadState, leadSide)
-        cancelSpacing()
+        cancelSpacing(isVertical, spacing)
     end
 
     -- 2. Core panels with dividers
@@ -890,19 +850,19 @@ function splitter.multi(id, panels, opts)
         ImGui.EndChild()
 
         if i < coreN then
-            cancelSpacing()
+            cancelSpacing(isVertical, spacing)
             drawGrabBar(id .. "_d" .. i, ms.dividers[i], isVertical)
             drawContextMenu(id, i, ms, isVertical)
-            cancelSpacing()
+            cancelSpacing(isVertical, spacing)
         end
     end
 
     -- 3. Trail toggle bar + toggle panel
     if trailToggle then
-        cancelSpacing()
+        cancelSpacing(isVertical, spacing)
         drawToggleBar(id .. "_tgl_trail", trailState, trailSide)
         if trailSize > 0 then
-            cancelSpacing()
+            cancelSpacing(isVertical, spacing)
             local cw = isVertical and availW or trailSize
             local ch = isVertical and trailSize or 0
             ImGui.BeginChild("##splitter_multi_" .. id .. "_tgl_trail", cw, ch, false, noScroll)
@@ -922,12 +882,7 @@ function splitter.multi(id, panels, opts)
     for i = 1, coreN - 1 do
         local div = ms.dividers[i]
         if div.animProgress and div.animProgress < 1.0 then
-            local now = os.clock()
-            local dt = now - (div.animLastTime or now)
-            div.animLastTime = now
-            div.animProgress = math.min(1.0, div.animProgress + COLLAPSE_SPEED * dt)
-            local t = div.animProgress
-            ms.breakpoints[i] = div.animFrom + (div.animTo - div.animFrom) * easeInOut(t)
+            ms.breakpoints[i] = tickAnimation(div, COLLAPSE_SPEED)
             div.dragging = false
         end
     end
@@ -972,8 +927,8 @@ function splitter.multi(id, panels, opts)
                     local loBase = (i == 1) and 0 or ms.breakpoints[i - 1]
                     local hiBase = (i == coreN - 1) and 1 or ms.breakpoints[i + 1]
 
-                    local leftMin = getPanelMinFrac(ms.panelDefs, i, totalSize, minGap, isVertical)
-                    local rightMin = getPanelMinFrac(ms.panelDefs, i + 1, totalSize, minGap, isVertical)
+                    local leftMin = minFracs[i]
+                    local rightMin = minFracs[i + 1]
                     local leftMax = getPanelMaxFrac(ms.panelDefs, i, totalSize, isVertical)
                     local rightMax = getPanelMaxFrac(ms.panelDefs, i + 1, totalSize, isVertical)
 
@@ -1075,7 +1030,8 @@ function splitter.toggle(id, panels, opts)
             state.animProgress = 0
         end
     end
-    local spacing = isVert and ImGui.GetStyle().ItemSpacing.y or ImGui.GetStyle().ItemSpacing.x
+    local fc = controls.getFrameCache()
+    local spacing = isVert and fc.itemSpacingY or fc.itemSpacingX
     -- In expand mode, lock content to cached base size whenever the panel is visible.
     -- baseAvail is frozen when panelSize > 0 and updated by Phase 6 for manual window
     -- resizes, so it always reflects the correct content size without 1-frame lag.
@@ -1133,29 +1089,19 @@ function splitter.toggle(id, panels, opts)
         ImGui.EndChild()
     end
 
-    -- Cancel ItemSpacing after each element (matches splitter.horizontal / .vertical)
-    local function cancelSpacing()
-        if isVert then
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacing)
-        else
-            ImGui.SameLine()
-            ImGui.SetCursorPosX(ImGui.GetCursorPosX() - spacing)
-        end
-    end
-
     styles.PushScrollbar()
 
     if fixedFirst then
         renderFixed()
-        if panelSize > 0 then cancelSpacing() end
+        if panelSize > 0 then cancelSpacing(isVert, spacing) end
         drawToggleBar(id, state, side)
-        cancelSpacing()
+        cancelSpacing(isVert, spacing)
         renderFlex()
     else
         renderFlex()
-        cancelSpacing()
+        cancelSpacing(isVert, spacing)
         drawToggleBar(id, state, side)
-        if panelSize > 0 then cancelSpacing() end
+        if panelSize > 0 then cancelSpacing(isVert, spacing) end
         renderFixed()
     end
 

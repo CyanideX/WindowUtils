@@ -5,6 +5,7 @@
 
 local settings = require("modules/settings")
 local core = require("modules/core")
+local controls = require("modules/controls")
 
 local effects = {}
 
@@ -68,16 +69,13 @@ function effects.enableBlur()
     local service = getBlurService()
     if not service then return end
 
-    -- Store original settings (only if not already active)
     if not effects.blur.isActive then
         effects.blur.originalEnabled = service:GetEnable()
         effects.blur.originalRadius = service:GetBlurAreaCircularBlurRadius()
     end
 
-    -- Enable service
     service:SetEnable(true)
 
-    -- Start fade-in animation
     effects.blur.isAnimating = true
     effects.blur.animationType = "fade_in"
     effects.blur.startTime = os.clock()
@@ -94,7 +92,6 @@ end
 function effects.disableBlur()
     if not effects.blur.isActive then return end
 
-    -- Start fade-out animation
     effects.blur.isAnimating = true
     effects.blur.animationType = "fade_out"
     effects.blur.startTime = os.clock()
@@ -247,6 +244,58 @@ local function distanceToRect(px, py, rx, ry, rw, rh, padding)
     return math.sqrt(dx * dx + dy * dy)
 end
 
+--- Draw grid lines along one axis with optional feathering.
+---@param drawList userdata ImGui draw list
+---@param isVert boolean true = vertical lines (iterate X, segments along Y)
+---@param primaryEnd number extent of primary axis (displayWidth or displayHeight)
+---@param secondaryEnd number extent of secondary axis
+---@param gridSize number spacing between lines
+---@param useFeather boolean whether feathering is active
+---@param wb table|nil windowBounds {x,y,width,height}
+---@param featherPadding number feather padding
+---@param featherRadius number feather radius
+---@param featherCurve number feather curve exponent
+---@param gridAlpha number base line alpha
+---@param color table {r,g,b} color components
+---@param thickness number line thickness
+local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSize, useFeather, wb, featherPadding, featherRadius, featherCurve, gridAlpha, color, thickness)
+    local pos = gridSize
+    while pos < primaryEnd do
+        if useFeather and wb then
+            local seg = 0
+            while seg < secondaryEnd do
+                local segEnd = math.min(seg + gridSize, secondaryEnd)
+                local px1, py1, px2, py2
+                if isVert then
+                    px1, py1, px2, py2 = pos, seg, pos, segEnd
+                else
+                    px1, py1, px2, py2 = seg, pos, segEnd, pos
+                end
+                local dist1 = distanceToRect(px1, py1, wb.x, wb.y, wb.width, wb.height, featherPadding)
+                local dist2 = distanceToRect(px2, py2, wb.x, wb.y, wb.width, wb.height, featherPadding)
+                local dist = math.min(dist1, dist2)
+                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
+                local featherAlpha = math.pow(linearAlpha, featherCurve)
+                local lineAlpha = gridAlpha * featherAlpha
+
+                if lineAlpha > 0.001 then
+                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
+                    ImGui.ImDrawListAddLine(drawList, px1, py1, px2, py2, lineColor, thickness)
+                end
+                seg = segEnd
+            end
+        else
+            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
+            if isVert then
+                ImGui.ImDrawListAddLine(drawList, pos, 0, pos, secondaryEnd, lineColor, thickness)
+            else
+                ImGui.ImDrawListAddLine(drawList, 0, pos, secondaryEnd, pos, lineColor, thickness)
+            end
+        end
+        pos = pos + gridSize
+    end
+end
+
 local function drawGridVisualization()
     -- Early exit when both features are fully disabled
     if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
@@ -261,7 +310,8 @@ local function drawGridVisualization()
         return
     end
 
-    local displayWidth, displayHeight = GetDisplayResolution()
+    local fc = controls.getFrameCache()
+    local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
 
     -- Only check drag state when a drag-only feature needs it (avoids O(n) window iteration)
     local anyDragging = false
@@ -446,63 +496,8 @@ local function drawGridVisualization()
     end
 
     -- Draw full grid lines (dimmed if guides enabled)
-    -- Draw vertical lines (skip x=0 and x=displayWidth edges)
-    local x = gridSize
-    while x < displayWidth do
-        if useFeather and windowBounds then
-            -- Draw line in segments with varying opacity
-            local y1 = 0
-            while y1 < displayHeight do
-                local y2 = math.min(y1 + gridSize, displayHeight)
-                -- Use whichever segment endpoint is CLOSEST to the window
-                local dist1 = distanceToRect(x, y1, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist2 = distanceToRect(x, y2, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist = math.min(dist1, dist2)
-                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
-                local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = gridAlpha * featherAlpha
-
-                if lineAlpha > 0.001 then
-                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
-                    ImGui.ImDrawListAddLine(drawList, x, y1, x, y2, lineColor, thickness)
-                end
-                y1 = y2
-            end
-        else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
-            ImGui.ImDrawListAddLine(drawList, x, 0, x, displayHeight, lineColor, thickness)
-        end
-        x = x + gridSize
-    end
-
-    -- Draw horizontal lines (skip y=0 and y=displayHeight edges)
-    local y = gridSize
-    while y < displayHeight do
-        if useFeather and windowBounds then
-            -- Draw line in segments with varying opacity
-            local x1 = 0
-            while x1 < displayWidth do
-                local x2 = math.min(x1 + gridSize, displayWidth)
-                -- Use whichever segment endpoint is CLOSEST to the window
-                local dist1 = distanceToRect(x1, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist2 = distanceToRect(x2, y, windowBounds.x, windowBounds.y, windowBounds.width, windowBounds.height, featherPadding)
-                local dist = math.min(dist1, dist2)
-                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
-                local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = gridAlpha * featherAlpha
-
-                if lineAlpha > 0.001 then
-                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
-                    ImGui.ImDrawListAddLine(drawList, x1, y, x2, y, lineColor, thickness)
-                end
-                x1 = x2
-            end
-        else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
-            ImGui.ImDrawListAddLine(drawList, 0, y, displayWidth, y, lineColor, thickness)
-        end
-        y = y + gridSize
-    end
+    drawGridLines(drawList, true, displayWidth, displayHeight, gridSize, useFeather, windowBounds, featherPadding, featherRadius, featherCurve, gridAlpha, color, thickness)
+    drawGridLines(drawList, false, displayHeight, displayWidth, gridSize, useFeather, windowBounds, featherPadding, featherRadius, featherCurve, gridAlpha, color, thickness)
 
     -- Draw alignment guides at window edges (full-width/height lines)
     if guidesActive and windowBounds then

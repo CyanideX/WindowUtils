@@ -14,11 +14,15 @@
 --------------------------------------------------------------------------------
 
 local core = require("modules/core")
+local controls = require("modules/controls")
 
 local expand = {}
 
 --- Per-panel expansion state
 local expandStates = {}
+
+--- Per-window panel index: windowName → { id1, id2, ... }
+local windowPanels = {}
 
 --- Per-window base dimensions (shared by all panels on a window).
 --- Represents the "naked" window size with no expand panels open.
@@ -41,7 +45,7 @@ end
 ---@param opts table { windowName, side, size, normalConstraintPct, expandDuration, expandEasing }
 function expand.init(id, opts)
     local isVert = (opts.side == "top" or opts.side == "bottom")
-    local dw, dh = GetDisplayResolution()
+    local fc = controls.getFrameCache()
 
     if not expandStates[id] then
         expandStates[id] = {
@@ -73,13 +77,17 @@ function expand.init(id, opts)
             normalPct        = opts.normalConstraintPct,
             expandDuration   = opts.expandDuration or 0.3,
             expandEasing     = opts.expandEasing or "easeOut",
-            cachedDisplayDim = isVert and dh or dw,
+            cachedDisplayDim = isVert and fc.displayHeight or fc.displayWidth,
         }
+        -- Register in per-window panel index
+        local wn = opts.windowName
+        if not windowPanels[wn] then windowPanels[wn] = {} end
+        windowPanels[wn][#windowPanels[wn] + 1] = id
     else
         -- Update per-frame values that may change (e.g. resolved size, display dim)
         local s = expandStates[id]
         s.panelSizePx = opts.size or s.panelSizePx
-        s.cachedDisplayDim = isVert and dh or dw
+        s.cachedDisplayDim = isVert and fc.displayHeight or fc.displayWidth
         -- Reset stale state on mode switch
         if opts.sizeMode and opts.sizeMode ~= s.sizeMode then
             s.sizeMode = opts.sizeMode
@@ -263,10 +271,13 @@ function expand.applyWindowSize(windowName)
     local base = getWindowBase(windowName)
 
     -- Phase 1: Collect panels and sum contributions per axis
+    local ids = windowPanels[windowName]
+    if not ids or #ids == 0 then return end
     local panels = {}
     local totalPanelW, totalPanelH = 0, 0
-    for _, s in pairs(expandStates) do
-        if s.windowName == windowName then
+    for _, pid in ipairs(ids) do
+        local s = expandStates[pid]
+        if s then
             panels[#panels + 1] = s
             local ps = s.currentPanelSize or 0
             if s.isVert then

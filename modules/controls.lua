@@ -41,6 +41,7 @@ function controls.cacheFrameState()
     frameCache.minIconButtonWidth = utils.minIconButtonWidth(style.FramePadding.x)
     frameCache.charWidth = ImGui.CalcTextSize("M")
     frameCache.ellipsisWidth = ImGui.CalcTextSize("...")
+    frameCache.displayWidth, frameCache.displayHeight = GetDisplayResolution()
 end
 
 ---@return table frameCache Cached style values for the current frame
@@ -52,9 +53,6 @@ end
 -- Grid System (Bootstrap-style columns)
 --------------------------------------------------------------------------------
 
--- Approximate icon button width (glyph + padding)
-local ICON_WIDTH = 24
-
 --- Calculate width for a column ratio (1-12 out of 12 columns)
 ---@param cols? number Column span (1-12, default 12)
 ---@param gap? number Gap between columns in pixels (default itemSpacingX)
@@ -63,18 +61,17 @@ local ICON_WIDTH = 24
 function controls.ColWidth(cols, gap, hasIcon)
     cols = math.max(1, math.min(12, cols or 12))
     gap = gap or frameCache.itemSpacingX
+    local iconWidth = frameCache.minIconButtonWidth
     local availWidth = ImGui.GetContentRegionAvail()
-    -- If called after icon placement, add icon width back for accurate column calculation
     if hasIcon then
-        availWidth = availWidth + ICON_WIDTH + gap
+        availWidth = availWidth + iconWidth + gap
     end
     local colWidth = (availWidth - (gap * 11)) / 12
     local targetWidth = (colWidth * cols) + (gap * (cols - 1))
-    -- Subtract icon space if present
     if hasIcon then
-        targetWidth = targetWidth - ICON_WIDTH - gap
+        targetWidth = targetWidth - iconWidth - gap
     end
-    return math.max(targetWidth, 20)  -- Minimum 20px
+    return math.max(targetWidth, 20)
 end
 
 --- Get remaining width after current cursor position
@@ -207,6 +204,38 @@ local function calcControlWidth(cols, hasIcon)
 end
 
 local truncateText = utils.truncateText
+local truncateCache = {}
+local truncateCacheCharWidth = nil
+
+local textSizeCache = {}
+local textSizeCacheCharWidth = nil
+
+local function cachedCalcTextSize(text)
+    local cw = frameCache.charWidth
+    if cw ~= textSizeCacheCharWidth then
+        textSizeCache = {}
+        textSizeCacheCharWidth = cw
+    end
+    local cached = textSizeCache[text]
+    if cached then return cached end
+    local w = ImGui.CalcTextSize(text)
+    textSizeCache[text] = w
+    return w
+end
+
+local function cachedTruncateText(label, innerWidth)
+    local cw = frameCache.charWidth
+    if cw ~= truncateCacheCharWidth then
+        truncateCache = {}
+        truncateCacheCharWidth = cw
+    end
+    local key = label .. "|" .. math.floor(innerWidth)
+    local cached = truncateCache[key]
+    if cached then return cached[1], cached[2] end
+    local result, wasTruncated = truncateText(label, innerWidth)
+    truncateCache[key] = { result, wasTruncated }
+    return result, wasTruncated
+end
 
 --- Create a button that adapts content based on available width.
 --- Normal: full text. Narrow: truncated with "...". Icon mode: icon only.
@@ -242,7 +271,7 @@ function controls.DynamicButton(label, icon, opts)
         displayLabel = iconStr
         isIconMode = true
     else
-        displayLabel, wasTruncated = truncateText(label, innerWidth)
+        displayLabel, wasTruncated = cachedTruncateText(label, innerWidth)
     end
 
     styles.PushButton(styleName)
@@ -616,17 +645,6 @@ local HOLD_OVERLAY_COLOR = nil
 ---@return boolean triggered True if the hold completed
 ---@return boolean clicked True if released before hold completed
 function controls.HoldButton(id, label, opts)
-    -- Backward compatibility: detect old HoldButton(label, duration, styleName, width)
-    if type(label) == "number" or label == nil then
-        local oldLabel = id
-        local oldDuration = label
-        local oldStyle = type(opts) == "string" and opts or nil
-        return controls.HoldButton(oldLabel, oldLabel, {
-            duration = oldDuration,
-            style = oldStyle,
-        })
-    end
-
     opts = opts or {}
     local duration = opts.duration or 2.0
     local styleName = opts.style or "danger"
@@ -796,7 +814,7 @@ function controls.ActionButton(id, label, opts)
     -- Calculate widths
     local secondaryWidth = 0
     if onSecondary then
-        local iconWidth = ImGui.CalcTextSize(secondaryIcon)
+        local iconWidth = cachedCalcTextSize(secondaryIcon)
         local framePadX = frameCache.framePaddingX * 2
         local spacing = frameCache.itemSpacingX
         secondaryWidth = iconWidth + framePadX + spacing
@@ -1050,29 +1068,19 @@ function controls.Column(id, defs, opts)
 end
 
 --------------------------------------------------------------------------------
--- Panel (child window with default styling)
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
 -- ButtonRow (two-tier width: auto-sized icons + weighted text)
 --------------------------------------------------------------------------------
 
---- Render a row of buttons with automatic width distribution.
---- Icon-only buttons (def.icon, no def.label) auto-size. Text buttons share remaining space by weight.
----@param defs table Array of button defs: {label?, icon?, style?, weight?, width?, height?, disabled?, tooltip?, onClick?, onHold?, holdDuration?, progressFrom?, progressStyle?, progressDisplay?, id?}
----@param opts? table {gap?, id?}
----@return nil
-function controls.ButtonRow(defs, opts)
-    if not defs or #defs == 0 then return end
-    opts = opts or {}
-    local gap = opts.gap or frameCache.itemSpacingX
-    local availW = ImGui.GetContentRegionAvail()
-
-    -- Phase 1: measure fixed-width buttons, sum flex weights
+--- Measure button defs for width distribution (shared by ButtonRow and ToggleButtonRow).
+---@param defs table Array of button defs
+---@param gap number Gap between buttons in pixels
+---@param textFallback? function (def) → string fallback text for flex buttons
+---@return number fixedW, number totalWeight, table measured, number totalMinWidth
+local function measureButtonDefs(defs, gap, textFallback)
     local fixedW = gap * (#defs - 1)
     local totalWeight = 0
     local measured = {}
-    local totalMinWidth = fixedW  -- minimum = gaps + all buttons at natural size
+    local totalMinWidth = fixedW
 
     for i, def in ipairs(defs) do
         if def.width then
@@ -1086,13 +1094,29 @@ function controls.ButtonRow(defs, opts)
             totalMinWidth = totalMinWidth + measured[i]
         else
             totalWeight = totalWeight + (def.weight or 1)
-            -- Natural width of text/weighted button
-            local text = (def.icon and resolveIcon(def.icon)) or def.label or def[1] or ""
+            local text = (def.icon and resolveIcon(def.icon))
+                or def.label or (textFallback and textFallback(def)) or ""
             totalMinWidth = totalMinWidth + ImGui.CalcTextSize(text) + frameCache.framePaddingX * 2
         end
     end
 
-    -- Cache minimum width by id for panel constraint use
+    return fixedW, totalWeight, measured, totalMinWidth
+end
+
+--- Render a row of buttons with automatic width distribution.
+--- Icon-only buttons (def.icon, no def.label) auto-size. Text buttons share remaining space by weight.
+---@param defs table Array of button defs: {label?, icon?, style?, weight?, width?, height?, disabled?, tooltip?, onClick?, onHold?, holdDuration?, progressFrom?, progressStyle?, progressDisplay?, id?}
+---@param opts? table {gap?, id?}
+---@return nil
+function controls.ButtonRow(defs, opts)
+    if not defs or #defs == 0 then return end
+    opts = opts or {}
+    local gap = opts.gap or frameCache.itemSpacingX
+    local availW = ImGui.GetContentRegionAvail()
+
+    -- Phase 1: measure fixed-width buttons, sum flex weights
+    local fixedW, totalWeight, measured, totalMinWidth = measureButtonDefs(defs, gap, function(d) return d[1] end)
+
     if opts.id then
         buttonRowMinWidths[opts.id] = totalMinWidth
     end
@@ -1282,27 +1306,7 @@ function controls.bind(data, defaults, onSave, bindOpts)
         local availW = ImGui.GetContentRegionAvail()
 
         -- Phase 1: measure fixed vs flex
-        local fixedW = gap * (#defs - 1)
-        local totalWeight = 0
-        local measured = {}
-        local totalMinWidth = fixedW
-
-        for i, def in ipairs(defs) do
-            if def.width then
-                measured[i] = def.width
-                fixedW = fixedW + def.width
-                totalMinWidth = totalMinWidth + def.width
-            elseif def.icon and not def.label and not def.weight then
-                local icon = resolveIcon(def.icon) or def.icon
-                measured[i] = ImGui.CalcTextSize(icon) + frameCache.framePaddingX * 2
-                fixedW = fixedW + measured[i]
-                totalMinWidth = totalMinWidth + measured[i]
-            else
-                totalWeight = totalWeight + (def.weight or 1)
-                local text = (def.icon and resolveIcon(def.icon)) or def.label or def.key or ""
-                totalMinWidth = totalMinWidth + ImGui.CalcTextSize(text) + frameCache.framePaddingX * 2
-            end
-        end
+        local fixedW, totalWeight, measured, totalMinWidth = measureButtonDefs(defs, gap, function(d) return d.key end)
 
         if opts.id then
             buttonRowMinWidths[opts.id] = totalMinWidth
