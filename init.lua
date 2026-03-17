@@ -23,6 +23,7 @@ local styles = require("modules/styles")
 local controls = require("modules/controls")
 local tooltips = require("modules/tooltips")
 local splitter = require("modules/splitter")
+local expand = require("modules/expand")
 local tabs = require("modules/tabs")
 local dragdrop = require("modules/dragdrop")
 local notifications = require("modules/notifications")
@@ -103,6 +104,7 @@ WindowUtils.Utils = utils
 
 -- Layout and widget modules
 WindowUtils.Splitter = splitter
+WindowUtils.Expand = expand
 WindowUtils.Tabs = tabs
 WindowUtils.DragDrop = dragdrop
 WindowUtils.Notify = notifications

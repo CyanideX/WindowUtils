@@ -7,6 +7,7 @@ local styles = require("modules/styles")
 local utils = require("modules/utils")
 local core = require("modules/core")
 local controls = require("modules/controls")
+local expand = require("modules/expand")
 
 local easeInOut = core.easeInOut
 
@@ -534,6 +535,9 @@ local function getToggleState(id, opts)
             barWidth = opts.barWidth or ImGui.GetStyle().ItemSpacing.x,
             barBg = opts.barBg,
             hovering = false,
+            dragging = false,           -- expand mode: drag-in-progress
+            expandDragStart = nil,      -- expand mode: panel size at drag start
+            expandId = nil,             -- set by splitter.toggle() when opts.expand is truthy
         }
     end
     return toggleStates[id]
@@ -541,13 +545,25 @@ end
 
 local function drawToggleBar(id, state, side)
     local isVert = (side == "top" or side == "bottom")
-    local icon = getToggleIcon(side, state.isOpen)
     local barW = state.barWidth
 
-    local bgColor = state.hovering
-        and (styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 })
-        or (state.barBg or TRANSPARENT)
-    local iconColor = state.hovering
+    -- Expand mode uses grab handle icon; normal mode uses chevron
+    local icon
+    if state.expandId then
+        icon = isVert and getGrabIconV() or getGrabIcon()
+    else
+        icon = getToggleIcon(side, state.isOpen)
+    end
+
+    local bgColor
+    if state.dragging then
+        bgColor = styles.colors.splitterDrag or styles.colors.green
+    elseif state.hovering then
+        bgColor = styles.colors.splitterHover or { 0.3, 0.5, 0.7, 0.5 }
+    else
+        bgColor = state.barBg or TRANSPARENT
+    end
+    local iconColor = (state.dragging or state.hovering)
         and (styles.colors.splitterIconHi or styles.colors.textWhite)
         or (styles.colors.splitterIcon or styles.colors.greyLight)
 
@@ -582,15 +598,69 @@ local function drawToggleBar(id, state, side)
     ImGui.PopStyleVar()
     ImGui.PopStyleColor()
 
-    if state.hovering and ImGui.IsItemClicked(0) then
-        state.isOpen = not state.isOpen
-        if not state.animate then
-            state.animProgress = state.isOpen and 1.0 or 0.0
-        end
-    end
+    if state.expandId then
+        -- === Expand mode: double-click to toggle, drag to resize (when open) ===
 
-    if state.hovering then
-        ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
+        -- Double-click: toggle open/close (works in all modes including auto)
+        if state.hovering and ImGui.IsMouseDoubleClicked(0) then
+            state.dragging = false
+            state.expandDragStart = nil
+            expand.commitDrag(state.expandId)
+            state.isOpen = not state.isOpen
+            expand.onToggle(state.expandId, state.isOpen)
+        end
+
+        -- Drag is disabled in auto mode (panel size is content-driven)
+        if state.sizeMode ~= "auto" then
+            -- Start drag (only when panel is fully open)
+            if state.hovering and ImGui.IsMouseDragging(0, 0) and state.isOpen and state.animProgress >= 1.0 then
+                state.dragging = true
+            end
+            -- Stop drag
+            if state.dragging and not ImGui.IsMouseDragging(0, 0) then
+                state.dragging = false
+                state.expandDragStart = nil
+                expand.commitDrag(state.expandId)
+            end
+
+            -- Apply drag delta (fixed: resize content/window, flex: redistribute space)
+            if state.dragging then
+                state.expandDragStart = true  -- flag that drag is active
+
+                local dirMul = (side == "right" or side == "bottom") and 1 or -1
+                local delta = isVert
+                    and select(2, ImGui.GetMouseDragDelta(0, 0))
+                    or (ImGui.GetMouseDragDelta(0, 0))
+
+                expand.applyDrag(state.expandId, delta, dirMul)
+            end
+
+            -- Resize cursor
+            if state.hovering or state.dragging then
+                if isVert then
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNS)
+                else
+                    ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW)
+                end
+            end
+        else
+            -- Auto mode: hand cursor for double-click toggle
+            if state.hovering then
+                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
+            end
+        end
+    else
+        -- === Normal toggle mode: single-click ===
+        if state.hovering and ImGui.IsItemClicked(0) then
+            state.isOpen = not state.isOpen
+            if not state.animate then
+                state.animProgress = state.isOpen and 1.0 or 0.0
+            end
+        end
+
+        if state.hovering then
+            ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
+        end
     end
 end
 
@@ -950,7 +1020,24 @@ function splitter.toggle(id, panels, opts)
     local availW, availH = ImGui.GetContentRegionAvail()
     local totalAvail = isVert and availH or availW
 
-    local expandedSize = parseSizeSpec(opts.size or 200, totalAvail) or 200
+    local defaultSize = parseSizeSpec(opts.size or 200, totalAvail) or 200
+
+    -- Expand mode: register with expand module and use drag size if available
+    local expandedSize = defaultSize
+    if opts.expand then
+        state.expandId = id
+        expand.init(id, {
+            windowName = opts.windowName,
+            side = side,
+            size = defaultSize,
+            sizeMode = opts.sizeMode,
+            normalConstraintPct = opts.normalConstraintPct,
+            expandDuration = opts.expandDuration,
+            expandEasing = opts.expandEasing,
+        })
+        state.sizeMode = opts.sizeMode or "fixed"
+        expandedSize = expand.getTargetSize(id) or defaultSize
+    end
 
     -- Animation tick
     local now = os.clock()
@@ -979,7 +1066,39 @@ function splitter.toggle(id, panels, opts)
         end
     end
     local spacing = isVert and ImGui.GetStyle().ItemSpacing.y or ImGui.GetStyle().ItemSpacing.x
-    local flexSize = math.max(totalAvail - panelSize - barW, 1)
+    -- In expand mode, use cached base during animation (keeps flex stable while
+    -- SetWindowSize catches up). During drag or when settled, use live computation
+    -- so layout always fills available space exactly.
+    local flexSize
+    if opts.expand then
+        expand.cacheBase(id, totalAvail, panelSize)
+        local isAnimating = state.animProgress > 0 and state.animProgress < 1
+        if isAnimating and not state.dragging then
+            if state.sizeMode == "flex" and not state.isOpen then
+                -- Flex close: use live computation so content stays at its
+                -- current size instead of snapping back to pre-drag width
+                flexSize = math.max(totalAvail - panelSize - barW, 1)
+            else
+                -- Open animation: use cached base for stable sizing during SetWindowSize lag
+                local baseAvail = expand.getBaseAvail(id)
+                flexSize = math.max((baseAvail or totalAvail) - barW, 1)
+                -- Cap to available space to prevent overflow
+                -- Skip for flex open: SetWindowSize lag makes totalAvail stale for 1 frame,
+                -- causing the cap to shrink content (visible bounce). The window will catch up.
+                if not (state.sizeMode == "flex" and state.isOpen) then
+                    local maxFlex = totalAvail - panelSize - barW
+                    if maxFlex > 0 and flexSize > maxFlex then
+                        flexSize = maxFlex
+                    end
+                end
+            end
+        else
+            -- Drag or settled: fill available space exactly
+            flexSize = math.max(totalAvail - panelSize - barW, 1)
+        end
+    else
+        flexSize = math.max(totalAvail - panelSize - barW, 1)
+    end
 
     local fixedFirst = (side == "left" or side == "top")
     local fixedPanel = panels[1]
@@ -1049,6 +1168,12 @@ function splitter.toggle(id, panels, opts)
 
     styles.PopScrollbar()
 
+    -- Expand mode: drive window sizing after all content is rendered
+    if opts.expand then
+        local isAnimating = state.animProgress > 0 and state.animProgress < 1
+        expand.afterRender(id, panelSize, isAnimating, state.dragging)
+    end
+
     return state.isOpen
 end
 
@@ -1061,6 +1186,10 @@ function splitter.setToggle(id, open)
         state.isOpen = open
         if not state.animate then
             state.animProgress = open and 1.0 or 0.0
+        end
+        -- Notify expand module of toggle event
+        if state.expandId then
+            expand.onToggle(state.expandId, open)
         end
     end
 end
@@ -1096,6 +1225,17 @@ end
 ---@return number|nil minSize Minimum pixels, or nil if splitter hasn't rendered yet
 function splitter.getMinSize(id)
     return splitterMinSizes[id]
+end
+
+--- Get the current animated constraint value for an expand-mode toggle.
+--- Call before ImGui.Begin() to feed into SetNextWindowSizeConstraintsPercent.
+--- Returns nil if the toggle hasn't rendered yet or isn't in expand mode.
+---@param id string Toggle identifier (same id passed to splitter.toggle with expand=true)
+---@return number|nil constraintPct Current animated constraint value (display %), or nil
+function splitter.getExpandConstraint(id)
+    local state = toggleStates[id]
+    if not state or not state.expandId then return nil end
+    return expand.getConstraint(state.expandId, state.isOpen)
 end
 
 -- Aliases for brevity
