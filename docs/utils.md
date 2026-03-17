@@ -102,9 +102,13 @@ utils.snapToIncrement(0.37)        -- 0.35 (nearest 0.05)
 utils.snapToIncrement(0.37, 0.1)   -- 0.4 (nearest 0.1)
 ```
 
-### `minIconButtonWidth()`
+### `minIconButtonWidth(framePaddingX?)`
 
 Compute the minimum usable width for a single icon button based on live ImGui measurements. Must be called during `onDraw`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| framePaddingX | number\|nil | `ImGui.GetStyle().FramePadding.x` | Override frame padding for the calculation |
 
 **Returns:** `number` — minimum pixel width (icon glyph + frame padding)
 

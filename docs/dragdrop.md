@@ -50,7 +50,8 @@ The `ctx` parameter passed to `renderFn` contains:
 ```lua
 dd.list("myList", items, renderFn, onReorder, {
     colors = {
-        hover = { 0.3, 0.5, 0.8, 0.3 },    -- hover highlight color
+        dragAlpha = 0.4,                     -- opacity of dragged item
+        hover = { 0.3, 0.5, 0.8, 0.3 },     -- hover highlight color
         separator = { 0.2, 0.6, 1.0, 1.0 }, -- drop indicator color
     }
 })
@@ -82,11 +83,28 @@ Process drag interaction for an item. Call after the interactive ImGui element.
 
 **Returns:** `boolean, number|nil, number|nil` — shouldReorder, fromIndex, toIndex
 
+### `isDragging(state)`
+
+Check whether a drag is in progress.
+
+**Returns:** `boolean`
+
+### `getDraggingIndex(state)`
+
+Get the index of the item currently being dragged.
+
+**Returns:** `number|nil` — 1-based index, or nil if not dragging
+
 ### Visual Helpers
 
 ### `pushItemStyles(ctx, colors?)`
 
 Push alpha/color changes for dragged or hovered items.
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| colors.dragAlpha | number | 0.4 | Opacity of the dragged item |
+| colors.hover | table | blueHover at 0.3 alpha | Highlight color for hover target `{r,g,b,a}` |
 
 ### `popItemStyles(ctx)`
 

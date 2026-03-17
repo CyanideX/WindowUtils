@@ -17,6 +17,8 @@ tips.ShowDanger("This cannot be undone!")
 
 All tooltip functions check `ImGui.IsItemHovered()` internally — call them immediately after the ImGui element they describe.
 
+> **`tooltipsEnabled` setting:** Only `Show()` and `ShowIf()` respect the global `tooltipsEnabled` setting. All other functions (`ShowAlways`, `ShowWrapped`, `ShowTitled`, `ShowColored`, `ShowMuted`, `ShowSuccess`, `ShowDanger`, `ShowWarning`, `ShowHelp`, `ShowKeybind`, `ShowWithHint`, `ShowLines`, `ShowBullets`) always display when hovered.
+
 ## API Reference
 
 ### Basic Tooltips

@@ -170,6 +170,13 @@ Standalone collapsible panel with animated slide in/out. `panels[1]` is the fixe
 | opts.defaultOpen | boolean | true | Initial open state |
 | opts.speed | number | 6.0 | Animation speed multiplier |
 | opts.barWidth | number | ItemSpacing.x | Toggle bar thickness |
+| opts.animate | boolean | true | Enable open/close animation |
+| opts.expand | boolean | false | Enable expand mode (auto window resize) |
+| opts.windowName | string\|nil | nil | ImGui window name (required for expand) |
+| opts.sizeMode | string | "fixed" | `"fixed"`, `"flex"`, or `"auto"` (expand only) |
+| opts.normalConstraintPct | number\|nil | nil | Normal max-size constraint as display % (expand only) |
+| opts.expandDuration | number | 0.3 | Constraint animation duration in seconds (expand only) |
+| opts.expandEasing | string | "easeOut" | Constraint animation easing (expand only) |
 
 **Returns:** `boolean` — current open state
 
@@ -187,7 +194,22 @@ split.toggle("status", {
     { content = drawStatusBar },
     { content = drawMainArea },
 }, { side = "bottom", size = 30, defaultOpen = true })
+
+-- Expand mode: window resizes when panel opens/closes
+split.toggle("sidebar", {
+    { content = drawSidebar },
+    { content = drawMain },
+}, {
+    side = "right",
+    size = 250,
+    expand = true,
+    windowName = "MyWindow",
+    sizeMode = "fixed",
+    normalConstraintPct = 25,
+})
 ```
+
+> **Expand mode** enables automatic window resizing. See [expand.md](expand.md) for full documentation of the three size modes, constraint animation, and position anchoring.
 
 ### Toggle State Functions
 
@@ -205,6 +227,30 @@ Programmatically set toggle open/closed state.
 Query current toggle state.
 
 **Returns:** `boolean|nil` — open state, or nil if not initialized
+
+#### `setToggleAnimate(id, enabled)`
+
+Enable or disable toggle animation at runtime.
+
+#### `getToggleAnimate(id)`
+
+Query whether animation is enabled.
+
+**Returns:** `boolean|nil` — animation state, or nil if not initialized
+
+#### `getMinSize(id)`
+
+Get the cached minimum size (in pixels) for a splitter's primary direction. Returns the minimum content-region size needed so all panels fit at their minimums. Use this value (plus window padding) for `SetNextWindowSizeConstraints`.
+
+Works with both `multi()` and `toggle()` splitters.
+
+**Returns:** `number|nil` — minimum pixels, or nil if splitter hasn't rendered yet
+
+#### `getExpandConstraint(id)`
+
+Get the current animated constraint value for an expand-mode toggle. Call before `ImGui.Begin()` to feed into `SetNextWindowSizeConstraintsPercent`. Returns nil if the toggle hasn't rendered yet, isn't in expand mode, or the user is dragging.
+
+**Returns:** `number|nil` — animated constraint percentage
 
 ## Interaction
 
@@ -299,6 +345,35 @@ split.vertical("outer", function()
 end, function()
     ImGui.Text("Bottom")
 end, { defaultPct = 0.6 })
+```
+
+### Expand Mode — Auto-Resizing Window
+
+```lua
+local wu = GetMod("WindowUtils")
+local split = wu.Splitter
+local expand = wu.Expand
+
+local c = split.getExpandConstraint("sidebar")
+if c then
+    wu.SetNextWindowSizeConstraintsPercent("MyMod", { maxW = c })
+end
+
+if ImGui.Begin("MyMod") then
+    split.toggle("sidebar", {
+        { content = drawSidebar },
+        { content = drawMain },
+    }, {
+        side = "right",
+        size = 280,
+        expand = true,
+        windowName = "MyMod",
+        sizeMode = "fixed",
+        normalConstraintPct = 25,
+    })
+    expand.applyWindowSize("MyMod")
+end
+ImGui.End()
 ```
 
 ### Edge Toggles with Multi-Panel Core
