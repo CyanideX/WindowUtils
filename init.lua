@@ -39,10 +39,6 @@ local WindowUtils = {
     }
 }
 
---------------------------------------------------------------------------------
--- Public API (delegates to modules)
---------------------------------------------------------------------------------
-
 -- Configuration
 WindowUtils.SetGlobalDefaults = settings.setDefaults
 WindowUtils.Configure = settings.configure
@@ -84,7 +80,6 @@ WindowUtils.HideSettingsWindow = ui.hide
 WindowUtils.ToggleSettingsWindow = ui.toggle
 WindowUtils.IsSettingsWindowVisible = ui.isVisible
 
--- Master settings access
 function WindowUtils.IsMasterEnabled()
     return settings.master.enabled
 end
@@ -93,16 +88,13 @@ function WindowUtils.GetMasterSettings()
     return settings.master
 end
 
--- External Mod API
 WindowUtils.API = api
 
--- Styles, Controls, Tooltips, and Utils modules
 WindowUtils.Styles = styles
 WindowUtils.Controls = controls
 WindowUtils.Tooltips = tooltips
 WindowUtils.Utils = utils
 
--- Layout and widget modules
 WindowUtils.Splitter = splitter
 WindowUtils.Expand = expand
 WindowUtils.Tabs = tabs
@@ -113,10 +105,6 @@ WindowUtils.Notify = notifications
 registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
     ui.toggle()
 end)
-
---------------------------------------------------------------------------------
--- CET Event Registration
---------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     settings.load()
