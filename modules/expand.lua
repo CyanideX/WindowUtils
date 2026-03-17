@@ -132,7 +132,9 @@ function expand.onToggle(id, isOpen)
     -- Trigger constraint animation if normalPct is configured
     if s.normalPct then
         local dim = s.cachedDisplayDim
-        local effectiveSize = s.dragSize or s.panelSizePx
+        local effectiveSize = s.sizeMode == "auto"
+            and s.measuredSize
+            or (s.dragSize or s.panelSizePx)
         if dim and dim > 0 and effectiveSize then
             local deltaPct = (effectiveSize / dim) * 100
             local targetPct = isOpen

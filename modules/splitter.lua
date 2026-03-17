@@ -585,43 +585,31 @@ local function drawToggleBar(id, state, side)
             expand.onToggle(state.expandId, state.isOpen)
         end
 
-        -- Drag is disabled in auto mode (panel size is content-driven)
-        if state.sizeMode ~= "auto" then
-            -- Start drag (only when panel is fully open, not on the double-click frame)
-            if not doubleClicked and state.hovering and ImGui.IsMouseDragging(0, 0) and state.isOpen and state.animProgress >= 1.0 then
-                state.dragging = true
-            end
-            -- Stop drag
-            if state.dragging and not ImGui.IsMouseDragging(0, 0) then
-                state.dragging = false
-                state.expandDragStart = nil
-                expand.commitDrag(state.expandId)
-            end
+        if not doubleClicked and state.hovering and ImGui.IsMouseDragging(0, 0) and state.isOpen and state.animProgress >= 1.0 then
+            state.dragging = true
+        end
+        if state.dragging and not ImGui.IsMouseDragging(0, 0) then
+            state.dragging = false
+            state.expandDragStart = nil
+            expand.commitDrag(state.expandId)
+        end
 
-            -- Apply drag delta (fixed: resize content/window, flex: redistribute space)
-            if state.dragging then
-                state.expandDragStart = true  -- flag that drag is active
+        if state.dragging then
+            state.expandDragStart = true
 
-                local dirMul = (side == "right" or side == "bottom") and 1 or -1
-                local delta = isVert
-                    and select(2, ImGui.GetMouseDragDelta(0, 0))
-                    or (ImGui.GetMouseDragDelta(0, 0))
+            local dirMul = (side == "right" or side == "bottom") and 1 or -1
+            local delta = isVert
+                and select(2, ImGui.GetMouseDragDelta(0, 0))
+                or (ImGui.GetMouseDragDelta(0, 0))
 
-                expand.applyDrag(state.expandId, delta, dirMul)
-            end
+            expand.applyDrag(state.expandId, delta, dirMul)
+        end
 
-            -- Resize cursor
-            if state.hovering or state.dragging then
-                if isVert then
-                    ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNS)
-                else
-                    ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW)
-                end
-            end
-        else
-            -- Auto mode: hand cursor for double-click toggle
-            if state.hovering then
-                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
+        if state.hovering or state.dragging then
+            if isVert then
+                ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNS)
+            else
+                ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW)
             end
         end
     else
