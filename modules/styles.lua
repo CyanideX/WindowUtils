@@ -294,6 +294,45 @@ function styles.PopScrollbar()
 end
 
 --------------------------------------------------------------------------------
+-- External Window Style Overrides
+--------------------------------------------------------------------------------
+
+--- Push style overrides for external windows based on settings.
+--- Returns the number of style vars and colors pushed (for PopExternalWindow).
+---@param overrideStyling boolean Apply WU scrollbar/color styling
+---@param disableScrollbar boolean Set scrollbar size to 0
+---@return number varCount, number colorCount
+function styles.PushExternalWindow(overrideStyling, disableScrollbar)
+    local vars = 0
+    local colors = 0
+
+    if disableScrollbar then
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 0)
+        vars = vars + 1
+    elseif overrideStyling then
+        local size = math.max(6, math.floor(ImGui.GetFontSize() * 0.4))
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, size)
+        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarRounding, 10)
+        vars = vars + 2
+        pushColor(ImGuiCol.ScrollbarBg, styles.colors.scrollbarBg)
+        pushColor(ImGuiCol.ScrollbarGrab, styles.colors.scrollbarGrab)
+        pushColor(ImGuiCol.ScrollbarGrabHovered, styles.colors.scrollbarHover)
+        pushColor(ImGuiCol.ScrollbarGrabActive, styles.colors.scrollbarActive)
+        colors = colors + 4
+    end
+
+    return vars, colors
+end
+
+--- Pop style overrides pushed by PushExternalWindow.
+---@param varCount number
+---@param colorCount number
+function styles.PopExternalWindow(varCount, colorCount)
+    if colorCount > 0 then ImGui.PopStyleColor(colorCount) end
+    if varCount > 0 then ImGui.PopStyleVar(varCount) end
+end
+
+--------------------------------------------------------------------------------
 -- Utility: Apply style by name
 --------------------------------------------------------------------------------
 

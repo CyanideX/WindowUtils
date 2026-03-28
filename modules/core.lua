@@ -7,6 +7,7 @@ local settings = require("modules/settings")
 local discovery = require("modules/discovery")
 local utils = require("modules/utils")
 local registry = require("modules/registry")
+local styles = require("modules/styles")
 
 ---@class WindowUtilsUpdateOptions
 ---@field gridEnabled? boolean Override grid snapping
@@ -1082,6 +1083,11 @@ function core.updateExternalWindows()
     discovery.invalidateCache()
     local windows = discovery.getActiveWindows()
 
+    local extVars, extColors = styles.PushExternalWindow(
+        settings.master.overrideStyling,
+        settings.master.disableScrollbar
+    )
+
     for _, windowInfo in ipairs(windows) do
         local windowName = windowInfo.name
 
@@ -1166,6 +1172,8 @@ function core.updateExternalWindows()
             end
         end
     end
+
+    styles.PopExternalWindow(extVars, extColors)
 
     -- Collapsed pOpen windows: core.update() can't detect drags for collapsed
     -- windows (CET's ImGui returns stale position and unfocused state).

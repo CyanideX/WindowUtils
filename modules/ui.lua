@@ -367,6 +367,22 @@ local function drawExperimentalSection()
     if not discoveryAvailable then ImGui.EndDisabled() end
 
     if settings.master.overrideAllWindows and discoveryAvailable then
+        ImGui.SameLine()
+        local _, scrollStyleChanged = c:Checkbox("Scrollbar Style", "overrideStyling", {
+            tooltip = "Apply WindowUtils scrollbar styling to all managed windows"
+        })
+        if scrollStyleChanged and settings.master.overrideStyling then
+            settings.master.disableScrollbar = false
+            settings.save()
+        end
+        ImGui.SameLine()
+        local _, noScrollChanged = c:Checkbox("No Scrollbar", "disableScrollbar", {
+            tooltip = "Hide scrollbars on all managed external windows"
+        })
+        if noScrollChanged and settings.master.disableScrollbar then
+            settings.master.overrideStyling = false
+            settings.save()
+        end
         c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, {
             format = "%.1f s",
             tooltip = "Re-Probe Interval\nHow often to scan for newly-drawn windows"

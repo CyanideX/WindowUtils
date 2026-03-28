@@ -98,7 +98,6 @@ end)
 
 registerForEvent("onDraw", function()
     controls.cacheFrameState()
-    styles.PushScrollbar()
 
     -- Runs even when overlay is closing (fade-out needs to complete)
     effects.updateBlurAnimation()
@@ -107,13 +106,18 @@ registerForEvent("onDraw", function()
     if WindowUtils.runtimeData.cetOpen then
         effects.updateBlurDragState()
         effects.drawGridOverlay()
+
+        -- Scrollbar styles only wrap our own UI, not external windows
+        styles.PushScrollbar()
         ui.drawWindow()
+        styles.PopScrollbar()
+
         core.updateExternalWindows()
         core.processDeferred()
     end
 
+    styles.PushScrollbar()
     notifications.draw()
-
     styles.PopScrollbar()
 end)
 

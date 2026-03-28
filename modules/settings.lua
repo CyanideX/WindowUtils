@@ -59,7 +59,9 @@ local function createDefaultSettings()
         autoRemoveInterval = 0.5,
         batchAutoRemove = true,
         autoAdjustOnResize = false,
-        windowBrowserOpen = false
+        windowBrowserOpen = false,
+        overrideStyling = false,
+        disableScrollbar = false
     }
 end
 
