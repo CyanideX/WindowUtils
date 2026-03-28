@@ -492,6 +492,7 @@ end
 local WB_WINDOW_NAME = "Window Browser##WindowUtils"
 
 local function drawWindowOverridePanel()
+    if not settings.master.enabled then return end
     if not settings.master.windowBrowserOpen then return end
     if not settings.master.overrideAllWindows then return end
 
