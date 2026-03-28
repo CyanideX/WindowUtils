@@ -835,11 +835,11 @@ local PROBE_BLOCKED = 3
 
 --- Resolve effective hasCloseButton for a window.
 --- Priority: user override > registry > default(false)
+--- Hidden windows are still managed but don't get pOpen overrides.
 ---@param windowName string
 ---@return boolean
 local function resolveHasCloseButton(windowName)
     if settings.isWindowHidden(windowName) then return false end
-    if settings.isWindowIgnored(windowName) then return false end
     local override = settings.master.windowOverrides[windowName]
     if override ~= nil then return override end
     local entry = registry.lookup(windowName)
@@ -871,19 +871,15 @@ local function getExternalWindowState(windowName)
 end
 
 local function shouldManageWindow(windowName)
-    -- Skip known CET/ImGui internal windows
     if coreExcludedWindows[windowName] then
         return false
     end
-    -- Skip internally-managed windows
     if windowStates[windowName] then
         return false
     end
-    -- Skip windows the user has explicitly ignored
     if settings.isWindowIgnored(windowName) then
         return false
     end
-    -- Respect WindowManager's hidden/locked state
     if type(CETWM) == "table" and type(CETWM.windows) == "table" then
         local wmState = CETWM.windows[windowName]
         if wmState then
@@ -911,6 +907,36 @@ local function probeWindowActivity(windowName)
     ImGui.End()
     ImGui.PopStyleVar(2)
     return active
+end
+
+-- Advance snap animation for an external window (called after manageExternalWindow).
+-- Needs a separate Begin/End scope because SetWindowPos/Size must target the window.
+local function animateExternalWindow(windowName, state)
+    if not state.animating then return end
+
+    if not settings.master.gridEnabled or not settings.master.animationEnabled then
+        state.animating = false
+        return
+    end
+
+    local duration = settings.master.animationDuration
+    local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
+
+    local hasCloseButton = resolveHasCloseButton(windowName)
+    if hasCloseButton then
+        ImGui.Begin(windowName, true, 0)
+    else
+        ImGui.Begin(windowName)
+    end
+    ImGui.SetWindowPos(newPosX, newPosY)
+    if newSizeX and newSizeY then
+        ImGui.SetWindowSize(newSizeX, newSizeY)
+    end
+    ImGui.End()
+
+    if t >= 1 then
+        state.animating = false
+    end
 end
 
 local function manageExternalWindow(windowName, state)
@@ -1098,26 +1124,7 @@ function core.updateExternalWindows()
             if resolveHasCloseButton(windowName) then
                 state.probePhase = PROBE_ACTIVE
                 manageExternalWindow(windowName, state)
-
-                if state.animating then
-                    if not settings.master.gridEnabled or not settings.master.animationEnabled then
-                        state.animating = false
-                    else
-                        local duration = settings.master.animationDuration
-                        local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
-
-                        ImGui.Begin(windowName, true, 0)
-                        ImGui.SetWindowPos(newPosX, newPosY)
-                        if newSizeX and newSizeY then
-                            ImGui.SetWindowSize(newSizeX, newSizeY)
-                        end
-                        ImGui.End()
-
-                        if t >= 1 then
-                            state.animating = false
-                        end
-                    end
-                end
+                animateExternalWindow(windowName, state)
             elseif state.probePhase == PROBE_SKIP then
                 state.skipFrames = (state.skipFrames or 0) + 1
                 -- wasActive needs only 1 skip frame (owning mod handles rendering).
@@ -1161,31 +1168,8 @@ function core.updateExternalWindows()
                 end
 
             elseif state.probePhase == PROBE_ACTIVE then
-                -- Confirmed active - manage normally
                 manageExternalWindow(windowName, state)
-
-                -- Handle animation (outside Begin/End)
-                if state.animating then
-                    if not settings.master.gridEnabled or not settings.master.animationEnabled then
-                        state.animating = false
-                    else
-                        local duration = settings.master.animationDuration
-                        local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
-
-                        -- Need Begin/End scope for SetWindowPos/Size to work
-                        -- with all windows including ### ID-only names.
-                        ImGui.Begin(windowName)
-                        ImGui.SetWindowPos(newPosX, newPosY)
-                        if newSizeX and newSizeY then
-                            ImGui.SetWindowSize(newSizeX, newSizeY)
-                        end
-                        ImGui.End()
-
-                        if t >= 1 then
-                            state.animating = false
-                        end
-                    end
-                end
+                animateExternalWindow(windowName, state)
 
             elseif state.probePhase == PROBE_BLOCKED then
                 -- Detect if a mod started drawing this window (discovery data changed)
