@@ -403,14 +403,25 @@ end
 
 local windowBrowserSearch = ""
 
-local function drawWindowBrowserEntry(name, isHidden)
+local function drawWindowBrowserEntry(name, category)
     local ic = IconGlyphs or {}
     local override = settings.master.windowOverrides[name]
     local btnW = utils.minIconButtonWidth()
+    local isHidden = (category == "hidden")
+    local isIgnored = (category == "ignored")
 
     -- pOpen toggle
     local pOpenIcon = override and (ic.ToggleSwitch or "On") or (ic.ToggleSwitchOffOutline or "Off")
-    if not isHidden then
+    if isHidden or isIgnored then
+        ImGui.BeginDisabled()
+        controls.Button(pOpenIcon .. "##popen_" .. name, "disabled", btnW)
+        ImGui.EndDisabled()
+        if isIgnored then
+            tooltips.Show("Unignore this window to change Close Button setting")
+        else
+            tooltips.Show("Unhide this window to change Close Button setting")
+        end
+    else
         if controls.ToggleButton(pOpenIcon .. "##popen_" .. name, override, btnW) then
             if override then
                 settings.setWindowOverride(name, nil)
@@ -421,28 +432,41 @@ local function drawWindowBrowserEntry(name, isHidden)
         tooltips.Show(override
             and "Close Button enabled\nClick to disable"
             or "Enable Close Button\nAdds an X button to this window's title bar")
-    else
-        ImGui.BeginDisabled()
-        controls.Button(pOpenIcon .. "##popen_" .. name, "disabled", btnW)
-        ImGui.EndDisabled()
-        tooltips.Show("Unhide this window to change Close Button setting")
     end
 
     ImGui.SameLine()
 
-    -- Visibility toggle
+    -- Ignore toggle
+    local ignoreIcon = isIgnored and (ic.Cancel or "X") or (ic.CircleOffOutline or "-")
+    local ignoreStyle = isIgnored and "danger" or "inactive"
+    if controls.Button(ignoreIcon .. "##ign_" .. name, ignoreStyle, btnW) then
+        settings.setWindowIgnored(name, not isIgnored)
+    end
+    tooltips.Show(isIgnored
+        and "Stop ignoring this window\nWindowUtils will manage it again"
+        or "Ignore this window completely\nWindowUtils will not apply any overrides")
+
+    ImGui.SameLine()
+
+    -- Visibility toggle (disabled when ignored)
     local eyeIcon = isHidden and (ic.EyeOff or "H") or (ic.EyeOutline or "V")
     local eyeStyle = "inactive"
-    if controls.Button(eyeIcon .. "##vis_" .. name, eyeStyle, btnW) then
-        if not isHidden then
-            -- Hiding clears pOpen override
-            settings.setWindowOverride(name, nil)
+    if isIgnored then
+        ImGui.BeginDisabled()
+        controls.Button(eyeIcon .. "##vis_" .. name, "disabled", btnW)
+        ImGui.EndDisabled()
+        tooltips.Show("Unignore this window to change visibility")
+    else
+        if controls.Button(eyeIcon .. "##vis_" .. name, eyeStyle, btnW) then
+            if not isHidden then
+                settings.setWindowOverride(name, nil)
+            end
+            settings.setWindowHidden(name, not isHidden)
         end
-        settings.setWindowHidden(name, not isHidden)
+        tooltips.Show(isHidden
+            and "Show this window in the browser"
+            or "Hide this window from the browser\nMoves it to the Hidden section")
     end
-    tooltips.Show(isHidden
-        and "Show this window in the browser"
-        or "Hide this window from the browser\nMoves it to the Hidden section")
 
     ImGui.SameLine()
 
@@ -450,7 +474,7 @@ local function drawWindowBrowserEntry(name, isHidden)
     local availWidth = ImGui.GetContentRegionAvail()
     local displayName, wasTruncated = utils.truncateText(name, availWidth)
 
-    if isHidden then
+    if isHidden or isIgnored then
         styles.PushTextMuted()
         ImGui.Text(displayName)
         styles.PopTextMuted()
@@ -489,11 +513,14 @@ local function drawWindowOverridePanel()
     local windows = discovery.getActiveWindows()
     local visibleWindows = {}
     local hiddenWindows = {}
+    local ignoredWindows = {}
 
     for _, windowInfo in ipairs(windows) do
         local name = windowInfo.name
         if filter == "" or name:lower():find(filter, 1, true) then
-            if settings.isWindowHidden(name) then
+            if settings.isWindowIgnored(name) then
+                ignoredWindows[#ignoredWindows + 1] = name
+            elseif settings.isWindowHidden(name) then
                 hiddenWindows[#hiddenWindows + 1] = name
             else
                 visibleWindows[#visibleWindows + 1] = name
@@ -503,14 +530,23 @@ local function drawWindowOverridePanel()
 
     if controls.BeginFillChild("wb_list", { bg = CONTENT_BG }) then
         for _, name in ipairs(visibleWindows) do
-            drawWindowBrowserEntry(name, false)
+            drawWindowBrowserEntry(name, "visible")
         end
 
         if #hiddenWindows > 0 then
             ImGui.Separator()
             if ImGui.CollapsingHeader("Hidden") then
                 for _, name in ipairs(hiddenWindows) do
-                    drawWindowBrowserEntry(name, true)
+                    drawWindowBrowserEntry(name, "hidden")
+                end
+            end
+        end
+
+        if #ignoredWindows > 0 then
+            ImGui.Separator()
+            if ImGui.CollapsingHeader("Ignored") then
+                for _, name in ipairs(ignoredWindows) do
+                    drawWindowBrowserEntry(name, "ignored")
                 end
             end
         end

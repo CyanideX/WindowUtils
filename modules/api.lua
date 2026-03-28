@@ -273,4 +273,22 @@ function api.GetRegisteredWindows()
     return registry.getAll()
 end
 
+--------------------------------------------------------------------------------
+-- Window Ignore Control
+--------------------------------------------------------------------------------
+
+--- Check if a window is ignored (excluded from all overrides).
+---@param windowName string
+---@return boolean
+function api.IsWindowIgnored(windowName)
+    return settings.isWindowIgnored(windowName)
+end
+
+--- Set or clear a window's ignored state.
+---@param windowName string
+---@param ignored boolean
+function api.SetWindowIgnored(windowName, ignored)
+    settings.setWindowIgnored(windowName, ignored)
+end
+
 return api

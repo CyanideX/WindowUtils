@@ -839,6 +839,7 @@ local PROBE_BLOCKED = 3
 ---@return boolean
 local function resolveHasCloseButton(windowName)
     if settings.isWindowHidden(windowName) then return false end
+    if settings.isWindowIgnored(windowName) then return false end
     local override = settings.master.windowOverrides[windowName]
     if override ~= nil then return override end
     local entry = registry.lookup(windowName)
@@ -876,6 +877,10 @@ local function shouldManageWindow(windowName)
     end
     -- Skip internally-managed windows
     if windowStates[windowName] then
+        return false
+    end
+    -- Skip windows the user has explicitly ignored
+    if settings.isWindowIgnored(windowName) then
         return false
     end
     -- Respect WindowManager's hidden/locked state

@@ -60,6 +60,7 @@ local function createDefaultSettings()
         autoAdjustOnResize = false,
         windowOverrides = {},
         hiddenWindows = {},
+        ignoredWindows = {},
         windowBrowserOpen = false
     }
 end
@@ -145,6 +146,19 @@ function settings.load()
         settings.master.hiddenWindows = validated
     else
         settings.master.hiddenWindows = {}
+    end
+
+    -- Validate ignoredWindows: only keep string keys with boolean true
+    if type(settings.master.ignoredWindows) == "table" then
+        local validated = {}
+        for k, v in pairs(settings.master.ignoredWindows) do
+            if type(k) == "string" and v == true then
+                validated[k] = true
+            end
+        end
+        settings.master.ignoredWindows = validated
+    else
+        settings.master.ignoredWindows = {}
     end
 
     -- Migrate old key name to new
@@ -295,6 +309,26 @@ end
 ---@param hidden boolean
 function settings.setWindowHidden(windowName, hidden)
     settings.master.hiddenWindows[windowName] = hidden or nil
+    settings.save()
+end
+
+--- Check if a window is ignored (completely excluded from overrides).
+---@param windowName string
+---@return boolean
+function settings.isWindowIgnored(windowName)
+    return settings.master.ignoredWindows[windowName] == true
+end
+
+--- Set or clear a window's ignored state.
+---@param windowName string
+---@param ignored boolean
+function settings.setWindowIgnored(windowName, ignored)
+    settings.master.ignoredWindows[windowName] = ignored or nil
+    -- Ignoring clears other overrides for this window
+    if ignored then
+        settings.master.windowOverrides[windowName] = nil
+        settings.master.hiddenWindows[windowName] = nil
+    end
     settings.save()
 end
 
