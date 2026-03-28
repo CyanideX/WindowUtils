@@ -405,7 +405,7 @@ local windowBrowserSearch = ""
 
 local function drawWindowBrowserEntry(name, category)
     local ic = IconGlyphs or {}
-    local override = settings.master.windowOverrides[name]
+    local override = settings.windows.overrides[name]
     local btnW = utils.minIconButtonWidth()
     local isHidden = (category == "hidden")
     local isIgnored = (category == "ignored")

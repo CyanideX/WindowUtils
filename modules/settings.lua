@@ -6,6 +6,7 @@
 local settings = {}
 
 local settingsPath = "data/settings.json"
+local windowsPath = "data/windows.json"
 
 settings.NAME = "Window Utils"
 settings.ICON = IconGlyphs.WindowMaximize
@@ -58,9 +59,6 @@ local function createDefaultSettings()
         autoRemoveInterval = 0.5,
         batchAutoRemove = true,
         autoAdjustOnResize = false,
-        windowOverrides = {},
-        hiddenWindows = {},
-        ignoredWindows = {},
         windowBrowserOpen = false
     }
 end
@@ -68,7 +66,14 @@ end
 settings.defaults = createDefaultSettings()
 
 settings.master = createDefaultSettings()
-settings.master.enabled = false -- master override toggle (persisted with other settings)
+settings.master.enabled = false
+
+--- Per-window state: overrides, hidden, ignored (persisted to windows.json)
+settings.windows = {
+    overrides = {},
+    hidden = {},
+    ignored = {},
+}
 
 settings.windowConfigs = {}
 
@@ -86,8 +91,9 @@ settings.KEY_MAP = {
 settings.easingKeys = {"linear", "easeIn", "easeOut", "easeInOut", "bounce"}
 settings.easingNames = {"Linear", "Ease In", "Ease Out", "Ease In-Out", "Bounce"}
 
+
 --------------------------------------------------------------------------------
--- Persistence
+-- Persistence: settings.json
 --------------------------------------------------------------------------------
 
 --- Load settings from disk. Merges saved values into master settings.
@@ -119,58 +125,11 @@ function settings.load()
         end
     end
 
-    -- Validate windowOverrides: only keep string keys with boolean values
-    if type(settings.master.windowOverrides) == "table" then
-        local validated = {}
-        for k, v in pairs(settings.master.windowOverrides) do
-            if type(k) == "string" and type(v) == "boolean" then
-                validated[k] = v
-            else
-                settings.debugPrint("Discarding corrupt windowOverrides entry: " .. tostring(k) .. " = " .. tostring(v))
-            end
-        end
-        settings.master.windowOverrides = validated
-    else
-        settings.debugPrint("windowOverrides was not a table, resetting to default")
-        settings.master.windowOverrides = {}
-    end
-
-    -- Validate hiddenWindows: only keep string keys with boolean true
-    if type(settings.master.hiddenWindows) == "table" then
-        local validated = {}
-        for k, v in pairs(settings.master.hiddenWindows) do
-            if type(k) == "string" and v == true then
-                validated[k] = true
-            end
-        end
-        settings.master.hiddenWindows = validated
-    else
-        settings.master.hiddenWindows = {}
-    end
-
-    -- Validate ignoredWindows: only keep string keys with boolean true
-    if type(settings.master.ignoredWindows) == "table" then
-        local validated = {}
-        for k, v in pairs(settings.master.ignoredWindows) do
-            if type(k) == "string" and v == true then
-                validated[k] = true
-            end
-        end
-        settings.master.ignoredWindows = validated
-    else
-        settings.master.ignoredWindows = {}
-    end
-
-    -- Migrate old key name to new
-    if data.showSettingsWindow ~= nil and data.showGuiWindow == nil then
-        settings.master.showGuiWindow = data.showSettingsWindow
-    end
-
     settings.debugPrint("Settings Loaded")
     return true
 end
 
---- Save current master settings to disk.
+--- Save current master settings to disk (excludes window data).
 ---@return boolean success
 function settings.save()
     if not settings.master then
@@ -206,7 +165,71 @@ end
 --- Reload settings from disk.
 function settings.reload()
     settings.load()
+    settings.loadWindows()
     settings.debugPrint("Settings reloaded")
+end
+
+--------------------------------------------------------------------------------
+-- Persistence: windows.json
+--------------------------------------------------------------------------------
+
+--- Validate a table of string keys with boolean values.
+---@param tbl table|any Raw data to validate
+---@param requireTrue? boolean If true, only keep entries where value == true
+---@return table validated
+local function validateBoolMap(tbl, requireTrue)
+    local validated = {}
+    if type(tbl) ~= "table" then return validated end
+    for k, v in pairs(tbl) do
+        if type(k) == "string" then
+            if requireTrue then
+                if v == true then validated[k] = true end
+            elseif type(v) == "boolean" then
+                validated[k] = v
+            end
+        end
+    end
+    return validated
+end
+
+--- Load per-window data from windows.json.
+---@return boolean success
+function settings.loadWindows()
+    local file = io.open(windowsPath, "r")
+    if not file then return false end
+
+    local content = file:read("*a")
+    file:close()
+
+    local success, data = pcall(json.decode, content)
+    if not success or not data then return false end
+
+    settings.windows.overrides = validateBoolMap(data.overrides)
+    settings.windows.hidden = validateBoolMap(data.hidden, true)
+    settings.windows.ignored = validateBoolMap(data.ignored, true)
+
+    settings.debugPrint("Window data loaded")
+    return true
+end
+
+--- Save per-window data to windows.json.
+---@return boolean success
+function settings.saveWindows()
+    local success, content = pcall(json.encode, settings.windows)
+    if not success then
+        settings.debugPrint("Failed to encode window data: " .. tostring(content), true)
+        return false
+    end
+
+    local file, err = io.open(windowsPath, "w")
+    if not file then
+        settings.debugPrint("Failed to open windows file for writing: " .. tostring(err), true)
+        return false
+    end
+
+    file:write(content)
+    file:close()
+    return true
 end
 
 --------------------------------------------------------------------------------
@@ -248,7 +271,8 @@ function settings.clearWindowConfig(windowName)
 end
 
 --- Get valid grid unit values for current display resolution.
--- Returns units where (units * GRID_UNIT_SIZE) evenly divides both width and height.
+---@param maxUnits? number Maximum units to check (default 10)
+---@return number[] validUnits
 function settings.getValidGridUnits(maxUnits)
     maxUnits = maxUnits or 10
     local validUnits = {}
@@ -265,7 +289,7 @@ function settings.getValidGridUnits(maxUnits)
 end
 
 --- Get effective configuration value for a window.
--- Priority: master settings (if enabled) > per-window override > external settings > global defaults
+--- Priority: master (if enabled) > per-window > external > defaults
 function settings.getConfig(windowName, key)
     if settings.master.enabled and settings.master[key] ~= nil then
         return settings.master[key]
@@ -282,54 +306,57 @@ function settings.getConfig(windowName, key)
     return settings.defaults[key]
 end
 
+--------------------------------------------------------------------------------
+-- Window Override / Hidden / Ignored API
+--------------------------------------------------------------------------------
+
 --- Get the user override for a window's hasCloseButton, or nil if not set.
 ---@param windowName string
 ---@return boolean|nil
 function settings.getWindowOverride(windowName)
-    return settings.master.windowOverrides[windowName]
+    return settings.windows.overrides[windowName]
 end
 
 --- Set or clear a user override for a window's hasCloseButton.
 ---@param windowName string
 ---@param value boolean|nil  nil removes the override
 function settings.setWindowOverride(windowName, value)
-    settings.master.windowOverrides[windowName] = value
-    settings.save()
+    settings.windows.overrides[windowName] = value
+    settings.saveWindows()
 end
 
 --- Check if a window is hidden in the browser.
 ---@param windowName string
 ---@return boolean
 function settings.isWindowHidden(windowName)
-    return settings.master.hiddenWindows[windowName] == true
+    return settings.windows.hidden[windowName] == true
 end
 
 --- Set or clear a window's hidden state.
 ---@param windowName string
 ---@param hidden boolean
 function settings.setWindowHidden(windowName, hidden)
-    settings.master.hiddenWindows[windowName] = hidden or nil
-    settings.save()
+    settings.windows.hidden[windowName] = hidden or nil
+    settings.saveWindows()
 end
 
 --- Check if a window is ignored (completely excluded from overrides).
 ---@param windowName string
 ---@return boolean
 function settings.isWindowIgnored(windowName)
-    return settings.master.ignoredWindows[windowName] == true
+    return settings.windows.ignored[windowName] == true
 end
 
 --- Set or clear a window's ignored state.
 ---@param windowName string
 ---@param ignored boolean
 function settings.setWindowIgnored(windowName, ignored)
-    settings.master.ignoredWindows[windowName] = ignored or nil
-    -- Ignoring clears other overrides for this window
+    settings.windows.ignored[windowName] = ignored or nil
     if ignored then
-        settings.master.windowOverrides[windowName] = nil
-        settings.master.hiddenWindows[windowName] = nil
+        settings.windows.overrides[windowName] = nil
+        settings.windows.hidden[windowName] = nil
     end
-    settings.save()
+    settings.saveWindows()
 end
 
 return settings

@@ -11,14 +11,6 @@ local cacheGeneration = -1
 local currentGeneration = 0
 local lastLayoutString = nil
 
-local windowRegistry = nil
-
---- Set the window registry reference (called from init.lua to avoid circular requires).
----@param reg table The registry module
-function discovery.setRegistry(reg)
-    windowRegistry = reg
-end
-
 --- Invalidate the per-frame cache (call once at start of each frame).
 function discovery.invalidateCache()
     currentGeneration = currentGeneration + 1
@@ -102,7 +94,6 @@ function discovery.getActiveWindows()
                     collapsed = (collapsedVal == "1")
                 end
 
-                local regEntry = windowRegistry and windowRegistry.lookup(name)
                 windows[#windows + 1] = {
                     name = name,
                     posX = posX,
@@ -110,7 +101,6 @@ function discovery.getActiveWindows()
                     sizeX = sizeX,
                     sizeY = sizeY,
                     collapsed = collapsed,
-                    hasCloseButton = regEntry and regEntry.hasCloseButton or false
                 }
             end
         end

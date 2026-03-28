@@ -1,6 +1,6 @@
 --------------------------------------------------------
 -- WindowUtils - External API Module
--- Clean interface for other mods to control WindowUtils
+-- Interface for other mods to control WindowUtils
 --------------------------------------------------------
 
 local settings = require("modules/settings")
@@ -20,7 +20,7 @@ api.Hide = ui.hide
 api.IsVisible = ui.isVisible
 
 --------------------------------------------------------------------------------
--- Master Override Control
+-- Master Override
 --------------------------------------------------------------------------------
 
 ---@return boolean
@@ -45,7 +45,7 @@ function api.SetEnabled(enabled)
 end
 
 --------------------------------------------------------------------------------
--- Grid Control
+-- Grid
 --------------------------------------------------------------------------------
 
 ---@return boolean
@@ -53,96 +53,11 @@ function api.IsGridEnabled()
     return settings.master.gridEnabled
 end
 
-function api.EnableGrid()
-    settings.master.gridEnabled = true
-    settings.save()
-end
-
-function api.DisableGrid()
-    settings.master.gridEnabled = false
-    settings.save()
-end
-
 ---@param enabled boolean
 function api.SetGridEnabled(enabled)
     settings.master.gridEnabled = enabled
     settings.save()
 end
-
----@return boolean newState
-function api.ToggleGrid()
-    settings.master.gridEnabled = not settings.master.gridEnabled
-    settings.save()
-    return settings.master.gridEnabled
-end
-
---------------------------------------------------------------------------------
--- Animation Control
---------------------------------------------------------------------------------
-
----@return boolean
-function api.IsAnimationEnabled()
-    return settings.master.animationEnabled
-end
-
-function api.EnableAnimation()
-    settings.master.animationEnabled = true
-    settings.save()
-end
-
-function api.DisableAnimation()
-    settings.master.animationEnabled = false
-    settings.save()
-end
-
----@param enabled boolean
-function api.SetAnimationEnabled(enabled)
-    settings.master.animationEnabled = enabled
-    settings.save()
-end
-
----@return boolean newState
-function api.ToggleAnimation()
-    settings.master.animationEnabled = not settings.master.animationEnabled
-    settings.save()
-    return settings.master.animationEnabled
-end
-
---------------------------------------------------------------------------------
--- Tooltips Control
---------------------------------------------------------------------------------
-
----@return boolean
-function api.IsTooltipsEnabled()
-    return settings.master.tooltipsEnabled
-end
-
-function api.EnableTooltips()
-    settings.master.tooltipsEnabled = true
-    settings.save()
-end
-
-function api.DisableTooltips()
-    settings.master.tooltipsEnabled = false
-    settings.save()
-end
-
----@param enabled boolean
-function api.SetTooltipsEnabled(enabled)
-    settings.master.tooltipsEnabled = enabled
-    settings.save()
-end
-
----@return boolean newState
-function api.ToggleTooltips()
-    settings.master.tooltipsEnabled = not settings.master.tooltipsEnabled
-    settings.save()
-    return settings.master.tooltipsEnabled
-end
-
---------------------------------------------------------------------------------
--- Grid Size Control
---------------------------------------------------------------------------------
 
 ---@return number
 function api.GetGridUnits()
@@ -160,8 +75,19 @@ function api.SetGridUnits(units)
 end
 
 --------------------------------------------------------------------------------
--- Animation Duration Control
+-- Animation
 --------------------------------------------------------------------------------
+
+---@return boolean
+function api.IsAnimationEnabled()
+    return settings.master.animationEnabled
+end
+
+---@param enabled boolean
+function api.SetAnimationEnabled(enabled)
+    settings.master.animationEnabled = enabled
+    settings.save()
+end
 
 ---@return number
 function api.GetAnimationDuration()
@@ -182,8 +108,7 @@ end
 --------------------------------------------------------------------------------
 
 --- Get the current master settings table (mutable reference).
---- Changes made to this table affect WindowUtils behavior.
---- Call settings.save() to persist changes.
+--- Call api.SaveSettings() to persist after direct changes.
 ---@return table
 function api.GetSettings()
     return settings.master
@@ -195,37 +120,42 @@ function api.GetDefaults()
     return settings.defaults
 end
 
---- Apply multiple settings at once.
+--- Apply multiple settings at once, persist, and trigger side effects.
 ---@param settingsTable table Key-value pairs of settings to apply
 ---@return boolean applied True if any settings were applied
 function api.ApplySettings(settingsTable)
     if type(settingsTable) ~= "table" then return false end
 
     local applied = false
+    local gridChanged = false
     for key, value in pairs(settingsTable) do
         if settings.master[key] ~= nil then
             settings.master[key] = value
             applied = true
+            if key == "gridUnits" then gridChanged = true end
         end
     end
 
     if applied then
         settings.save()
+        if gridChanged then core.invalidateGridCache() end
     end
     return applied
 end
 
---- Reset all settings to defaults.
+--- Reset all settings to defaults and save.
 function api.ResetSettings()
     settings.reset()
+    core.invalidateGridCache()
 end
 
---- Reload settings from file.
+--- Reload settings from disk.
 function api.ReloadSettings()
     settings.reload()
+    core.invalidateGridCache()
 end
 
---- Save current settings to file.
+--- Save current settings to disk.
 ---@return boolean success
 function api.SaveSettings()
     return settings.save()
@@ -235,18 +165,20 @@ end
 -- Window Registration
 --------------------------------------------------------------------------------
 
---- Register an external window with metadata.
----@param windowName string Window name string
+--- Register a window with metadata for external window management.
+--- Used to declare that a window has a close button (pOpen) so WindowUtils
+--- can manage it correctly without empty-shell detection.
+---@param windowName string Window name string (supports ### stable ID syntax)
 ---@param options table { hasCloseButton = boolean }
 ---@return boolean success
 function api.RegisterWindow(windowName, options)
     if type(windowName) ~= "string" or windowName == "" then
-        settings.debugPrint("RegisterWindow: invalid windowName (expected non-empty string)", true)
+        settings.debugPrint("RegisterWindow: invalid windowName", true)
         return false
     end
     options = options or {}
     if type(options) ~= "table" then
-        settings.debugPrint("RegisterWindow: invalid options (expected table)", true)
+        settings.debugPrint("RegisterWindow: invalid options", true)
         return false
     end
     local result = registry.register(windowName, options)
@@ -254,7 +186,7 @@ function api.RegisterWindow(windowName, options)
     return result
 end
 
---- Unregister an external window.
+--- Unregister a previously registered window.
 ---@param windowName string
 ---@return boolean success
 function api.UnregisterWindow(windowName)
@@ -265,12 +197,6 @@ function api.UnregisterWindow(windowName)
     local result = registry.unregister(windowName)
     settings.debugPrint("UnregisterWindow: '" .. windowName .. "'")
     return result
-end
-
---- Get all registered windows (debugging).
----@return table
-function api.GetRegisteredWindows()
-    return registry.getAll()
 end
 
 return api

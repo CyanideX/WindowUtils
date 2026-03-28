@@ -18,7 +18,6 @@ local utils = require("modules/utils")
 local core = require("modules/core")
 local ui = require("modules/ui")
 local effects = require("modules/effects")
-local discovery = require("modules/discovery")
 local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")
@@ -28,7 +27,6 @@ local expand = require("modules/expand")
 local tabs = require("modules/tabs")
 local dragdrop = require("modules/dragdrop")
 local notifications = require("modules/notifications")
-local registry = require("modules/registry")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -109,8 +107,8 @@ end)
 
 registerForEvent("onInit", function()
     settings.load()
+    settings.loadWindows()
     core.loadWindowCache()
-    discovery.setRegistry(registry)
     ui.init()
 
     settings.debugPrint("Initialized!", true)

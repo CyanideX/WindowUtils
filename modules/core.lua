@@ -840,7 +840,7 @@ local PROBE_BLOCKED = 3
 ---@return boolean
 local function resolveHasCloseButton(windowName)
     if settings.isWindowHidden(windowName) then return false end
-    local override = settings.master.windowOverrides[windowName]
+    local override = settings.windows.overrides[windowName]
     if override ~= nil then return override end
     local entry = registry.lookup(windowName)
     if entry then return entry.hasCloseButton end
