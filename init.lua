@@ -18,6 +18,7 @@ local utils = require("modules/utils")
 local core = require("modules/core")
 local ui = require("modules/ui")
 local effects = require("modules/effects")
+local discovery = require("modules/discovery")
 local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")
@@ -27,6 +28,7 @@ local expand = require("modules/expand")
 local tabs = require("modules/tabs")
 local dragdrop = require("modules/dragdrop")
 local notifications = require("modules/notifications")
+local registry = require("modules/registry")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -101,7 +103,6 @@ WindowUtils.Tabs = tabs
 WindowUtils.DragDrop = dragdrop
 WindowUtils.Notify = notifications
 
--- Register hotkey for toggling the main window (can also be toggled via API)
 registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
     ui.toggle()
 end)
@@ -109,36 +110,28 @@ end)
 registerForEvent("onInit", function()
     settings.load()
     core.loadWindowCache()
+    discovery.setRegistry(registry)
     ui.init()
 
     settings.debugPrint("Initialized!", true)
 end)
 
 registerForEvent("onDraw", function()
-    -- Cache style values for controls (GetStyle() once per frame)
     controls.cacheFrameState()
-
-    -- Apply themed scrollbar defaults for all WU-rendered content
     styles.PushScrollbar()
 
-    -- Update blur animation (runs even when overlay might be closing)
+    -- Runs even when overlay is closing (fade-out needs to complete)
     effects.updateBlurAnimation()
+    effects.updateDimAnimation()
 
     if WindowUtils.runtimeData.cetOpen then
-        -- Update blur based on drag state (for "blur on drag only" mode)
         effects.updateBlurDragState()
-
         effects.drawGridOverlay()
         ui.drawWindow()
-
-        -- Process external windows if override is enabled
         core.updateExternalWindows()
-
-        -- Execute deferred snap operations
         core.processDeferred()
     end
 
-    -- Draw toast notifications LAST so they render on top of all other windows
     notifications.draw()
 
     styles.PopScrollbar()
@@ -147,9 +140,8 @@ end)
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
     effects.state.isOverlayOpen = true
-    -- Re-probe blocked external windows in case they became active while overlay was closed
+    -- Re-probe external windows that may have become active while overlay was closed
     core.resetExternalProbes()
-    -- Enable blur if setting is enabled (unless drag-only mode)
     if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
         effects.enableBlur()
     end
@@ -158,10 +150,8 @@ end)
 registerForEvent("onOverlayClose", function()
     WindowUtils.runtimeData.cetOpen = false
     effects.state.isOverlayOpen = false
-    -- Save cached external window sizes to disk
     core.saveWindowCache()
-    -- Disable blur and dim when overlay closes
-    effects.disableBlur()
+    effects.disableBlur(true)
     effects.disableDim()
 end)
 

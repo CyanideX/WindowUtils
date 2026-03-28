@@ -3,29 +3,29 @@
 -- Settings window using library components
 ------------------------------------------------------
 
-local settings = require("modules/settings")
-local core     = require("modules/core")
-local controls = require("modules/controls")
-local splitter = require("modules/splitter")
-local effects  = require("modules/effects")
+local settings  = require("modules/settings")
+local core      = require("modules/core")
+local controls  = require("modules/controls")
+local styles    = require("modules/styles")
+local splitter  = require("modules/splitter")
+local effects   = require("modules/effects")
+local discovery = require("modules/discovery")
+local utils     = require("modules/utils")
+local tooltips  = require("modules/tooltips")
 
 local ui = {}
 
--- Window state
 ui.state = {
     showWindow = false
 }
 
--- Navigation state
 ui.selectedSection = 1
 
--- Section definitions (populated in ui.init after IconGlyphs is available)
 ui.sections = {}
 
--- Cached experimental panel content height (measured each frame, used next frame)
+-- Measured each frame, used for experimental panel sizing next frame
 local cachedExperimentalH = nil
 
--- Content panel background: same hue as Panel default but half opacity
 local CONTENT_BG = { 0.65, 0.7, 1.0, 0.0225 }
 
 --------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ local function findEasingIndex(key)
     for i, k in ipairs(settings.easingKeys) do
         if k == key then return i - 1 end
     end
-    return 3 -- default to easeInOut
+    return 3 -- default: easeInOut
 end
 
 --------------------------------------------------------------------------------
@@ -100,7 +100,6 @@ local function drawGridSection()
         tooltip = "Snap Collapsed Windows When Dragged"
     })
 
-    -- Grid scale uses validUnits mapping
     local validUnits = settings.getValidGridUnits(10)
     local maxScale = math.min(#validUnits, 5)
     local currentScale = 1
@@ -132,7 +131,6 @@ local function drawGridSection()
         tooltip = "Automatically re-snap all windows to the new grid when scale changes"
     })
 
-    -- Animation
     controls.SectionHeader("Animation", 10, 0)
     c:Checkbox("Snap Animation", "animationEnabled", {
         tooltip = "Animate Window Snapping"
@@ -245,7 +243,6 @@ end
 local function drawBackgroundSection()
     local c = controls.bind(settings.master, settings.defaults, settings.save)
 
-    -- Dim Background
     ImGui.Text("Dim Background")
     ImGui.Dummy(0, 0)
     c:Checkbox("Dim Background", "gridDimBackground", {
@@ -258,12 +255,11 @@ local function drawBackgroundSection()
         tooltip = "Only Dim Background While Dragging Windows"
     })
     c:SliderFloat("Brightness4", "gridDimBackgroundOpacity", 0.1, 0.9, {
-        percent = true,
+        format = "%.2f",
         tooltip = "Background Dimming Opacity"
     })
     if not settings.master.gridDimBackground then ImGui.EndDisabled() end
 
-    -- Blur
     controls.SectionHeader("Blur", 10, 0)
 
     local blurAvailable = effects.isBlurAvailable()
@@ -324,18 +320,22 @@ local function drawBackgroundSection()
     })
     if changed then effects.updateBlurIntensity(settings.master.blurIntensity) end
 
-    c:SliderFloat("TransitionMasked", "blurFadeInDuration", 0.05, 1.0, {
-        format = "%.2f s",
-        tooltip = "Fade In Duration"
-    })
-    c:SliderFloat("TransitionMasked", "blurFadeOutDuration", 0.05, 1.0, {
-        format = "%.2f s",
-        tooltip = "Fade Out Duration"
-    })
-
     if not settings.master.blurOnOverlayOpen or not blurAvailable then
         ImGui.EndDisabled()
     end
+
+    controls.SectionHeader("Transition", 10, 0)
+    c:SliderFloat("TransitionMasked", "fadeInDuration", 0.05, 1.0, {
+        format = "%.2f s",
+        tooltip = "Fade In Duration"
+    })
+    c:SliderFloat("TransitionMasked", "fadeOutDuration", 0.05, 1.0, {
+        format = "%.2f s",
+        tooltip = "Fade Out Duration"
+    })
+    c:Checkbox("Quick Exit", "quickExit", {
+        tooltip = "Faster dim and blur transition when closing CET overlay"
+    })
 end
 
 --------------------------------------------------------------------------------
@@ -373,23 +373,151 @@ local function drawExperimentalSection()
         })
 
         c:Checkbox("Auto-Remove Empty Windows", "autoRemoveEmptyWindows", {
-            tooltip = "Automatically stop managing windows that are no longer drawn by any mod\nAlso removes empty shells instantly when clicked",
+            tooltip = "Automatically stop managing windows that are no longer drawn by any mod.\n When disabled, empty shells instantly clear when clicked.\n\nMay cause windows to flicker (see Window Browser for fix).",
             alwaysShowTooltip = true
         })
 
         if settings.master.autoRemoveEmptyWindows then
+            ImGui.SameLine()
+            c:Checkbox("Batch Auto-Remove", "batchAutoRemove", {
+                tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)"
+            })
+
             c:SliderFloat("TimerSand", "autoRemoveInterval", 0.1, 5.0, {
                 format = "%.1f s",
                 tooltip = "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing"
             })
-
-            c:Checkbox("Batch Auto-Remove", "batchAutoRemove", {
-                tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)"
-            })
         end
+
+        c:Checkbox("Window Browser", "windowBrowserOpen", {
+            tooltip = "Browse all discovered CET windows\n\nUse the toggle to fix windows that flicker and\ncan't be closed or collapsed properly.\nHide windows you don't need to declutter the list."
+        })
     end
 
     if not settings.master.enabled then ImGui.EndDisabled() end
+end
+
+--------------------------------------------------------------------------------
+-- Window Browser (separate ImGui window)
+--------------------------------------------------------------------------------
+
+local windowBrowserSearch = ""
+
+local function drawWindowBrowserEntry(name, isHidden)
+    local ic = IconGlyphs or {}
+    local override = settings.master.windowOverrides[name]
+    local btnW = utils.minIconButtonWidth()
+
+    -- pOpen toggle
+    local pOpenIcon = override and (ic.ToggleSwitch or "On") or (ic.ToggleSwitchOffOutline or "Off")
+    if not isHidden then
+        if controls.ToggleButton(pOpenIcon .. "##popen_" .. name, override, btnW) then
+            if override then
+                settings.setWindowOverride(name, nil)
+            else
+                settings.setWindowOverride(name, true)
+            end
+        end
+        tooltips.Show(override
+            and "Close Button enabled\nClick to disable"
+            or "Enable Close Button\nAdds an X button to this window's title bar")
+    else
+        ImGui.BeginDisabled()
+        controls.Button(pOpenIcon .. "##popen_" .. name, "disabled", btnW)
+        ImGui.EndDisabled()
+        tooltips.Show("Unhide this window to change Close Button setting")
+    end
+
+    ImGui.SameLine()
+
+    -- Visibility toggle
+    local eyeIcon = isHidden and (ic.EyeOff or "H") or (ic.EyeOutline or "V")
+    local eyeStyle = "inactive"
+    if controls.Button(eyeIcon .. "##vis_" .. name, eyeStyle, btnW) then
+        if not isHidden then
+            -- Hiding clears pOpen override
+            settings.setWindowOverride(name, nil)
+        end
+        settings.setWindowHidden(name, not isHidden)
+    end
+    tooltips.Show(isHidden
+        and "Show this window in the browser"
+        or "Hide this window from the browser\nMoves it to the Hidden section")
+
+    ImGui.SameLine()
+
+    -- Window name (truncated to remaining width)
+    local availWidth = ImGui.GetContentRegionAvail()
+    local displayName, wasTruncated = utils.truncateText(name, availWidth)
+
+    if isHidden then
+        styles.PushTextMuted()
+        ImGui.Text(displayName)
+        styles.PopTextMuted()
+    else
+        ImGui.Text(displayName)
+    end
+
+    if wasTruncated and ImGui.IsItemHovered() then
+        ImGui.BeginTooltip()
+        ImGui.Text(name)
+        ImGui.EndTooltip()
+    end
+end
+
+local WB_WINDOW_NAME = "Window Browser##WindowUtils"
+
+local function drawWindowOverridePanel()
+    if not settings.master.windowBrowserOpen then return end
+    if not settings.master.overrideAllWindows then return end
+
+    local dw, dh = GetDisplayResolution()
+    ImGui.SetNextWindowSize(dw * 0.18, dh * 0.35, ImGuiCond.FirstUseEver)
+    core.setNextWindowSizeConstraintsPercent(10, 15, 30, 60, WB_WINDOW_NAME)
+
+    if not ImGui.Begin(WB_WINDOW_NAME) then
+        ImGui.End()
+        return
+    end
+
+    local ic = IconGlyphs or {}
+    windowBrowserSearch = controls.InputText(
+        ic.Magnify or nil, "wb_search", windowBrowserSearch, { maxLength = 128 }
+    )
+
+    local filter = windowBrowserSearch:lower()
+    local windows = discovery.getActiveWindows()
+    local visibleWindows = {}
+    local hiddenWindows = {}
+
+    for _, windowInfo in ipairs(windows) do
+        local name = windowInfo.name
+        if filter == "" or name:lower():find(filter, 1, true) then
+            if settings.isWindowHidden(name) then
+                hiddenWindows[#hiddenWindows + 1] = name
+            else
+                visibleWindows[#visibleWindows + 1] = name
+            end
+        end
+    end
+
+    if controls.BeginFillChild("wb_list", { bg = CONTENT_BG }) then
+        for _, name in ipairs(visibleWindows) do
+            drawWindowBrowserEntry(name, false)
+        end
+
+        if #hiddenWindows > 0 then
+            ImGui.Separator()
+            if ImGui.CollapsingHeader("Hidden") then
+                for _, name in ipairs(hiddenWindows) do
+                    drawWindowBrowserEntry(name, true)
+                end
+            end
+        end
+    end
+    controls.EndFillChild("wb_list")
+
+    ImGui.End()
 end
 
 --------------------------------------------------------------------------------
@@ -423,7 +551,7 @@ local function drawContentPanel()
             drawBackgroundSection()
         end
     end
-    controls.EndFillChild()
+    controls.EndFillChild("gui_section_scroll")
 end
 
 --------------------------------------------------------------------------------
@@ -442,7 +570,6 @@ function ui.init()
         { label = "Visuals",    icon = ic.Eye         or "?", page = 3 },
         { label = "Background", icon = ic.Brightness6 or "?", page = 4 },
     }
-    -- Restore persisted window visibility
     ui.state.showWindow = settings.master.showGuiWindow
 end
 
@@ -450,7 +577,7 @@ end
 function ui.drawWindow()
     if not ui.state.showWindow then return end
 
-    -- Window constraints: percentage-of-screen floor + panel content minimums
+    -- Window size constraints: percentage-of-screen floor + panel content minimums
     local displayW, displayH = GetDisplayResolution()
     local padX = ImGui.GetStyle().WindowPadding.x * 2
     local padY2 = ImGui.GetStyle().WindowPadding.y * 2
@@ -465,7 +592,6 @@ function ui.drawWindow()
     core.setNextWindowSizeConstraints(minW, minH, displayW * 0.45, displayH * 0.5, GUI_WINDOW_NAME)
 
     if not ImGui.Begin(GUI_WINDOW_NAME) then
-        -- Collapsed
         core.update(GUI_WINDOW_NAME, {
             gridEnabled = settings.master.gridEnabled,
             animationEnabled = settings.master.animationEnabled,
@@ -476,42 +602,34 @@ function ui.drawWindow()
         return
     end
 
-    -- Experimental panel: use measured content height (previous frame), or text-metric estimate
+    -- Use measured content height from previous frame, or text-metric estimate
     local padY = ImGui.GetStyle().WindowPadding.y
     local experimentalH = cachedExperimentalH
         or (ImGui.GetTextLineHeightWithSpacing() * 6 + ImGui.GetStyle().ItemSpacing.y * 5 + padY * 2)
 
-    -- Sidebar max width: ~15% of display width (scales with resolution)
     local sidebarMaxW = math.floor(displayW * 0.15)
 
-    -- Outer: vertical split (top area + experimental bottom toggle)
     splitter.multi("gui_outer", {
-        -- Top: horizontal split (sidebar + content)
         { content = function()
             splitter.multi("gui_inner", {
-                -- Left: resizable sidebar (auto-min from splitter)
                 { maxWidth = sidebarMaxW, content = function()
                     controls.Panel("gui_nav", function()
                         drawSidebar()
                     end)
                 end },
-                -- Right: content area
                 { content = function()
                     drawContentPanel()
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.3, 0.7 } })
         end },
-        -- Bottom: experimental edge toggle (full width)
         { toggle = true, size = experimentalH, defaultOpen = false, content = function()
             controls.Panel("gui_experimental", function()
                 drawExperimentalSection()
-                -- Measure actual content height for next frame
                 cachedExperimentalH = ImGui.GetCursorPosY() + padY
             end)
         end },
     }, { direction = "vertical" })
 
-    -- Update with WindowUtils (for this window's grid snapping)
     core.update(GUI_WINDOW_NAME, {
         gridEnabled = settings.master.gridEnabled,
         animationEnabled = settings.master.animationEnabled,
@@ -520,6 +638,8 @@ function ui.drawWindow()
     })
 
     ImGui.End()
+
+    drawWindowOverridePanel()
 end
 
 --------------------------------------------------------------------------------

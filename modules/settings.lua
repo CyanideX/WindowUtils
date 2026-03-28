@@ -7,8 +7,6 @@ local settings = {}
 
 local settingsPath = "data/settings.json"
 
--- Mod Identity
-
 settings.NAME = "Window Utils"
 settings.ICON = IconGlyphs.WindowMaximize
 settings.VERSION = "1.0.0"
@@ -22,11 +20,7 @@ function settings.debugPrint(message, forced)
     end
 end
 
--- Grid Constants
-
 settings.GRID_UNIT_SIZE = 20
-
--- Default Settings Factory
 
 local function createDefaultSettings()
     return {
@@ -56,13 +50,17 @@ local function createDefaultSettings()
         blurOnOverlayOpen = false,
         blurOnDragOnly = true,
         blurIntensity = 0.0028,
-        blurFadeInDuration = 0.25,
-        blurFadeOutDuration = 0.05,
+        fadeInDuration = 0.25,
+        fadeOutDuration = 0.05,
+        quickExit = true,
         probeInterval = 0.5,
         autoRemoveEmptyWindows = true,
         autoRemoveInterval = 0.5,
         batchAutoRemove = true,
-        autoAdjustOnResize = false
+        autoAdjustOnResize = false,
+        windowOverrides = {},
+        hiddenWindows = {},
+        windowBrowserOpen = false
     }
 end
 
@@ -118,6 +116,35 @@ function settings.load()
         if settings.master[key] ~= nil then
             settings.master[key] = value
         end
+    end
+
+    -- Validate windowOverrides: only keep string keys with boolean values
+    if type(settings.master.windowOverrides) == "table" then
+        local validated = {}
+        for k, v in pairs(settings.master.windowOverrides) do
+            if type(k) == "string" and type(v) == "boolean" then
+                validated[k] = v
+            else
+                settings.debugPrint("Discarding corrupt windowOverrides entry: " .. tostring(k) .. " = " .. tostring(v))
+            end
+        end
+        settings.master.windowOverrides = validated
+    else
+        settings.debugPrint("windowOverrides was not a table, resetting to default")
+        settings.master.windowOverrides = {}
+    end
+
+    -- Validate hiddenWindows: only keep string keys with boolean true
+    if type(settings.master.hiddenWindows) == "table" then
+        local validated = {}
+        for k, v in pairs(settings.master.hiddenWindows) do
+            if type(k) == "string" and v == true then
+                validated[k] = true
+            end
+        end
+        settings.master.hiddenWindows = validated
+    else
+        settings.master.hiddenWindows = {}
     end
 
     -- Migrate old key name to new
@@ -239,6 +266,36 @@ function settings.getConfig(windowName, key)
         end
     end
     return settings.defaults[key]
+end
+
+--- Get the user override for a window's hasCloseButton, or nil if not set.
+---@param windowName string
+---@return boolean|nil
+function settings.getWindowOverride(windowName)
+    return settings.master.windowOverrides[windowName]
+end
+
+--- Set or clear a user override for a window's hasCloseButton.
+---@param windowName string
+---@param value boolean|nil  nil removes the override
+function settings.setWindowOverride(windowName, value)
+    settings.master.windowOverrides[windowName] = value
+    settings.save()
+end
+
+--- Check if a window is hidden in the browser.
+---@param windowName string
+---@return boolean
+function settings.isWindowHidden(windowName)
+    return settings.master.hiddenWindows[windowName] == true
+end
+
+--- Set or clear a window's hidden state.
+---@param windowName string
+---@param hidden boolean
+function settings.setWindowHidden(windowName, hidden)
+    settings.master.hiddenWindows[windowName] = hidden or nil
+    settings.save()
 end
 
 return settings

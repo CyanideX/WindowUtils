@@ -6,6 +6,7 @@
 local settings = require("modules/settings")
 local core = require("modules/core")
 local ui = require("modules/ui")
+local registry = require("modules/registry")
 
 local api = {}
 
@@ -27,13 +28,11 @@ function api.IsEnabled()
     return settings.master.enabled
 end
 
---- Enable the master override.
 function api.Enable()
     settings.master.enabled = true
     settings.save()
 end
 
---- Disable the master override.
 function api.Disable()
     settings.master.enabled = false
     settings.save()
@@ -54,13 +53,11 @@ function api.IsGridEnabled()
     return settings.master.gridEnabled
 end
 
---- Enable grid snapping.
 function api.EnableGrid()
     settings.master.gridEnabled = true
     settings.save()
 end
 
---- Disable grid snapping.
 function api.DisableGrid()
     settings.master.gridEnabled = false
     settings.save()
@@ -88,13 +85,11 @@ function api.IsAnimationEnabled()
     return settings.master.animationEnabled
 end
 
---- Enable snap animation.
 function api.EnableAnimation()
     settings.master.animationEnabled = true
     settings.save()
 end
 
---- Disable snap animation.
 function api.DisableAnimation()
     settings.master.animationEnabled = false
     settings.save()
@@ -122,13 +117,11 @@ function api.IsTooltipsEnabled()
     return settings.master.tooltipsEnabled
 end
 
---- Enable tooltips.
 function api.EnableTooltips()
     settings.master.tooltipsEnabled = true
     settings.save()
 end
 
---- Disable tooltips.
 function api.DisableTooltips()
     settings.master.tooltipsEnabled = false
     settings.save()
@@ -236,6 +229,48 @@ end
 ---@return boolean success
 function api.SaveSettings()
     return settings.save()
+end
+
+--------------------------------------------------------------------------------
+-- Window Registration
+--------------------------------------------------------------------------------
+
+--- Register an external window with metadata.
+---@param windowName string Window name string
+---@param options table { hasCloseButton = boolean }
+---@return boolean success
+function api.RegisterWindow(windowName, options)
+    if type(windowName) ~= "string" or windowName == "" then
+        settings.debugPrint("RegisterWindow: invalid windowName (expected non-empty string)", true)
+        return false
+    end
+    options = options or {}
+    if type(options) ~= "table" then
+        settings.debugPrint("RegisterWindow: invalid options (expected table)", true)
+        return false
+    end
+    local result = registry.register(windowName, options)
+    settings.debugPrint("RegisterWindow: '" .. windowName .. "' hasCloseButton=" .. tostring(options.hasCloseButton or false))
+    return result
+end
+
+--- Unregister an external window.
+---@param windowName string
+---@return boolean success
+function api.UnregisterWindow(windowName)
+    if type(windowName) ~= "string" or windowName == "" then
+        settings.debugPrint("UnregisterWindow: invalid windowName", true)
+        return false
+    end
+    local result = registry.unregister(windowName)
+    settings.debugPrint("UnregisterWindow: '" .. windowName .. "'")
+    return result
+end
+
+--- Get all registered windows (debugging).
+---@return table
+function api.GetRegisteredWindows()
+    return registry.getAll()
 end
 
 return api

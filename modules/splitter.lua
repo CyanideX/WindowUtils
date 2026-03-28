@@ -42,7 +42,6 @@ local function computeInitialSizes(panels, available, isVertical)
     local flexTotal = 0
     local flexIndices = {}
 
-    -- Phase 1: classify each panel
     for i = 1, n do
         local p = panels[i]
         local sz = parseSizeSpec(p[sizeKey], available)
@@ -57,7 +56,6 @@ local function computeInitialSizes(panels, available, isVertical)
         end
     end
 
-    -- Phase 2: distribute remaining space to flex panels
     local remaining = available - fixedTotal
     if remaining < 0 then remaining = 0 end
     for _, i in ipairs(flexIndices) do
@@ -65,7 +63,6 @@ local function computeInitialSizes(panels, available, isVertical)
         sizes[i] = flexTotal > 0 and math.floor(remaining * weight / flexTotal) or 0
     end
 
-    -- Phase 3: clamp to min/max
     for i = 1, n do
         local p = panels[i]
         local minSz = parseSizeSpec(p[minKey], available)
@@ -94,7 +91,6 @@ local function getState(id, opts)
             grabWidth = opts.grabWidth or controls.getFrameCache().itemSpacingX,
             hovering = false,
             dragging = false,
-            -- Collapse animation
             collapsed = false,
             restorePct = nil,
             animFrom = nil,
@@ -396,7 +392,6 @@ end
 local multiStates = {}
 
 local function getMultiState(id, n, opts, panels)
-    -- Recreate state if panel count changed
     if multiStates[id] and #multiStates[id].dividers ~= n - 1 then
         multiStates[id] = nil
     end
@@ -407,7 +402,6 @@ local function getMultiState(id, n, opts, panels)
         local minGap = opts.minPct or 0.05
         local isVertical = (opts.direction or "horizontal") == "vertical"
 
-        -- Create N-1 breakpoints as cumulative fractions (0..1)
         local breakpoints = {}
         local hasWeightedPanels = false
 
@@ -444,15 +438,13 @@ local function getMultiState(id, n, opts, panels)
             end
         end
 
-        -- Divider states
         local dividers = {}
         for i = 1, n - 1 do
             dividers[i] = {
                 grabWidth = grabWidth,
                 hovering = false,
                 dragging = false,
-                -- Animation (used by context menu reset)
-                animFrom = nil,
+                animFrom = nil,  -- animation fields used by context menu reset
                 animTo = nil,
                 animProgress = 1.0,
                 animLastTime = nil
@@ -471,7 +463,9 @@ local function getMultiState(id, n, opts, panels)
             panelDefs = panels,
             isVertical = isVertical,
             effectiveBps = {},  -- reused per-frame for clamping
-            minFracs = {}       -- reused per-frame for min fraction cache
+            minFracs = {},      -- reused per-frame for min fraction cache
+            dirty = true,       -- skip enforcement pass when nothing changed
+            lastTotalAvail = nil -- track available space for resize detection
         }
     end
     return multiStates[id]
@@ -635,12 +629,14 @@ local function drawContextMenu(id, i, ms, isVertical)
             for j = 1, #ms.defaults do
                 ms.breakpoints[j] = ms.defaults[j]
             end
+            ms.dirty = true
         end
         if ImGui.MenuItem("Reset All") then
             for _, state in pairs(multiStates) do
                 for j = 1, #state.defaults do
                     state.breakpoints[j] = state.defaults[j]
                 end
+                state.dirty = true
             end
         end
         ImGui.EndPopup()
@@ -648,7 +644,7 @@ local function drawContextMenu(id, i, ms, isVertical)
 end
 
 --- Multi-panel layout with independent flat breakpoints.
---- Each divider moves independently — dragging divider i only affects panels i and i+1.
+--- Each divider moves independently - dragging divider i only affects panels i and i+1.
 ---@param id string Unique splitter identifier
 ---@param panels table Array of panel definitions ({ content, width/height, minWidth/minHeight, maxWidth/maxHeight, flex, toggle, size })
 ---@param opts? table Options: direction ("horizontal"|"vertical"), grabWidth, minPct, defaultPcts
@@ -685,10 +681,14 @@ function splitter.multi(id, panels, opts)
 
     -- Toggle animation helper (same smoothstep as splitter.toggle)
     local function tickToggle(tglState)
+        local target = tglState.isOpen and 1.0 or 0.0
         local now = os.clock()
         local dt = now - tglState.lastTime
         tglState.lastTime = now
-        local target = tglState.isOpen and 1.0 or 0.0
+        -- Skip work when fully settled
+        if tglState.animProgress == target then
+            return easeInOut(target)
+        end
         if not tglState.animate then
             tglState.animProgress = target
         elseif tglState.animProgress < target then
@@ -700,7 +700,6 @@ function splitter.multi(id, panels, opts)
         return easeInOut(t)
     end
 
-    -- Compute toggle animated sizes
     local leadState, leadSize, leadBarW = nil, 0, 0
     if leadToggle then
         leadState = getToggleState(id .. "_tgl_lead", leadToggle)
@@ -736,7 +735,6 @@ function splitter.multi(id, panels, opts)
         end
     end
 
-    -- Core panel space = total minus toggle panels and bars
     local toggleSpace = leadSize + leadBarW + trailSize + trailBarW
     local grabTotal = coreN > 1 and (coreN - 1) * grabW or 0
     local minCoreSpace = grabTotal + coreN  -- at least 1px per core panel
@@ -762,29 +760,53 @@ function splitter.multi(id, panels, opts)
     if coreUsable < 1 then return end  -- only fires if totalAvail is truly tiny
     local totalSize = coreUsable
 
-    -- Compute panel min fractions once (reuse for clamping, min-size cache, and drag)
     local minFracs = ms.minFracs
     for i = 1, coreN do
         minFracs[i] = getPanelMinFrac(corePanels, i, totalSize, minGap, isVertical)
     end
 
-    -- Per-frame enforcement of panel minimums (protects during window resize, not just drag)
+    if not ms.dirty then
+        for i = 1, coreN - 1 do
+            local div = ms.dividers[i]
+            if div.dragging or (div.animProgress and div.animProgress < 1.0) then
+                ms.dirty = true
+                break
+            end
+        end
+    end
+    if not ms.dirty then
+        if leadState and leadState.animProgress > 0 and leadState.animProgress < 1 then
+            ms.dirty = true
+        end
+        if trailState and trailState.animProgress > 0 and trailState.animProgress < 1 then
+            ms.dirty = true
+        end
+    end
+    -- Available space changed (window resize)
+    if not ms.dirty and ms.lastTotalAvail ~= totalAvail then
+        ms.dirty = true
+    end
+    ms.lastTotalAvail = totalAvail
+
     local effectiveBps = ms.effectiveBps
-    for i = 1, coreN - 1 do
-        effectiveBps[i] = ms.breakpoints[i]
-    end
-    -- Forward pass: protect panels from left
-    for i = 1, coreN - 1 do
-        local prev = (i > 1) and effectiveBps[i - 1] or 0
-        effectiveBps[i] = math.max(effectiveBps[i], prev + minFracs[i])
-    end
-    -- Backward pass: protect panels from right
-    for i = coreN - 1, 1, -1 do
-        local nxt = (i < coreN - 1) and effectiveBps[i + 1] or 1
-        effectiveBps[i] = math.min(effectiveBps[i], nxt - minFracs[i + 1])
+    if ms.dirty then
+        -- Per-frame enforcement of panel minimums (protects during window resize, not just drag)
+        for i = 1, coreN - 1 do
+            effectiveBps[i] = ms.breakpoints[i]
+        end
+        -- Forward pass: protect panels from left
+        for i = 1, coreN - 1 do
+            local prev = (i > 1) and effectiveBps[i - 1] or 0
+            effectiveBps[i] = math.max(effectiveBps[i], prev + minFracs[i])
+        end
+        -- Backward pass: protect panels from right
+        for i = coreN - 1, 1, -1 do
+            local nxt = (i < coreN - 1) and effectiveBps[i + 1] or 1
+            effectiveBps[i] = math.min(effectiveBps[i], nxt - minFracs[i + 1])
+        end
+        ms.dirty = false
     end
 
-    -- Compute core panel pixel sizes from effective breakpoints
     local sizes = {}
     local consumed = 0
     for i = 1, coreN do
@@ -798,7 +820,6 @@ function splitter.multi(id, panels, opts)
         end
     end
 
-    -- Cache total minimum size for window-level constraints
     local totalMinPx = 0
     for i = 1, coreN do
         totalMinPx = totalMinPx + math.max(math.ceil(minFracs[i] * totalSize), 1)
@@ -872,6 +893,7 @@ function splitter.multi(id, panels, opts)
         if div.animProgress and div.animProgress < 1.0 then
             ms.breakpoints[i] = tickAnimation(div, COLLAPSE_SPEED)
             div.dragging = false
+            ms.dirty = true
         end
     end
 
@@ -930,6 +952,7 @@ function splitter.multi(id, panels, opts)
 
                     ms.breakpoints[i] = math.max(lo, math.min(hi, newBp))
                 end
+                ms.dirty = true
             end
         else
             ms.dividers[i].dragOrigin = nil
@@ -948,6 +971,7 @@ function splitter.resetMulti(id)
         for i = 1, #ms.dividers do
             ms.dividers[i].animProgress = 1.0
         end
+        ms.dirty = true
     end
 end
 
@@ -963,13 +987,11 @@ function splitter.toggle(id, panels, opts)
     local isVert = (side == "top" or side == "bottom")
     local state = getToggleState(id, opts)
 
-    -- Resolve expanded size
     local availW, availH = ImGui.GetContentRegionAvail()
     local totalAvail = isVert and availH or availW
 
     local defaultSize = parseSizeSpec(opts.size or 200, totalAvail) or 200
 
-    -- Expand mode: register with expand module and use drag size if available
     local expandedSize = defaultSize
     if opts.expand then
         state.expandId = id
@@ -992,7 +1014,6 @@ function splitter.toggle(id, panels, opts)
         expandedSize = expand.getTargetSize(id) or defaultSize
     end
 
-    -- Animation tick
     local now = os.clock()
     local dt = now - state.lastTime
     state.lastTime = now
@@ -1006,7 +1027,7 @@ function splitter.toggle(id, panels, opts)
     end
     local eased = easeInOut(state.animProgress)
 
-    -- Compute panel size (spacing cancelled by SetCursorPos like regular splitters)
+    -- Spacing cancelled by SetCursorPos like regular splitters
     local panelSize = math.floor(expandedSize * eased)
     local barW = state.barWidth
     -- Skip sub-barW sizes to avoid CET min-height mismatch
@@ -1020,10 +1041,7 @@ function splitter.toggle(id, panels, opts)
     end
     local fc = controls.getFrameCache()
     local spacing = isVert and fc.itemSpacingY or fc.itemSpacingX
-    -- In expand mode, lock content to cached base size whenever the panel is visible.
-    -- baseAvail is frozen when panelSize > 0 and updated by Phase 6 for manual window
-    -- resizes, so it always reflects the correct content size without 1-frame lag.
-    -- During drag, use live computation so content adapts to size redistribution.
+    -- In expand mode, lock flex to cached base size to avoid 1-frame lag; use live size during drag.
     local flexSize
     if opts.expand then
         expand.cacheBase(id, totalAvail, panelSize)
@@ -1041,12 +1059,10 @@ function splitter.toggle(id, panels, opts)
     local fixedPanel = panels[1]
     local flexPanel = panels[2]
 
-    -- Cache total minimum size: fixed panel (current) + bar + flex minimum
     local flexMinSpec = flexPanel and (isVert and flexPanel.minHeight or flexPanel.minWidth)
     if type(flexMinSpec) == "function" then flexMinSpec = flexMinSpec() end
     local flexMinPx = parseSizeSpec(flexMinSpec, totalAvail)
     if not flexMinPx then
-        local fc = controls.getFrameCache()
         flexMinPx = fc.minIconButtonWidth
                   + (isVert and fc.windowPaddingY or fc.windowPaddingX) * 2
     end
@@ -1095,10 +1111,7 @@ function splitter.toggle(id, panels, opts)
 
     styles.PopScrollbar()
 
-    -- Expand mode: drive window sizing after all content is rendered.
-    -- For no-animation, recompute panelSize in case a toggle happened mid-frame
-    -- (via button click or double-click) — the panelSize computed at the top of
-    -- this function would be stale, causing applyWindowSize to miss the resize.
+    -- Recompute panelSize for no-animation mode in case a toggle happened mid-frame (stale value)
     if opts.expand then
         local reportedSize = panelSize
         if not state.animate then
@@ -1123,7 +1136,6 @@ function splitter.setToggle(id, open)
         if not state.animate then
             state.animProgress = open and 1.0 or 0.0
         end
-        -- Notify expand module of toggle event
         if state.expandId then
             expand.onToggle(state.expandId, open)
         end

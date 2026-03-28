@@ -14,29 +14,28 @@ local TOAST_FLAGS = nil
 --------------------------------------------------------------------------------
 
 local config = {
-    position = "topRight",  -- "topRight", "topLeft", "bottomRight", "bottomLeft"
+    position = "topRight",
     maxVisible = 5,
-    ttl = 3.0,              -- seconds before fade starts
-    fadeOut = 0.5,           -- seconds for fade-out
-    offsetX = 20,           -- pixels from screen edge
-    offsetY = 20,           -- pixels from screen edge
+    ttl = 3.0,
+    fadeOut = 0.5,
+    offsetX = 20,
+    offsetY = 20,
     toastWidth = 300,
     toastPadding = 8,
-    spacing = 6,            -- vertical gap between toasts
-    windowRounding = 4.0,   -- corner rounding for toast windows
-    windowBorderSize = 1.0, -- border thickness for toast windows
+    spacing = 6,
+    windowRounding = 4.0,
+    windowBorderSize = 1.0,
 }
 
 --------------------------------------------------------------------------------
 -- Internal State
 --------------------------------------------------------------------------------
 
-local queue = {}  -- { message, level, spawnTime, ttl, fadeOut }
+local queue = {}
 local nextId = 1
-local toRemove = {}       -- reused each frame to avoid per-frame allocation
-local toRemoveCount = 0   -- numeric counter (avoids pairs-clear each frame)
+local toRemove = {}
+local toRemoveCount = 0
 
--- Level colors mapped to styles.colors
 local levelColors = {
     info    = "blue",
     success = "green",
@@ -44,7 +43,6 @@ local levelColors = {
     error   = "red",
 }
 
--- Level icons (lazy-loaded)
 local levelIcons = nil
 local function ensureIcons()
     if levelIcons then return end
@@ -68,28 +66,25 @@ local function getScreenSize()
     return w, h
 end
 
-local function getToastPosition(index)
+local function getToastPosition(yOffset, toastH)
     local screenW, screenH = getScreenSize()
-    local lineH = ImGui.GetTextLineHeightWithSpacing()
-    local toastH = lineH + config.toastPadding * 2
-    local totalHeight = (index - 1) * (toastH + config.spacing)
     local x, y
 
     if config.position == "topRight" then
         x = screenW - config.toastWidth - config.offsetX
-        y = config.offsetY + totalHeight
+        y = config.offsetY + yOffset
     elseif config.position == "topLeft" then
         x = config.offsetX
-        y = config.offsetY + totalHeight
+        y = config.offsetY + yOffset
     elseif config.position == "bottomRight" then
         x = screenW - config.toastWidth - config.offsetX
-        y = screenH - config.offsetY - totalHeight - toastH
+        y = screenH - config.offsetY - yOffset - toastH
     elseif config.position == "bottomLeft" then
         x = config.offsetX
-        y = screenH - config.offsetY - totalHeight - toastH
+        y = screenH - config.offsetY - yOffset - toastH
     else
         x = screenW - config.toastWidth - config.offsetX
-        y = config.offsetY + totalHeight
+        y = config.offsetY + yOffset
     end
 
     return x, y
@@ -144,7 +139,6 @@ function notifications.show(message, level, opts)
     nextId = nextId + 1
     table.insert(queue, toast)
 
-    -- Trim oldest if over max
     while #queue > config.maxVisible * 2 do
         table.remove(queue, 1)
     end
@@ -158,37 +152,36 @@ function notifications.draw()
 
     local now = os.clock()
     local visibleIndex = 0
+    local yOffset = 0
+    local defaultToastH = ImGui.GetTextLineHeightWithSpacing() + config.toastPadding * 2
     toRemoveCount = 0
 
     for i, toast in ipairs(queue) do
         local elapsed = now - toast.spawnTime
         local totalLife = toast.ttl + toast.fadeOut
 
-        -- Mark for removal if fully expired
         if elapsed >= totalLife then
             toRemoveCount = toRemoveCount + 1
             toRemove[toRemoveCount] = i
         else
             visibleIndex = visibleIndex + 1
             if visibleIndex > config.maxVisible then
-                -- Don't render beyond max, but keep in queue for ordering
+                -- Keep in queue for ordering, just don't render
             else
-                -- Calculate alpha
                 local alpha = 1.0
                 if elapsed > toast.ttl then
-                    -- In fade-out phase
                     local fadeElapsed = elapsed - toast.ttl
                     alpha = 1.0 - (fadeElapsed / toast.fadeOut)
                     alpha = math.max(0, math.min(1, alpha))
                 end
 
-                -- Get position and color
-                local posX, posY = getToastPosition(visibleIndex)
+                -- Use cached height from previous frame, or fall back to estimate
+                local estimatedH = toast.lastHeight or defaultToastH
+                local posX, posY = getToastPosition(yOffset, estimatedH)
                 local colorKey = levelColors[toast.level] or "blue"
                 local color = styles.colors[colorKey] or styles.colors.blue
                 local icon = levelIcons[toast.level] or ""
 
-                -- Render toast as a positioned window (on top of all others)
                 local windowName = "##wu_toast_" .. toast.id
                 ImGui.SetNextWindowPos(posX, posY, ImGuiCond.Always)
                 ImGui.SetNextWindowSize(config.toastWidth, 0)
@@ -210,7 +203,6 @@ function notifications.draw()
                 end
 
                 if ImGui.Begin(windowName, TOAST_FLAGS) then
-                    -- Icon + message on same line
                     ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(color[1], color[2], color[3], alpha))
                     ImGui.Text(icon)
                     ImGui.PopStyleColor()
@@ -221,15 +213,21 @@ function notifications.draw()
                     ImGui.TextWrapped(toast.message)
                     ImGui.PopStyleColor()
                 end
+
+                -- Capture actual rendered height for next frame's layout
+                local _, actualH = ImGui.GetWindowSize()
+                toast.lastHeight = actualH
+
                 ImGui.End()
 
                 ImGui.PopStyleColor()
                 ImGui.PopStyleVar(3)
+
+                yOffset = yOffset + actualH + config.spacing
             end
         end
     end
 
-    -- Remove expired toasts (iterate in reverse to preserve indices)
     for i = toRemoveCount, 1, -1 do
         table.remove(queue, toRemove[i])
     end

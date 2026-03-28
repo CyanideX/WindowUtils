@@ -37,7 +37,6 @@ function controls.cacheFrameState()
     frameCache.windowPaddingY = style.WindowPadding.y
     frameCache.frameHeight = ImGui.GetFrameHeight()
     frameCache.textLineHeight = ImGui.GetTextLineHeightWithSpacing()
-    -- Pre-compute values that are stable within a frame
     frameCache.minIconButtonWidth = utils.minIconButtonWidth(style.FramePadding.x)
     frameCache.charWidth = ImGui.CalcTextSize("M")
     frameCache.ellipsisWidth = ImGui.CalcTextSize("...")
@@ -256,7 +255,6 @@ function controls.DynamicButton(label, icon, opts)
     local padX = (frameCache.framePaddingX or 6) * 2
     local innerWidth = width - padX
 
-    -- Smart threshold: switch to icon if fewer than minChars would show
     local minChars = opts.minChars or 3
     local iconThreshold = opts.iconThreshold
     if not iconThreshold then
@@ -656,7 +654,6 @@ function controls.HoldButton(id, label, opts)
 
     if isDisabled then ImGui.BeginDisabled(true) end
 
-    -- Initialize state
     if not holdStates[id] then
         holdStates[id] = {
             holding = false,
@@ -677,12 +674,10 @@ function controls.HoldButton(id, label, opts)
     local triggered = false
     local clicked = false
 
-    -- Reset completed lock when mouse is fully released
     if state.completed and not ImGui.IsMouseDown(0) then
         state.completed = false
     end
 
-    -- "replace" mode: show progress bar instead of button while held
     if progressDisplay == "replace" and state.holding then
         controls.ProgressBar(state.progress, width > 0 and width or nil, 0, "", progressStyle)
         if not ImGui.IsMouseDown(0) then
@@ -704,7 +699,6 @@ function controls.HoldButton(id, label, opts)
         return triggered, clicked
     end
 
-    -- Draw the button
     local displayLabel = state.displayLabel
     styles.PushButton(styleName)
     ImGui.Button(displayLabel, width, 0)
@@ -712,7 +706,6 @@ function controls.HoldButton(id, label, opts)
     styles.PopButton(styleName)
 
     if isActive and not state.holding and not state.completed then
-        -- Start holding
         state.holding = true
         state.startTime = now
         state.progress = 0
@@ -728,18 +721,15 @@ function controls.HoldButton(id, label, opts)
                 triggered = true
             end
         else
-            -- Released before completion
             state.holding = false
             clicked = true
         end
     end
 
-    -- Decay progress when not holding
     if not state.holding and state.progress > 0 then
         state.progress = math.max(0, state.progress - dt * 4)
     end
 
-    -- "overlay" mode: draw rect fill over button
     if progressDisplay == "overlay" and state.progress > 0 then
         local minX, minY = ImGui.GetItemRectMin()
         local maxX, maxY = ImGui.GetItemRectMax()
@@ -758,12 +748,11 @@ function controls.HoldButton(id, label, opts)
         end
         ImGui.ImDrawListAddRectFilled(drawList, minX, minY, fillX, maxY, color, 2.0)
     end
-    -- "external" mode: no visual — other elements read via getHoldProgress()
+    -- "external" mode: no visual - other elements read via getHoldProgress()
 
     if isDisabled then ImGui.EndDisabled() end
     if opts.tooltip then tooltips.Show(opts.tooltip) end
 
-    -- Fire callbacks
     if triggered and opts.onHold then opts.onHold() end
     if clicked and opts.onClick then opts.onClick() end
 
@@ -799,6 +788,9 @@ end
 ---@param label string Primary button label text
 ---@param opts? table {onPrimary?, onSecondary?, secondaryIcon?, secondaryDuration?, secondaryStyle?, progressStyle?, style?, isActive?, width?}
 ---@return table result {primaryClicked: boolean, secondaryTriggered: boolean}
+local actionButtonHoldOpts = { duration = 0, style = "", progressDisplay = "external" }
+-- Reused return table - callers should read fields immediately, not store the reference
+local actionButtonResult = { primaryClicked = false, secondaryTriggered = false }
 function controls.ActionButton(id, label, opts)
     opts = opts or {}
     local onPrimary = opts.onPrimary
@@ -811,7 +803,6 @@ function controls.ActionButton(id, label, opts)
     local isActive = opts.isActive
     local totalWidth = opts.width
 
-    -- Calculate widths
     local secondaryWidth = 0
     if onSecondary then
         local iconWidth = cachedCalcTextSize(secondaryIcon)
@@ -826,7 +817,7 @@ function controls.ActionButton(id, label, opts)
 
     -- Primary button: show progress bar from secondary hold, or normal button
     if onSecondary and controls.ShowHoldProgress(secondaryId, mainWidth, progressStyle) then
-        -- Progress bar is being shown in place of the primary button
+        -- (progress bar replaces primary button while held)
     else
         local resolvedStyle = isActive and "active" or style
         styles.PushButton(resolvedStyle)
@@ -842,20 +833,17 @@ function controls.ActionButton(id, label, opts)
     local secondaryTriggered = false
     if onSecondary then
         ImGui.SameLine()
-        secondaryTriggered = controls.HoldButton(secondaryId, secondaryIcon, {
-            duration = secondaryDuration,
-            style = secondaryStyle,
-            progressDisplay = "external",
-        })
+        actionButtonHoldOpts.duration = secondaryDuration
+        actionButtonHoldOpts.style = secondaryStyle
+        secondaryTriggered = controls.HoldButton(secondaryId, secondaryIcon, actionButtonHoldOpts)
         if secondaryTriggered then
             onSecondary()
         end
     end
 
-    return {
-        primaryClicked = primaryClicked,
-        secondaryTriggered = secondaryTriggered,
-    }
+    actionButtonResult.primaryClicked = primaryClicked
+    actionButtonResult.secondaryTriggered = secondaryTriggered
+    return actionButtonResult
 end
 
 --- Reset hold state for a specific button ID
@@ -875,6 +863,8 @@ end
 -- Fill-Available-Space Child Region
 --------------------------------------------------------------------------------
 
+local fillChildBgState = {}
+
 --- Begin a child region that fills remaining vertical space in the window
 ---@param id string Unique child ID (## prefix added automatically if missing)
 ---@param opts? table {footerHeight?, border?, flags?, bg?}
@@ -893,11 +883,14 @@ function controls.BeginFillChild(id, opts)
 
     if bg then
         ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0))
+        fillChildBgState[id] = true
+    else
+        fillChildBgState[id] = false
     end
 
     local width, contentAvailH = ImGui.GetContentRegionAvail()
     -- Subtract footer + item spacing between child and footer (if any)
-    local spacingBeforeFooter = footerHeight > 0 and ImGui.GetStyle().ItemSpacing.y or 0
+    local spacingBeforeFooter = footerHeight > 0 and frameCache.itemSpacingY or 0
     local childHeight = math.max(contentAvailH - footerHeight - spacingBeforeFooter, 1)
 
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + extraFlags
@@ -906,15 +899,19 @@ function controls.BeginFillChild(id, opts)
     return ImGui.BeginChild(childId, width, childHeight, border, flags)
 end
 
---- End a fill child region
----@param opts? table {bg?} Must match the opts.bg passed to BeginFillChild to pop the color
+--- End a fill child region. Pops ChildBg if BeginFillChild pushed one for this id.
+---@param id string Child ID passed to BeginFillChild
 ---@return nil
-function controls.EndFillChild(opts)
+function controls.EndFillChild(id)
     ImGui.EndChild()
     styles.PopScrollbar()
-    opts = opts or {}
-    if opts.bg then
+    if id == nil then
+        print("[WindowUtils] EndFillChild called with nil id")
+        return
+    end
+    if fillChildBgState[id] then
         ImGui.PopStyleColor()
+        fillChildBgState[id] = nil
     end
 end
 
@@ -1001,7 +998,7 @@ function controls.Column(id, defs, opts)
     opts = opts or {}
 
     -- Phase 1: calculate heights (cancel spacing between children, matching splitter pattern)
-    local spacingY = ImGui.GetStyle().ItemSpacing.y
+    local spacingY = frameCache.itemSpacingY
     local gap = opts.gap or spacingY * 2
     local availW, availH = ImGui.GetContentRegionAvail()
     availH = math.max(availH, 1)
@@ -1089,14 +1086,14 @@ local function measureButtonDefs(defs, gap, textFallback)
             totalMinWidth = totalMinWidth + def.width
         elseif def.icon and not def.label and not def.weight then
             local icon = resolveIcon(def.icon) or def.icon
-            measured[i] = ImGui.CalcTextSize(icon) + frameCache.framePaddingX * 2
+            measured[i] = cachedCalcTextSize(icon) + frameCache.framePaddingX * 2
             fixedW = fixedW + measured[i]
             totalMinWidth = totalMinWidth + measured[i]
         else
             totalWeight = totalWeight + (def.weight or 1)
             local text = (def.icon and resolveIcon(def.icon))
                 or def.label or (textFallback and textFallback(def)) or ""
-            totalMinWidth = totalMinWidth + ImGui.CalcTextSize(text) + frameCache.framePaddingX * 2
+            totalMinWidth = totalMinWidth + cachedCalcTextSize(text) + frameCache.framePaddingX * 2
         end
     end
 
@@ -1350,6 +1347,94 @@ end
 --- Render a child window panel with default styling (opts: bg, border, width, height, flags)
 ---@param id string Unique panel ID (## prefix added automatically if missing)
 local panelHoverState = {}
+local PANEL_DEFAULT_BG = { 0.65, 0.7, 1.0, 0.045 }
+
+--------------------------------------------------------------------------------
+-- PanelGroup: visual panel using BeginGroup/EndGroup + DrawList.
+-- No BeginChild, no explicit height - content flows in parent scroll region.
+-- Background and border drawn via DrawList with proper padding and rounding.
+--------------------------------------------------------------------------------
+
+--- Visual panel wrapper for scrollable regions. Uses Group + DrawList instead
+--- of BeginChild, so no explicit height is needed and no measurement feedback.
+---@param id string Unique identifier (for hover state tracking)
+---@param contentFn? function Callback that renders panel content
+---@param opts? table {bg?, border?, borderOnHover?}
+function controls.PanelGroup(id, contentFn, opts)
+    opts = opts or {}
+    local borderOnHover = opts.borderOnHover or false
+    local bg = opts.bg
+    if bg == nil then bg = PANEL_DEFAULT_BG end
+
+    local padX = frameCache.windowPaddingX or 8
+    local padY = frameCache.windowPaddingY or 8
+    local rounding = ImGui.GetStyle().ChildRounding or 4.0
+
+    -- Capture start position and full available width before content
+    local startX, startY = ImGui.GetCursorScreenPos()
+    local availW = ImGui.GetContentRegionAvail()
+    local contentW = availW - padX * 2
+
+    ImGui.BeginGroup()
+
+    -- Top padding + width reservation (forces group to full width)
+    ImGui.Dummy(availW, padY)
+
+    -- Left padding via indent; PushItemWidth constrains widget widths
+    ImGui.Indent(padX)
+    ImGui.PushItemWidth(contentW)
+    if contentFn then contentFn() end
+    ImGui.PopItemWidth()
+    ImGui.Unindent(padX)
+
+    -- Bottom padding
+    ImGui.Dummy(availW, padY)
+
+    ImGui.EndGroup()
+
+    -- Rect: full available width, actual content height
+    local _, maxY = ImGui.GetItemRectMax()
+    local rectMinX = startX
+    local rectMinY = startY
+    local rectMaxX = startX + availW
+    local rectMaxY = maxY
+
+    local drawList = ImGui.GetWindowDrawList()
+
+    -- Background fill
+    if bg then
+        local bgColor = ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0)
+        ImGui.ImDrawListAddRectFilled(drawList, rectMinX, rectMinY, rectMaxX, rectMaxY, bgColor, rounding)
+    end
+
+    -- Border: thin outline (4 edge rects, inset at corners for rounding)
+    local showBorder = opts.border == true
+    if borderOnHover and not showBorder then
+        showBorder = panelHoverState[id] or false
+    end
+    if showBorder then
+        local bc = ImGui.GetColorU32(ImGuiCol.Border)
+        local t = 1.0
+        local r = math.min(rounding, 6)
+        ImGui.ImDrawListAddRectFilled(drawList, rectMinX + r, rectMinY, rectMaxX - r, rectMinY + t, bc)
+        ImGui.ImDrawListAddRectFilled(drawList, rectMinX + r, rectMaxY - t, rectMaxX - r, rectMaxY, bc)
+        ImGui.ImDrawListAddRectFilled(drawList, rectMinX, rectMinY + r, rectMinX + t, rectMaxY - r, bc)
+        ImGui.ImDrawListAddRectFilled(drawList, rectMaxX - t, rectMinY + r, rectMaxX, rectMaxY - r, bc)
+    end
+
+    -- Hover tracking + tooltip
+    if borderOnHover then
+        local mx, my = ImGui.GetMousePos()
+        local hovered = mx >= rectMinX and mx <= rectMaxX and my >= rectMinY and my <= rectMaxY
+        panelHoverState[id] = hovered
+        -- Show tooltip when hovering the panel background (not a child widget)
+        if hovered and not ImGui.IsAnyItemHovered() then
+            ImGui.BeginTooltip()
+            ImGui.Text("controls.PanelGroup(\"" .. id .. "\", fn, opts)")
+            ImGui.EndTooltip()
+        end
+    end
+end
 
 ---@param contentFn? function Callback that renders panel content
 ---@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?}
@@ -1359,7 +1444,7 @@ function controls.Panel(id, contentFn, opts)
     local border = opts.border == true
     local borderOnHover = opts.borderOnHover or false
     local bg = opts.bg
-    if bg == nil then bg = { 0.65, 0.7, 1.0, 0.045 } end
+    if bg == nil then bg = PANEL_DEFAULT_BG end
     local width = opts.width or 0
     local height = opts.height or 0
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + (opts.flags or 0)

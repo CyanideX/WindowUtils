@@ -9,7 +9,15 @@ local discovery = {}
 local cachedWindows = nil
 local cacheGeneration = -1
 local currentGeneration = 0
-local lastLayoutString = nil  -- Skip re-parsing when layout string unchanged
+local lastLayoutString = nil
+
+local windowRegistry = nil
+
+--- Set the window registry reference (called from init.lua to avoid circular requires).
+---@param reg table The registry module
+function discovery.setRegistry(reg)
+    windowRegistry = reg
+end
 
 --- Invalidate the per-frame cache (call once at start of each frame).
 function discovery.invalidateCache()
@@ -38,7 +46,6 @@ function discovery.getActiveWindows()
         return {}
     end
 
-    -- Return cached result if still valid this frame
     if cachedWindows and cacheGeneration == currentGeneration then
         return cachedWindows
     end
@@ -61,13 +68,11 @@ function discovery.getActiveWindows()
 
     local windows = {}
 
-    -- Parse layout string into lines
     local layoutLines = {}
     for line in layoutString:gmatch("[^\n]+") do
         layoutLines[#layoutLines + 1] = line
     end
 
-    -- Extract window information
     for i, line in ipairs(layoutLines) do
         -- Find window header lines: [Window][WindowName]
         if line:find("[Window]", 1, true) == 1 then
@@ -97,13 +102,15 @@ function discovery.getActiveWindows()
                     collapsed = (collapsedVal == "1")
                 end
 
+                local regEntry = windowRegistry and windowRegistry.lookup(name)
                 windows[#windows + 1] = {
                     name = name,
                     posX = posX,
                     posY = posY,
                     sizeX = sizeX,
                     sizeY = sizeY,
-                    collapsed = collapsed
+                    collapsed = collapsed,
+                    hasCloseButton = regEntry and regEntry.hasCloseButton or false
                 }
             end
         end
