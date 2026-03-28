@@ -48,7 +48,6 @@ WindowUtils.GetConfig = settings.getConfig
 
 -- Core functionality
 WindowUtils.Update = core.update
-WindowUtils.UpdateWindow = core.updateWindow
 WindowUtils.SnapToGrid = core.snapToGrid
 WindowUtils.GridAlignMin = core.gridAlignMin
 WindowUtils.GridAlignMax = core.gridAlignMax
@@ -56,14 +55,12 @@ WindowUtils.SetNextWindowSizeConstraints = core.setNextWindowSizeConstraints
 WindowUtils.SetNextWindowSizeConstraintsPercent = core.setNextWindowSizeConstraintsPercent
 WindowUtils.Lerp = core.lerp
 WindowUtils.ApplyEasing = core.applyEasing
-WindowUtils.GetEasingFunctions = core.getEasingFunctions
 
 -- State queries
 WindowUtils.IsAnimating = core.isAnimating
 WindowUtils.GetExpandedSize = core.getExpandedSize
 WindowUtils.CompleteAnimation = core.completeAnimation
 WindowUtils.ResetWindow = core.resetWindow
-WindowUtils.CleanupUnusedWindows = core.cleanupUnusedWindows
 WindowUtils.InvalidateGridCache = core.invalidateGridCache
 
 -- Constraint animations
@@ -72,21 +69,6 @@ WindowUtils.UpdateConstraintAnimation = core.updateConstraintAnimation
 WindowUtils.IsConstraintAnimating = core.isConstraintAnimating
 WindowUtils.IsAnyConstraintAnimating = core.isAnyConstraintAnimating
 WindowUtils.IsConstraintAnimatingForWindow = core.isConstraintAnimatingForWindow
-WindowUtils.ApplyEasingByName = core.applyEasingByName
-
--- UI controls
-WindowUtils.ShowSettingsWindow = ui.show
-WindowUtils.HideSettingsWindow = ui.hide
-WindowUtils.ToggleSettingsWindow = ui.toggle
-WindowUtils.IsSettingsWindowVisible = ui.isVisible
-
-function WindowUtils.IsMasterEnabled()
-    return settings.master.enabled
-end
-
-function WindowUtils.GetMasterSettings()
-    return settings.master
-end
 
 WindowUtils.API = api
 

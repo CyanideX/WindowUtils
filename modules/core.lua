@@ -269,10 +269,6 @@ function core.applyEasing(t, windowName)
     return func(t)
 end
 
-function core.getEasingFunctions()
-    return settings.easingKeys
-end
-
 ---Apply easing function by name.
 ---@param t number Interpolation factor (0-1)
 ---@param name? string Easing function name (default: "easeInOut")
@@ -557,14 +553,6 @@ function core.update(windowName, options)
     end
 end
 
-function core.updateWindow(windowName, gridEnabled, animationEnabled, animationDuration)
-    core.update(windowName, {
-        gridEnabled = gridEnabled,
-        animationEnabled = animationEnabled,
-        animationDuration = animationDuration
-    })
-end
-
 --------------------------------------------------------------------------------
 -- State Query API
 --------------------------------------------------------------------------------
@@ -660,21 +648,6 @@ function core.isAxisLockActive()
     return axisLock.active, axisLock.axis
 end
 
----Remove tracking for windows not in the active list.
----@param activeWindowNames string[] List of active window names
-function core.cleanupUnusedWindows(activeWindowNames)
-    local activeSet = {}
-    for _, name in ipairs(activeWindowNames) do
-        activeSet[name] = true
-    end
-
-    for windowName in pairs(windowStates) do
-        if not activeSet[windowName] then
-            windowStates[windowName] = nil
-            settings.windowConfigs[windowName] = nil
-        end
-    end
-end
 
 --------------------------------------------------------------------------------
 -- Constraint Animation System

@@ -14,10 +14,10 @@ local api = {}
 -- Settings Window Control
 --------------------------------------------------------------------------------
 
-api.Toggle = ui.toggle
-api.Show = ui.show
-api.Hide = ui.hide
-api.IsVisible = ui.isVisible
+api.ToggleSettings = ui.toggle
+api.ShowSettings = ui.show
+api.HideSettings = ui.hide
+api.IsSettingsVisible = ui.isVisible
 
 --------------------------------------------------------------------------------
 -- Master Override
