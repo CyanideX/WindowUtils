@@ -84,7 +84,6 @@ function styles.ToColor(c)
     return ImGui.GetColorU32(c[1], c[2], c[3], c[4])
 end
 
---- Push a style color from an RGBA table
 local function pushColor(col, c)
     ImGui.PushStyleColor(col, c[1], c[2], c[3], c[4])
 end
@@ -110,7 +109,7 @@ styles.buttonDefaults = {
 local function pushBtnDef(name)
     return function() styles.PushButton(styles.buttonDefaults[name]) end
 end
--- Pop matches PushButton: 4 colors (Button, ButtonHovered, ButtonActive, Text) + 1 var (ButtonTextAlign)
+-- Pop: 4 colors + 1 var (ButtonTextAlign)
 local function popBtnDef()
     return function() ImGui.PopStyleColor(4); ImGui.PopStyleVar() end
 end
@@ -148,7 +147,6 @@ end
 -- Button with Padding (includes frame and item spacing)
 --------------------------------------------------------------------------------
 
---- Active button with standard padding
 function styles.PushButtonActivePadded()
     ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, styles.spacing.framePaddingX, styles.spacing.framePaddingY)
     ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, styles.spacing.itemSpacingX, styles.spacing.itemSpacingY)
@@ -160,7 +158,6 @@ function styles.PopButtonActivePadded()
     ImGui.PopStyleVar(2)
 end
 
---- Inactive button with standard padding
 function styles.PushButtonInactivePadded()
     ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, styles.spacing.framePaddingX, styles.spacing.framePaddingY)
     ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, styles.spacing.itemSpacingX, styles.spacing.itemSpacingY)
@@ -176,7 +173,6 @@ end
 -- Outlined Elements (for sliders, progress bars)
 --------------------------------------------------------------------------------
 
---- Blue outlined element
 function styles.PushOutlined()
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.12, 0.26, 0.42, 0.3)
     ImGui.PushStyleColor(ImGuiCol.Border, 0.24, 0.59, 1.0, 0.35)
@@ -188,7 +184,6 @@ function styles.PopOutlined()
     ImGui.PopStyleColor(2)
 end
 
---- Red outlined element (for danger/delete progress)
 function styles.PushOutlinedDanger()
     pushColor(ImGuiCol.PlotHistogram, styles.colors.red)
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.78, 0.19, 0.19, 0.10)
@@ -201,7 +196,6 @@ function styles.PopOutlinedDanger()
     ImGui.PopStyleColor(3)
 end
 
---- Green outlined element (for success/active progress)
 function styles.PushOutlinedSuccess()
     pushColor(ImGuiCol.PlotHistogram, styles.colors.green)
     ImGui.PushStyleColor(ImGuiCol.FrameBg, 0.13, 0.79, 0.60, 0.10)
@@ -218,7 +212,6 @@ end
 -- Text Styles
 --------------------------------------------------------------------------------
 
---- Grey/muted text
 function styles.PushTextMuted()
     pushColor(ImGuiCol.Text, styles.colors.greyLight)
 end
@@ -227,7 +220,6 @@ function styles.PopTextMuted()
     ImGui.PopStyleColor(1)
 end
 
---- Success/green text
 function styles.PushTextSuccess()
     pushColor(ImGuiCol.Text, styles.colors.green)
 end
@@ -236,7 +228,6 @@ function styles.PopTextSuccess()
     ImGui.PopStyleColor(1)
 end
 
---- Danger/red text
 function styles.PushTextDanger()
     pushColor(ImGuiCol.Text, styles.colors.red)
 end
@@ -245,7 +236,6 @@ function styles.PopTextDanger()
     ImGui.PopStyleColor(1)
 end
 
---- Warning/yellow text
 function styles.PushTextWarning()
     pushColor(ImGuiCol.Text, styles.colors.yellow)
 end
@@ -258,7 +248,6 @@ end
 -- Slider Styles
 --------------------------------------------------------------------------------
 
---- Disabled slider appearance
 function styles.PushSliderDisabled()
     pushColor(ImGuiCol.SliderGrab, styles.colors.grey)
     pushColor(ImGuiCol.SliderGrabActive, styles.colors.grey)
@@ -273,7 +262,6 @@ end
 -- Checkbox Styles
 --------------------------------------------------------------------------------
 
---- Active/checked checkbox (green checkmark)
 function styles.PushCheckboxActive()
     pushColor(ImGuiCol.CheckMark, styles.colors.green)
 end

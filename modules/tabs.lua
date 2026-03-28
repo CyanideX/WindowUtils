@@ -12,24 +12,22 @@ local tabs = {}
 -- Constants
 --------------------------------------------------------------------------------
 
--- Badge layout constants (fractions of font size or pixel offsets)
-local BADGE_CIRCLE_PAD  = 2     -- padding inside number badge circle
-local BADGE_TEXT_PAD    = 4     -- extra horizontal padding for badge text
-local BADGE_EDGE_OFFSET = 2     -- offset from item rect edge
-local BADGE_SEGMENTS    = 24    -- circle segment count for number badge
-local DOT_RADIUS_FACTOR = 0.15  -- dot radius as fraction of font size
-local DOT_OFFSET_X      = 0.2   -- horizontal offset as fraction of font size
-local DOT_OFFSET_Y      = 0.3   -- vertical offset as fraction of font size
-local DOT_SEGMENTS      = 16    -- circle segment count for dot badge
-local DOT_PAD_FACTOR    = 0.35  -- label padding width as fraction of font size
+local BADGE_CIRCLE_PAD  = 2
+local BADGE_TEXT_PAD    = 4
+local BADGE_EDGE_OFFSET = 2
+local BADGE_SEGMENTS    = 24
+local DOT_RADIUS_FACTOR = 0.15
+local DOT_OFFSET_X      = 0.2
+local DOT_OFFSET_Y      = 0.3
+local DOT_SEGMENTS      = 16
+local DOT_PAD_FACTOR    = 0.35
 
 --------------------------------------------------------------------------------
 -- State
 --------------------------------------------------------------------------------
 
-local tabStates = {} -- [id] = { selected = 1 }
+local tabStates = {}
 
--- Badge colors (lazy-init on first draw, when ImGui is available)
 local cachedBadgeColor = nil
 local cachedTextColor  = nil
 local cachedDotColor   = nil
@@ -64,7 +62,6 @@ function tabs.bar(id, tabDefs, opts)
     local prevSelected = state.selected
 
     if ImGui.BeginTabBar(id, flags) then
-        -- Hoist per-frame values outside the tab loop
         local spaceW = ImGui.CalcTextSize(" ")
         local fontSize = ImGui.GetFontSize()
         local drawList = ImGui.GetWindowDrawList()
@@ -73,7 +70,6 @@ function tabs.bar(id, tabDefs, opts)
             local disabled = tab.disabled or false
             local tabFlags = 0
 
-            -- Force-select a tab if requested programmatically
             if state.pendingSelect == i then
                 tabFlags = ImGuiTabItemFlags.SetSelected
                 state.pendingSelect = nil
@@ -83,7 +79,7 @@ function tabs.bar(id, tabDefs, opts)
                 ImGui.BeginDisabled()
             end
 
-            -- Pad the label so badges fit inside the tab
+            -- Pad label for badge overlay space
             local label = tab.label
             local hasBadgeNum = not disabled and type(tab.badge) == "number" and tab.badge > 0
             local hasBadgeDot = not disabled and tab.badge == true
@@ -102,7 +98,7 @@ function tabs.bar(id, tabDefs, opts)
 
             local open = ImGui.BeginTabItem(label .. "##" .. id .. "_" .. i, tabFlags)
 
-            -- Badge rendering (reuses measurements from padding calc above)
+            -- Badge overlay
             if tab.badge and not disabled then
                 local _, minY = ImGui.GetItemRectMin()
                 local maxX = ImGui.GetItemRectMax()
@@ -122,7 +118,6 @@ function tabs.bar(id, tabDefs, opts)
                 end
             end
 
-            -- Tooltip on tab hover
             if tab.tooltip and ImGui.IsItemHovered() then
                 tooltips.ShowAlways(tab.tooltip)
             end
@@ -133,8 +128,6 @@ function tabs.bar(id, tabDefs, opts)
 
             if open then
                 state.selected = i
-
-                -- Render tab content
                 if tab.content then
                     tab.content()
                 end

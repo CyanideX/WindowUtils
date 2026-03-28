@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- expand.lua — Window Expansion Manager
+-- expand.lua - Window Expansion Manager
 --
 -- Manages window resizing for expand-mode toggle panels. Owns all SetWindowSize/
 -- SetWindowPos logic, base-size caching, and constraint animation integration.
@@ -7,7 +7,7 @@
 --
 -- Two-phase design:
 --   1. Content-level calls (init, cacheBase, afterRender) work inside any child
---      window — they only store state, never call SetWindowSize/SetWindowPos.
+--      window - they only store state, never call SetWindowSize/SetWindowPos.
 --   2. Window-level call (applyWindowSize) must be called at the main window
 --      scope (after EndChild, inside Begin/End) where GetWindowSize() returns
 --      the actual window dimensions, not a child's.
@@ -36,7 +36,7 @@ local function getWindowBase(windowName)
 end
 
 --------------------------------------------------------------------------------
--- Public API — Content level (safe inside children)
+-- Public API - Content level (safe inside children)
 --------------------------------------------------------------------------------
 
 --- Register/update expand panel config (idempotent, safe to call every frame).
@@ -162,7 +162,7 @@ function expand.cacheBase(id, totalAvail, panelSize)
 
     if s.baseAvail == nil then
         -- First capture or after mode-switch reset.
-        -- If panel is open, totalAvail includes panel contribution — subtract it.
+        -- If panel is open, totalAvail includes panel contribution - subtract it.
         s.baseAvail = panelSize > 0 and (totalAvail - panelSize) or totalAvail
     elseif panelSize <= 0 and (s.lastCachePanelSize or 0) <= 0 then
         -- Panel closed for 2+ consecutive frames: safe to update (SetWindowSize lag resolved)
@@ -247,7 +247,7 @@ function expand.commitDrag(id)
 end
 
 --- Store per-frame panel state for applyWindowSize to consume.
---- Safe inside children — does NOT call SetWindowSize/SetWindowPos.
+--- Safe inside children - does NOT call SetWindowSize/SetWindowPos.
 ---@param id string Panel identifier
 ---@param panelSize number Current animated panel size
 ---@param isAnimating boolean Whether the splitter animation is in progress
@@ -261,7 +261,7 @@ function expand.afterRender(id, panelSize, isAnimating, isDragging)
 end
 
 --------------------------------------------------------------------------------
--- Public API — Window level (must be called at main window scope)
+-- Public API - Window level (must be called at main window scope)
 --------------------------------------------------------------------------------
 
 --- Drive window size and position anchoring for all expand panels on a window.
@@ -292,7 +292,7 @@ function expand.applyWindowSize(windowName)
     if #panels == 0 then return end
 
     -- Phase 2: Base capture (naked window = curSize minus settled panel contributions).
-    -- Panels with pendingCapture just opened — their currentPanelSize is already set
+    -- Panels with pendingCapture just opened - their currentPanelSize is already set
     -- by afterRender but curW/curH hasn't grown to include them yet (no SetWindowSize
     -- fired). Exclude their contribution to avoid underestimating the base.
     local needsCapture = false
@@ -440,7 +440,7 @@ function expand.applyWindowSize(windowName)
 end
 
 --------------------------------------------------------------------------------
--- Public API — Constraint queries (callable anywhere)
+-- Public API - Constraint queries (callable anywhere)
 --------------------------------------------------------------------------------
 
 --- Get animated constraint value for pre-Begin() setup.

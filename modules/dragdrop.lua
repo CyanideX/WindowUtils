@@ -23,9 +23,9 @@ end
 ---@return table state {draggingIndex, hoverIndex, dropPosition}
 function dragdrop.createState()
     return {
-        draggingIndex = nil,     -- Index being dragged (1-based, nil if not dragging)
-        hoverIndex = nil,        -- Index currently hovered over
-        dropPosition = nil,      -- "above" or "below" relative to hoverIndex
+        draggingIndex = nil,
+        hoverIndex = nil,
+        dropPosition = nil,
     }
 end
 
@@ -41,7 +41,7 @@ end
 -- Core API (advanced, manual state management)
 --------------------------------------------------------------------------------
 
--- Reusable context table — do not store the reference across frames
+-- Reusable context table - do not store the reference across frames
 local reusableCtx = { isDragged = false, isHoverTarget = false, dropAbove = false, dropBelow = false }
 
 --- Get drag context for an item (call at start of each list item).
@@ -57,7 +57,7 @@ function dragdrop.getItemContext(index, state)
     return reusableCtx
 end
 
---- Track hover position on the last ImGui item for drop targeting
+--- Track hover position on the last ImGui item for drop targeting.
 local function trackHover(index, state)
     if state.draggingIndex and state.draggingIndex ~= index then
         if ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
@@ -81,17 +81,14 @@ function dragdrop.handleDrag(index, totalCount, state)
     local shouldReorder = false
     local fromIndex, toIndex = nil, nil
 
-    -- Start dragging when item is active and mouse is dragging
     if ImGui.IsItemActive() and ImGui.IsMouseDragging(0, 2.0) then
         if not state.draggingIndex then
             state.draggingIndex = index
         end
     end
 
-    -- Track hover position for non-dragged items
     trackHover(index, state)
 
-    -- Handle drop when mouse released
     if state.draggingIndex == index and not ImGui.IsMouseDown(0) then
         if state.hoverIndex and state.dropPosition and state.hoverIndex ~= index then
             shouldReorder = true
@@ -101,11 +98,7 @@ function dragdrop.handleDrag(index, totalCount, state)
             if state.dropPosition == "below" then
                 toIndex = toIndex + 1
             end
-            -- Adjust for removal shifting indices
-            if fromIndex < toIndex then
-                toIndex = toIndex - 1
-            end
-            -- Clamp to valid range
+            if fromIndex < toIndex then toIndex = toIndex - 1 end
             toIndex = math.max(1, math.min(toIndex, totalCount))
         end
         dragdrop.resetState(state)
@@ -199,19 +192,17 @@ end
 -- Convenience API: dd.list()
 --------------------------------------------------------------------------------
 
--- Cached states for the convenience wrapper, keyed by list ID
 local listStates = {}
 
 --- Render a reorderable list with all state, visuals, and array mutation handled internally.
 ---@param id string Unique list ID
 ---@param items table Array to reorder in-place on drop
----@param renderFn function function(item, index, ctx) — render each item
----@param onReorder? function function(fromIndex, toIndex) — called after reorder
+---@param renderFn function function(item, index, ctx) - render each item
+---@param onReorder? function function(fromIndex, toIndex) - called after reorder
 ---@param opts? table {colors?, showHandle?, handleIcon?, handleColor?}
 function dragdrop.list(id, items, renderFn, onReorder, opts)
     if not items or #items == 0 then return end
 
-    -- Get or create cached state for this list
     if not listStates[id] then
         listStates[id] = dragdrop.createState()
     end
@@ -227,15 +218,12 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
     for i = 1, #items do
         local ctx = dragdrop.getItemContext(i, state)
 
-        -- Draw drop separator above this item if dropping here
         if state.draggingIndex then
             dragdrop.drawSeparator(ctx.dropAbove, colors and colors.separator or nil)
         end
 
-        -- Push visual styles
         dragdrop.pushItemStyles(ctx, colors)
 
-        -- Render optional drag handle (transparent button so it's interactive)
         if showHandle then
             ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
@@ -245,12 +233,10 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
 
             ImGui.Button(handleIcon .. "##handle_" .. i)
 
-            -- Start drag from handle
             if ImGui.IsItemActive() and ImGui.IsMouseDragging(0, 2.0) then
                 if not state.draggingIndex then state.draggingIndex = i end
             end
 
-            -- Track hover on handle for drop targeting
             trackHover(i, state)
 
             ImGui.PopStyleVar()
@@ -258,23 +244,18 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
             ImGui.SameLine()
         end
 
-        -- Render the item
         ImGui.PushID(id .. "_item_" .. i)
         renderFn(items[i], i, ctx)
         ImGui.PopID()
 
-        -- Handle drag interaction
         local shouldReorder, fromIdx, toIdx = dragdrop.handleDrag(i, #items, state)
 
-        -- Pop visual styles
         dragdrop.popItemStyles(ctx)
 
-        -- Draw drop separator below this item if dropping here
         if state.draggingIndex then
             dragdrop.drawSeparator(ctx.dropBelow, colors and colors.separator or nil)
         end
 
-        -- Apply reorder
         if shouldReorder and fromIdx and toIdx then
             dragdrop.reorderArray(items, fromIdx, toIdx)
             if onReorder then
@@ -283,8 +264,6 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
         end
     end
 
-    -- Update cursor
     dragdrop.updateCursor(state)
 end
-
 return dragdrop

@@ -1,6 +1,6 @@
 ------------------------------------------------------
 -- WindowUtils - Utils Module
--- Shared utility functions with no module-specific dependencies
+-- Shared utility functions
 ------------------------------------------------------
 
 local utils = {}
