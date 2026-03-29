@@ -3,6 +3,32 @@
 -- Shared utility functions
 ------------------------------------------------------
 
+--------------------------------------------------------------------------------
+-- Reusable Table Convention
+--
+-- WHEN TO REUSE: Tables used only within a single frame's scope (internal
+-- scratch buffers, intermediate results consumed immediately by the caller
+-- before the next frame) should be allocated once at module level and reset
+-- each use. This avoids per-frame garbage.
+--
+-- WHEN TO ALLOCATE FRESH: Tables returned to callers who may store references
+-- (public API return values, callback arguments, tables passed to other
+-- modules that might cache them) must be freshly allocated. Reusing would
+-- silently corrupt stored references.
+--
+-- EXAMPLES:
+--   Reuse:  dragdrop.lua reusableCtx, controls.lua actionButtonResult
+--   Fresh:  registry.getAll() (returns a copy), dragdrop.createState()
+--
+-- PATTERN:
+--   local reusable = { field1 = false, field2 = 0 }
+--   function myModule.compute(input)
+--       reusable.field1 = input > 0
+--       reusable.field2 = input * 2
+--       return reusable  -- caller must read fields before next call
+--   end
+--------------------------------------------------------------------------------
+
 local utils = {}
 
 --------------------------------------------------------------------------------

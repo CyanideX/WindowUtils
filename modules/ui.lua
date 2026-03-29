@@ -44,7 +44,7 @@ end
 --------------------------------------------------------------------------------
 
 local function drawGeneralSection()
-    local c = controls.bind(settings.master, settings.defaults, settings.save)
+    local c = controls.bind(settings.master, settings.defaults, settings.markDirty)
 
     ImGui.Text("Master Override")
     ImGui.Dummy(0, 0)
@@ -83,7 +83,7 @@ end
 --------------------------------------------------------------------------------
 
 local function drawGridSection()
-    local c = controls.bind(settings.master, settings.defaults, settings.save)
+    local c = controls.bind(settings.master, settings.defaults, settings.markDirty)
 
     if not settings.master.enabled then ImGui.BeginDisabled() end
 
@@ -120,7 +120,7 @@ local function drawGridSection()
     })
     if changed then
         settings.master.gridUnits = validUnits[newScale]
-        settings.save()
+        settings.markDirty()
         core.invalidateGridCache()
         if settings.master.autoAdjustOnResize then
             core.snapAllWindows()
@@ -161,7 +161,7 @@ end
 --------------------------------------------------------------------------------
 
 local function drawVisualsSection()
-    local c = controls.bind(settings.master, settings.defaults, settings.save)
+    local c = controls.bind(settings.master, settings.defaults, settings.markDirty)
     local previewActive = false
 
     ImGui.Text("Grid Visualization")
@@ -241,7 +241,7 @@ end
 --------------------------------------------------------------------------------
 
 local function drawBackgroundSection()
-    local c = controls.bind(settings.master, settings.defaults, settings.save)
+    local c = controls.bind(settings.master, settings.defaults, settings.markDirty)
 
     ImGui.Text("Dim Background")
     ImGui.Dummy(0, 0)
@@ -279,8 +279,8 @@ local function drawBackgroundSection()
     })
     if changed and blurAvailable then
         settings.master.blurOnOverlayOpen = blurValue
-        settings.save()
-        if settings.master.blurOnOverlayOpen and effects.state.isOverlayOpen
+        settings.markDirty()
+        if settings.master.blurOnOverlayOpen and effects.isOverlayOpen()
            and not settings.master.blurOnDragOnly then
             effects.enableBlur()
         elseif not settings.master.blurOnOverlayOpen then
@@ -305,8 +305,8 @@ local function drawBackgroundSection()
         })
     if changed then
         settings.master.blurOnDragOnly = newBlurDragOnly
-        settings.save()
-        if not settings.master.blurOnDragOnly and effects.state.isOverlayOpen then
+        settings.markDirty()
+        if not settings.master.blurOnDragOnly and effects.isOverlayOpen() then
             effects.enableBlur()
         elseif settings.master.blurOnDragOnly and not effects.blur.wasDragging then
             effects.disableBlur()
@@ -343,7 +343,7 @@ end
 --------------------------------------------------------------------------------
 
 local function drawExperimentalSection()
-    local c = controls.bind(settings.master, settings.defaults, settings.save)
+    local c = controls.bind(settings.master, settings.defaults, settings.markDirty)
 
     if not settings.master.enabled then ImGui.BeginDisabled() end
 
@@ -373,7 +373,7 @@ local function drawExperimentalSection()
         })
         if scrollStyleChanged and settings.master.overrideStyling then
             settings.master.disableScrollbar = false
-            settings.save()
+            settings.markDirty()
         end
         ImGui.SameLine()
         local _, noScrollChanged = c:Checkbox("No Scrollbar", "disableScrollbar", {
@@ -381,7 +381,7 @@ local function drawExperimentalSection()
         })
         if noScrollChanged and settings.master.disableScrollbar then
             settings.master.overrideStyling = false
-            settings.save()
+            settings.markDirty()
         end
         c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, {
             format = "%.1f s",

@@ -59,51 +59,44 @@ function discovery.getActiveWindows()
     lastLayoutString = layoutString
 
     local windows = {}
+    local current = nil
 
-    local layoutLines = {}
     for line in layoutString:gmatch("[^\n]+") do
-        layoutLines[#layoutLines + 1] = line
-    end
-
-    for i, line in ipairs(layoutLines) do
-        -- Find window header lines: [Window][WindowName]
-        if line:find("[Window]", 1, true) == 1 then
-            local name = line:match("%[Window%]%[(.-)%]")
-
-            if name then
-                -- Parse position from next line (Pos=X,Y)
-                local posX, posY = 0, 0
-                if layoutLines[i + 1] then
-                    posX, posY = layoutLines[i + 1]:match("Pos=(%d+),(%d+)")
-                    posX = tonumber(posX) or 0
-                    posY = tonumber(posY) or 0
+        local name = line:match("^%[Window%]%[(.-)%]")
+        if name then
+            -- Finalize previous window block
+            if current then
+                windows[#windows + 1] = current
+            end
+            current = {
+                name = name,
+                posX = 0, posY = 0,
+                sizeX = 200, sizeY = 200,
+                collapsed = false,
+            }
+        elseif current then
+            -- Match fields by prefix (order-independent within block)
+            local px, py = line:match("^Pos=(%d+),(%d+)")
+            if px then
+                current.posX = tonumber(px) or 0
+                current.posY = tonumber(py) or 0
+            else
+                local sx, sy = line:match("^Size=(%d+),(%d+)")
+                if sx then
+                    current.sizeX = tonumber(sx) or 200
+                    current.sizeY = tonumber(sy) or 200
+                else
+                    local cv = line:match("^Collapsed=(%d+)")
+                    if cv then
+                        current.collapsed = (cv == "1")
+                    end
                 end
-
-                -- Parse size from line after that (Size=W,H)
-                local sizeX, sizeY = 200, 200
-                if layoutLines[i + 2] then
-                    sizeX, sizeY = layoutLines[i + 2]:match("Size=(%d+),(%d+)")
-                    sizeX = tonumber(sizeX) or 200
-                    sizeY = tonumber(sizeY) or 200
-                end
-
-                -- Parse collapsed state (Collapsed=0|1)
-                local collapsed = false
-                if layoutLines[i + 3] then
-                    local collapsedVal = layoutLines[i + 3]:match("Collapsed=(%d+)")
-                    collapsed = (collapsedVal == "1")
-                end
-
-                windows[#windows + 1] = {
-                    name = name,
-                    posX = posX,
-                    posY = posY,
-                    sizeX = sizeX,
-                    sizeY = sizeY,
-                    collapsed = collapsed,
-                }
             end
         end
+    end
+    -- Finalize last window block
+    if current then
+        windows[#windows + 1] = current
     end
 
     cachedWindows = windows

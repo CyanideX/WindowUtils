@@ -130,9 +130,14 @@ function api.ApplySettings(settingsTable)
     local gridChanged = false
     for key, value in pairs(settingsTable) do
         if settings.master[key] ~= nil then
-            settings.master[key] = value
-            applied = true
-            if key == "gridUnits" then gridChanged = true end
+            local valid, reason = settings.validateValue(key, value)
+            if valid then
+                settings.master[key] = value
+                applied = true
+                if key == "gridUnits" then gridChanged = true end
+            else
+                settings.debugPrint("ApplySettings: skipping '" .. key .. "': " .. (reason or "invalid"))
+            end
         end
     end
 

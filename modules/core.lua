@@ -433,8 +433,192 @@ local function handleDragDetection(state, windowName, currentPosX, currentPosY, 
 end
 
 --------------------------------------------------------------------------------
+-- Shared Window Frame Processing
+--------------------------------------------------------------------------------
+
+--- Unified frame processing for internal windows, external windows, and
+--- collapsed-window drag paths. Handles expanded size tracking, collapsed
+--- restore, drag detection, snap calculation, animation setup, and cache
+--- updates.
+---
+--- The canSetWindowPos/canSetWindowSize flags control whether ImGui calls
+--- are made directly (internal windows inside their own scope) or deferred
+--- via addDeferredSnap (external windows outside their Begin/End scope).
+---
+---@param p table Parameter table with fields:
+---   windowName (string), state (table), currentPosX/Y (number),
+---   currentSizeX/Y (number), isCollapsed (boolean), isFocused (boolean),
+---   isDragging (boolean), isReleased (boolean), shiftHeld (boolean),
+---   treatAllDrags (boolean), useGrid (boolean), useAnimation (boolean),
+---   duration (number), snapCollapsed (boolean),
+---   canSetWindowPos (boolean), canSetWindowSize (boolean)
+---@return string|nil action Result: "snap_animated", "snap_immediate", "deferred_snap", "idle", or nil
+local function processWindowFrame(p)
+    local windowName = p.windowName
+    local state = p.state
+    local currentPosX = p.currentPosX
+    local currentPosY = p.currentPosY
+    local currentSizeX = p.currentSizeX
+    local currentSizeY = p.currentSizeY
+    local isCollapsed = p.isCollapsed
+    local useGrid = p.useGrid
+    local useAnimation = p.useAnimation
+    local canSetWindowPos = p.canSetWindowPos
+    local canSetWindowSize = p.canSetWindowSize
+
+    -- 1. Track expanded size when not collapsed
+    if not isCollapsed then
+        state.expandedSizeX = currentSizeX
+        state.expandedSizeY = currentSizeY
+        local cached = windowCache[windowName]
+        if not cached then
+            windowCache[windowName] = { width = currentSizeX, height = currentSizeY }
+        elseif cached.width ~= currentSizeX or cached.height ~= currentSizeY then
+            cached.width = currentSizeX
+            cached.height = currentSizeY
+        end
+    end
+
+    -- 2. Restore size when expanding from collapsed
+    if state.wasCollapsed and not isCollapsed then
+        if state.expandedSizeX and state.expandedSizeY then
+            if canSetWindowSize then
+                ImGui.SetWindowSize(windowName, state.expandedSizeX, state.expandedSizeY)
+            else
+                addDeferredSnap(windowName, nil, nil, state.expandedSizeX, state.expandedSizeY)
+            end
+        end
+        state.pendingDragCheck = false
+    end
+    state.wasCollapsed = isCollapsed
+
+    -- Disable grid for collapsed windows when snapCollapsed is off
+    if isCollapsed and not p.snapCollapsed then
+        useGrid = false
+    end
+
+    -- 3. Run drag detection
+    local action
+    currentPosX, currentPosY, action = handleDragDetection(
+        state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
+        p.isFocused, p.isDragging, p.isReleased, p.shiftHeld, p.treatAllDrags
+    )
+
+    -- Early exit when idle (no drag action and no ongoing animation)
+    if not action and not state.animating then
+        return nil
+    end
+
+    -- Signal ongoing animation to caller even when no new drag action occurred
+    if not action and state.animating then
+        return "animating"
+    end
+
+    -- 4. On drag release with grid enabled: compute snap targets
+    if action == "changed" and useGrid then
+        -- Use expanded size for collapsed windows
+        local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
+        local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+
+        -- Compute snap targets for position
+        local targetPosX = core.snapToGrid(currentPosX, windowName)
+        local targetPosY = core.snapToGrid(currentPosY, windowName)
+
+        -- Compute snap targets for size
+        local targetSizeX, targetSizeY
+        if not isCollapsed then
+            targetSizeX = core.snapToGrid(sizeX, windowName)
+            targetSizeY = core.snapToGrid(sizeY, windowName)
+        else
+            -- Collapsed: snap the remembered expanded size for correct restore
+            targetSizeX = core.snapToGrid(state.expandedSizeX or sizeX, windowName)
+            targetSizeY = core.snapToGrid(state.expandedSizeY or sizeY, windowName)
+            state.expandedSizeX = targetSizeX
+            state.expandedSizeY = targetSizeY
+            local cached = windowCache[windowName]
+            if cached then
+                cached.width = targetSizeX
+                cached.height = targetSizeY
+            else
+                windowCache[windowName] = { width = targetSizeX, height = targetSizeY }
+            end
+        end
+
+        local snapPosChanged = targetPosX ~= currentPosX or targetPosY ~= currentPosY
+        local snapSizeChanged = not isCollapsed and (targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY)
+
+        if not snapPosChanged and not snapSizeChanged then
+            return "idle"
+        end
+
+        -- 5. Set up animation or apply immediately
+        if useAnimation then
+            state.animating = true
+            state.animationStartTime = os.clock()
+            state.startPosX = currentPosX
+            state.startPosY = currentPosY
+            state.targetPosX = targetPosX
+            state.targetPosY = targetPosY
+            if not isCollapsed then
+                state.startSizeX = currentSizeX
+                state.startSizeY = currentSizeY
+                state.targetSizeX = targetSizeX
+                state.targetSizeY = targetSizeY
+            else
+                state.startSizeX = nil
+                state.startSizeY = nil
+                state.targetSizeX = nil
+                state.targetSizeY = nil
+            end
+            return "snap_animated"
+        else
+            -- Apply immediately via direct calls or deferred snap
+            if canSetWindowPos then
+                ImGui.SetWindowPos(windowName, targetPosX, targetPosY)
+            end
+            if canSetWindowSize and not isCollapsed then
+                ImGui.SetWindowSize(windowName, targetSizeX, targetSizeY)
+            end
+            if not canSetWindowPos or (not canSetWindowSize and not isCollapsed) then
+                local deferPosX = not canSetWindowPos and targetPosX or nil
+                local deferPosY = not canSetWindowPos and targetPosY or nil
+                local deferSizeX = (not canSetWindowSize and not isCollapsed) and targetSizeX or nil
+                local deferSizeY = (not canSetWindowSize and not isCollapsed) and targetSizeY or nil
+                addDeferredSnap(windowName, deferPosX, deferPosY, deferSizeX, deferSizeY)
+                return "deferred_snap"
+            end
+            return "snap_immediate"
+        end
+    end
+
+    return action == "changed" and "idle" or nil
+end
+
+--------------------------------------------------------------------------------
 -- Main API
 --------------------------------------------------------------------------------
+
+-- Reusable params table for core.update() to avoid per-frame allocation
+local updateFrameParams = {
+    windowName = "",
+    state = nil,
+    currentPosX = 0,
+    currentPosY = 0,
+    currentSizeX = 0,
+    currentSizeY = 0,
+    isCollapsed = false,
+    isFocused = false,
+    isDragging = false,
+    isReleased = false,
+    shiftHeld = false,
+    treatAllDrags = false,
+    useGrid = false,
+    useAnimation = false,
+    duration = 0.2,
+    snapCollapsed = true,
+    canSetWindowPos = true,
+    canSetWindowSize = true,
+}
 
 ---Update window state (call once per frame inside window).
 ---@param windowName string Window title
@@ -442,7 +626,7 @@ end
 function core.update(windowName, options)
     options = options or {}
 
-    -- Auto-disable grid and animation during constraint animation
+    -- Resolve settings with constraint animation bypass
     local constraintAnimActive = core.isConstraintAnimatingForWindow(windowName)
 
     local useGrid = options.gridEnabled
@@ -462,83 +646,69 @@ function core.update(windowName, options)
     end
 
     local duration = options.animationDuration or settings.getConfig(windowName, "animationDuration")
-    local treatAllDragsAsWindowDrag = options.treatAllDragsAsWindowDrag or false
 
+    -- Build params from ImGui state
     local state = getWindowState(windowName)
     local isCollapsed = ImGui.IsWindowCollapsed()
-
     local currentPosX, currentPosY = ImGui.GetWindowPos()
     local currentSizeX, currentSizeY = ImGui.GetWindowSize()
 
-    -- Track expanded size when not collapsed
-    if not isCollapsed then
-        state.expandedSizeX = currentSizeX
-        state.expandedSizeY = currentSizeY
-        local cached = windowCache[windowName]
-        if not cached then
-            windowCache[windowName] = { width = currentSizeX, height = currentSizeY }
-        elseif cached.width ~= currentSizeX or cached.height ~= currentSizeY then
-            cached.width = currentSizeX
-            cached.height = currentSizeY
-        end
-    end
+    local p = updateFrameParams
+    p.windowName = windowName
+    p.state = state
+    p.currentPosX = currentPosX
+    p.currentPosY = currentPosY
+    p.currentSizeX = currentSizeX
+    p.currentSizeY = currentSizeY
+    p.isCollapsed = isCollapsed
+    p.isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)
+    p.isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
+    p.isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+    p.shiftHeld = isShiftHeld()
+    p.treatAllDrags = options.treatAllDragsAsWindowDrag or false
+    p.useGrid = useGrid
+    p.useAnimation = useAnimation
+    p.duration = duration
+    p.snapCollapsed = settings.getConfig(windowName, "snapCollapsed")
+    p.canSetWindowPos = true
+    p.canSetWindowSize = true
 
-    -- Restore size when expanding from collapsed state
-    if state.wasCollapsed and not isCollapsed then
-        if state.expandedSizeX and state.expandedSizeY then
-            ImGui.SetWindowSize(windowName, state.expandedSizeX, state.expandedSizeY)
-        end
-        state.pendingDragCheck = false
-    end
-    state.wasCollapsed = isCollapsed
+    -- Delegate expanded tracking, collapsed restore, drag detection, snap, animation setup
+    local result = processWindowFrame(p)
 
-    local snapCollapsed = settings.getConfig(windowName, "snapCollapsed")
-
-    if isCollapsed and not snapCollapsed then
-        useGrid = false
-    end
-
-    -- Drag detection runs unconditionally (dim/blur need isDragging state)
-    local isFocused = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)
-    local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
-    local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
-    local shiftHeld = isShiftHeld()
-
-    local action
-    currentPosX, currentPosY, action = handleDragDetection(
-        state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
-        isFocused, isDragging, isReleased, shiftHeld, treatAllDragsAsWindowDrag
-    )
-
-    -- Early exit when window is idle
-    if not action and not state.animating and not constraintAnimActive and not snapPendingByWindow[windowName] then
+    -- Early exit: nothing to do if frame processing found no action,
+    -- no constraint animation pending, and no snap-after-constraint pending
+    if not result and not constraintAnimActive and not snapPendingByWindow[windowName] then
         return
-    end
-
-    if action == "changed" and useGrid then
-        local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
-        local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
-        handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
-
-        if useAnimation then
-            state.animating = true
-            state.animationStartTime = os.clock()
-        end
     end
 
     -- After constraint animation completes, trigger grid snap (O(1) lookup via reverse index)
     if not constraintAnimActive then
         local pending = snapPendingByWindow[windowName]
         if pending then
+            -- Re-resolve useGrid without constraint bypass for snap-after-constraint
+            local snapGrid = options.gridEnabled
+            if snapGrid == nil then
+                snapGrid = settings.getConfig(windowName, "gridEnabled")
+            end
+            if isCollapsed and not p.snapCollapsed then
+                snapGrid = false
+            end
+
             for property in pairs(pending) do
                 local cAnim = constraintAnimations[property]
                 if cAnim and cAnim.snapPending then
                     cAnim.snapPending = false
-                    if useGrid then
+                    if snapGrid then
                         local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
                         local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
                         handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
-                        if useAnimation then
+
+                        local snapAnim = options.animationEnabled
+                        if snapAnim == nil then
+                            snapAnim = settings.getConfig(windowName, "animationEnabled")
+                        end
+                        if snapAnim then
                             state.animating = true
                             state.animationStartTime = os.clock()
                         end
@@ -549,8 +719,14 @@ function core.update(windowName, options)
         end
     end
 
-    if useAnimation and state.animating then
-        animate(state, windowName, duration, isCollapsed)
+    if state.animating and not constraintAnimActive then
+        local animEnabled = options.animationEnabled
+        if animEnabled == nil then
+            animEnabled = settings.getConfig(windowName, "animationEnabled")
+        end
+        if animEnabled then
+            animate(state, windowName, duration, isCollapsed)
+        end
     end
 end
 
@@ -905,8 +1081,53 @@ local function animateExternalWindow(windowName, state)
     end
 end
 
+-- Reusable params table for collapsed-window drag snap in updateExternalWindows
+local collapsedFrameParams = {
+    windowName = "",
+    state = nil,
+    currentPosX = 0,
+    currentPosY = 0,
+    currentSizeX = 0,
+    currentSizeY = 0,
+    isCollapsed = true,
+    isFocused = false,
+    isDragging = false,
+    isReleased = true,
+    shiftHeld = false,
+    treatAllDrags = false,
+    useGrid = true,
+    useAnimation = false,
+    duration = 0.2,
+    snapCollapsed = true,
+    canSetWindowPos = false,
+    canSetWindowSize = false,
+}
+
+-- Reusable params table for manageExternalWindow to avoid per-frame allocation
+local externalFrameParams = {
+    windowName = "",
+    state = nil,
+    currentPosX = 0,
+    currentPosY = 0,
+    currentSizeX = 0,
+    currentSizeY = 0,
+    isCollapsed = false,
+    isFocused = false,
+    isDragging = false,
+    isReleased = false,
+    shiftHeld = false,
+    treatAllDrags = false,
+    useGrid = false,
+    useAnimation = false,
+    duration = 0.2,
+    snapCollapsed = true,
+    canSetWindowPos = false,
+    canSetWindowSize = false,
+}
+
 --- Manage an external window: drag detection, snap, animation.
 --- Uses Begin/End for real-time position and focus queries.
+--- Delegates frame processing to processWindowFrame with deferred snap path.
 ---@param windowName string
 ---@param state table External window state
 ---@param windowInfo table Discovery data (used for collapsed check only)
@@ -941,100 +1162,34 @@ local function manageExternalWindow(windowName, state, windowInfo)
         end
     end
 
-    -- Restore size when expanding from collapsed
-    if state.wasCollapsed and not isCollapsed then
-        if state.expandedSizeX and state.expandedSizeY then
-            addDeferredSnap(windowName, nil, nil, state.expandedSizeX, state.expandedSizeY)
-            currentSizeX = state.expandedSizeX
-            currentSizeY = state.expandedSizeY
-        end
-        state.pendingDragCheck = false
-    end
-    state.wasCollapsed = isCollapsed
-
-    -- Track expanded size when not collapsed
-    if not isCollapsed then
-        state.expandedSizeX = currentSizeX
-        state.expandedSizeY = currentSizeY
-        local cached = windowCache[windowName]
-        if not cached then
-            windowCache[windowName] = { width = currentSizeX, height = currentSizeY }
-        elseif cached.width ~= currentSizeX or cached.height ~= currentSizeY then
-            cached.width = currentSizeX
-            cached.height = currentSizeY
-        end
-    end
-
     local isFocused = ImGui.IsWindowFocused()
-    local isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
-    local isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
-    local shiftHeld = isShiftHeld()
+    local wasDragging = state.isDragging or state.pendingDragCheck
 
-    local action
-    currentPosX, currentPosY, action = handleDragDetection(
-        state, windowName, currentPosX, currentPosY, currentSizeX, currentSizeY,
-        isFocused, isDragging, isReleased, shiftHeld, false
-    )
+    -- Delegate expanded tracking, collapsed restore, drag detection, snap, animation
+    local p = externalFrameParams
+    p.windowName = windowName
+    p.state = state
+    p.currentPosX = currentPosX
+    p.currentPosY = currentPosY
+    p.currentSizeX = currentSizeX
+    p.currentSizeY = currentSizeY
+    p.isCollapsed = isCollapsed
+    p.isFocused = isFocused
+    p.isDragging = ImGui.IsMouseDragging(ImGuiMouseButton.Left)
+    p.isReleased = ImGui.IsMouseReleased(ImGuiMouseButton.Left)
+    p.shiftHeld = isShiftHeld()
+    p.treatAllDrags = false
+    p.useGrid = settings.master.gridEnabled
+    p.useAnimation = settings.master.animationEnabled
+    p.duration = settings.master.animationDuration
+    p.snapCollapsed = settings.master.snapCollapsed
+    p.canSetWindowPos = false
+    p.canSetWindowSize = false
 
-    if action == "unchanged" then
-        draggingWindowBoundsValid = false
-        draggingWindowName = nil
-        ImGui.End()
-        return
-    elseif action == "changed" then
-        local gridEnabled = settings.master.gridEnabled
-        local allowSnapCollapsed = settings.master.snapCollapsed
+    local result = processWindowFrame(p)
 
-        if not gridEnabled or (isCollapsed and not allowSnapCollapsed) then
-            draggingWindowBoundsValid = false
-            draggingWindowName = nil
-        else
-            local targetX = core.snapToGrid(currentPosX, windowName)
-            local targetY = core.snapToGrid(currentPosY, windowName)
-
-            local targetSizeX = currentSizeX
-            local targetSizeY = currentSizeY
-            if not isCollapsed then
-                targetSizeX = core.snapToGrid(currentSizeX, windowName)
-                targetSizeY = core.snapToGrid(currentSizeY, windowName)
-            else
-                local targetExpandedW = core.snapToGrid(state.expandedSizeX or currentSizeX, windowName)
-                local targetExpandedH = core.snapToGrid(state.expandedSizeY or currentSizeY, windowName)
-                state.expandedSizeX = targetExpandedW
-                state.expandedSizeY = targetExpandedH
-                local cached = windowCache[windowName]
-                if cached then
-                    cached.width = targetExpandedW
-                    cached.height = targetExpandedH
-                else
-                    windowCache[windowName] = { width = targetExpandedW, height = targetExpandedH }
-                end
-            end
-
-            local snapPosChanged = targetX ~= currentPosX or targetY ~= currentPosY
-            local snapSizeChanged = targetSizeX ~= currentSizeX or targetSizeY ~= currentSizeY
-
-            if snapPosChanged or snapSizeChanged then
-                if settings.master.animationEnabled then
-                    state.animating = true
-                    state.animationStartTime = os.clock()
-                    state.startPosX = currentPosX
-                    state.startPosY = currentPosY
-                    state.targetPosX = targetX
-                    state.targetPosY = targetY
-                    state.startSizeX = isCollapsed and nil or currentSizeX
-                    state.startSizeY = isCollapsed and nil or currentSizeY
-                    state.targetSizeX = isCollapsed and nil or targetSizeX
-                    state.targetSizeY = isCollapsed and nil or targetSizeY
-                else
-                    ImGui.SetWindowPos(targetX, targetY)
-                    if not isCollapsed then
-                        ImGui.SetWindowSize(targetSizeX, targetSizeY)
-                    end
-                end
-            end
-        end
-    elseif action == "focus_lost" then
+    -- Clear dragging bounds when drag ended without a snap animation
+    if wasDragging and not state.isDragging and not state.pendingDragCheck and not state.animating then
         draggingWindowBoundsValid = false
         draggingWindowName = nil
     end
@@ -1203,44 +1358,38 @@ function core.updateExternalWindows()
 
                     elseif isReleased and state.isDragging then
                         state.isDragging = false
-                        local posChanged = realPosX ~= state.collapsedTrackPosX
-                            or realPosY ~= state.collapsedTrackPosY
                         state.collapsedTrackPosX = nil
                         state.collapsedTrackPosY = nil
 
-                        -- Snap position to grid
-                        local targetX = core.snapToGrid(realPosX, windowName)
-                        local targetY = core.snapToGrid(realPosY, windowName)
+                        -- Delegate snap calculation and animation setup to
+                        -- processWindowFrame. Set pendingDragCheck so that
+                        -- handleDragDetection returns "changed" on this frame.
+                        -- dragCheckPosX/Y are set to values that guarantee
+                        -- posChanged=true (the drag already moved the window).
+                        state.pendingDragCheck = true
+                        state.dragCheckPosX = realPosX + 1
+                        state.dragCheckPosY = realPosY + 1
 
-                        -- Grid-align expanded size for correct restore
-                        local targetExpandedW = core.snapToGrid(state.expandedSizeX or 200, windowName)
-                        local targetExpandedH = core.snapToGrid(state.expandedSizeY or 200, windowName)
-                        state.expandedSizeX = targetExpandedW
-                        state.expandedSizeY = targetExpandedH
-                        local cached = windowCache[windowName]
-                        if cached then
-                            cached.width = targetExpandedW
-                            cached.height = targetExpandedH
-                        else
-                            windowCache[windowName] = { width = targetExpandedW, height = targetExpandedH }
-                        end
+                        local p = collapsedFrameParams
+                        p.windowName = windowName
+                        p.state = state
+                        p.currentPosX = realPosX
+                        p.currentPosY = realPosY
+                        p.currentSizeX = currentSizeX
+                        p.currentSizeY = currentSizeY
+                        p.isCollapsed = true
+                        p.isReleased = true
+                        p.isDragging = false
+                        p.isFocused = false
+                        p.shiftHeld = shiftHeld
+                        p.useGrid = true
+                        p.useAnimation = settings.master.animationEnabled
+                        p.duration = settings.master.animationDuration
+                        p.snapCollapsed = true
+                        p.canSetWindowPos = false
+                        p.canSetWindowSize = false
 
-                        if targetX ~= realPosX or targetY ~= realPosY then
-                            if settings.master.animationEnabled then
-                                state.animating = true
-                                state.animationStartTime = os.clock()
-                                state.startPosX = realPosX
-                                state.startPosY = realPosY
-                                state.targetPosX = targetX
-                                state.targetPosY = targetY
-                                state.startSizeX = nil
-                                state.startSizeY = nil
-                                state.targetSizeX = nil
-                                state.targetSizeY = nil
-                            else
-                                addDeferredSnap(windowName, targetX, targetY, nil, nil)
-                            end
-                        end
+                        processWindowFrame(p)
 
                     elseif not isDragging then
                         state.collapsedTrackPosX = nil

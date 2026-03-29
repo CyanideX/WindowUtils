@@ -92,6 +92,7 @@ registerForEvent("onInit", function()
     settings.loadWindows()
     core.loadWindowCache()
     ui.init()
+    effects.setRuntimeData(WindowUtils.runtimeData)
 
     settings.debugPrint("Initialized!", true)
 end)
@@ -119,11 +120,12 @@ registerForEvent("onDraw", function()
     styles.PushScrollbar()
     notifications.draw()
     styles.PopScrollbar()
+
+    settings.flushIfIdle()
 end)
 
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
-    effects.state.isOverlayOpen = true
     -- Re-probe external windows that may have become active while overlay was closed
     core.resetExternalProbes()
     if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
@@ -132,8 +134,8 @@ registerForEvent("onOverlayOpen", function()
 end)
 
 registerForEvent("onOverlayClose", function()
+    settings.flushNow()
     WindowUtils.runtimeData.cetOpen = false
-    effects.state.isOverlayOpen = false
     core.saveWindowCache()
     effects.disableBlur(true)
     effects.disableDim()

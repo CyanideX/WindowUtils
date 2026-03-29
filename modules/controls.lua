@@ -1161,8 +1161,177 @@ function controls.ButtonRow(defs, opts)
 end
 
 --------------------------------------------------------------------------------
+-- Shared Bind Methods (metatable-based, zero closures per bind call)
+--------------------------------------------------------------------------------
+
+local bindMethods = {}
+
+function bindMethods:SliderFloat(icon, key, min, max, opts)
+    opts = opts or {}
+    local t = opts.transform
+    if opts.percent then
+        local pct = (self.data[key] - min) / (max - min) * 100
+        opts.format = string.format("%.0f%%%%", pct)
+    end
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    end
+    local displayValue = t and t.read(self.data[key]) or self.data[key]
+    local newValue, changed = controls.SliderFloat(icon, self.idPrefix .. key, displayValue, min, max, opts)
+    if changed then
+        self.data[key] = t and t.write(newValue) or newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:SliderInt(icon, key, min, max, opts)
+    opts = opts or {}
+    local t = opts.transform
+    if opts.percent then
+        local pct = (self.data[key] - min) / (max - min) * 100
+        opts.format = string.format("%.0f%%%%", pct)
+    end
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    end
+    local displayValue = t and t.read(self.data[key]) or self.data[key]
+    local newValue, changed = controls.SliderInt(icon, self.idPrefix .. key, displayValue, min, max, opts)
+    if changed then
+        self.data[key] = t and t.write(newValue) or newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:Checkbox(label, key, opts)
+    opts = opts or {}
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = self.defaults[key]
+    end
+    local newValue, changed = controls.Checkbox(label, self.data[key], opts)
+    if changed then
+        self.data[key] = newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:ColorEdit4(icon, key, opts)
+    opts = opts or {}
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = self.defaults[key]
+    end
+    local newValue, changed = controls.ColorEdit4(icon, self.idPrefix .. key, self.data[key], opts)
+    if changed then
+        self.data[key] = newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:Combo(icon, key, items, opts)
+    opts = opts or {}
+    local t = opts.transform
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    end
+    local displayValue = t and t.read(self.data[key]) or self.data[key]
+    local newValue, changed = controls.Combo(icon, self.idPrefix .. key, displayValue, items, opts)
+    if changed then
+        self.data[key] = t and t.write(newValue) or newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:InputText(icon, key, opts)
+    opts = opts or {}
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = self.defaults[key]
+    end
+    local newValue, changed = controls.InputText(icon, self.idPrefix .. key, self.data[key], opts)
+    if changed then
+        self.data[key] = newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:InputFloat(icon, key, opts)
+    opts = opts or {}
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = self.defaults[key]
+    end
+    local newValue, changed = controls.InputFloat(icon, self.idPrefix .. key, self.data[key], opts)
+    if changed then
+        self.data[key] = newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:InputInt(icon, key, opts)
+    opts = opts or {}
+    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
+        opts.default = self.defaults[key]
+    end
+    local newValue, changed = controls.InputInt(icon, self.idPrefix .. key, self.data[key], opts)
+    if changed then
+        self.data[key] = newValue
+        if self.onSave then self.onSave() end
+    end
+    return newValue, changed
+end
+
+function bindMethods:ToggleButtonRow(defs, opts)
+    if not defs or #defs == 0 then return end
+    opts = opts or {}
+    local gap = opts.gap or frameCache.itemSpacingX
+    local availW = ImGui.GetContentRegionAvail()
+
+    local fixedW, totalWeight, measured, totalMinWidth = measureButtonDefs(defs, gap, function(d) return d.key end)
+
+    if opts.id then
+        buttonRowMinWidths[opts.id] = totalMinWidth
+    end
+
+    local remainingW = math.max(availW - fixedW, 0)
+
+    for i, def in ipairs(defs) do
+        local key = def.key
+        local icon = resolveIcon(def.icon)
+        local displayLabel = icon or def.label or key
+        local isActive = self.data[key]
+        local w = measured[i] or math.floor(remainingW * (def.weight or 1) / totalWeight)
+
+        controls.Button(displayLabel, isActive and "active" or "inactive", w)
+
+        if ImGui.IsItemClicked(0) then
+            self.data[key] = not self.data[key]
+            if self.onSave then self.onSave() end
+            if def.onChange then def.onChange(self.data[key]) end
+        end
+        if ImGui.IsItemClicked(1) and self.defaults and self.defaults[key] ~= nil then
+            self.data[key] = self.defaults[key]
+            if self.onSave then self.onSave() end
+            if def.onChange then def.onChange(self.data[key]) end
+        end
+
+        if def.tooltip then tooltips.Show(def.tooltip) end
+        if i < #defs then ImGui.SameLine() end
+    end
+end
+
+local bindMT = { __index = bindMethods }
+
+--------------------------------------------------------------------------------
 -- Bound Controls API
 --------------------------------------------------------------------------------
+
+--- Pool of reusable bind context tables (avoids per-frame allocation)
+local bindPool = {}
+local bindPoolSize = 0
 
 --- Create a bound context that auto-reads, auto-writes, auto-resets, and auto-saves.
 --- Usage: local c = controls.bind(data, defaults, onSave, { idPrefix = "prefix_" })
@@ -1174,170 +1343,26 @@ end
 ---@param bindOpts? table {idPrefix?: string}
 ---@return table ctx Bound context with SliderFloat, SliderInt, Checkbox, ColorEdit4, Combo, InputText, InputFloat, InputInt, ToggleButtonRow methods
 function controls.bind(data, defaults, onSave, bindOpts)
-    local ctx = {}
-    local idPrefix = bindOpts and bindOpts.idPrefix or ""
-
-    function ctx:SliderFloat(icon, key, min, max, opts)
-        opts = opts or {}
-        local t = opts.transform
-        if opts.percent then
-            local pct = (data[key] - min) / (max - min) * 100
-            opts.format = string.format("%.0f%%%%", pct)
-        end
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = t and t.read(defaults[key]) or defaults[key]
-        end
-        local displayValue = t and t.read(data[key]) or data[key]
-        local newValue, changed = controls.SliderFloat(icon, idPrefix .. key, displayValue, min, max, opts)
-        if changed then
-            data[key] = t and t.write(newValue) or newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
+    local ctx
+    if bindPoolSize > 0 then
+        ctx = bindPool[bindPoolSize]
+        bindPoolSize = bindPoolSize - 1
+    else
+        ctx = setmetatable({}, bindMT)
     end
-
-    function ctx:SliderInt(icon, key, min, max, opts)
-        opts = opts or {}
-        local t = opts.transform
-        if opts.percent then
-            local pct = (data[key] - min) / (max - min) * 100
-            opts.format = string.format("%.0f%%%%", pct)
-        end
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = t and t.read(defaults[key]) or defaults[key]
-        end
-        local displayValue = t and t.read(data[key]) or data[key]
-        local newValue, changed = controls.SliderInt(icon, idPrefix .. key, displayValue, min, max, opts)
-        if changed then
-            data[key] = t and t.write(newValue) or newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    function ctx:Checkbox(label, key, opts)
-        opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
-        end
-        local newValue, changed = controls.Checkbox(label, data[key], opts)
-        if changed then
-            data[key] = newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    function ctx:ColorEdit4(icon, key, opts)
-        opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
-        end
-        local newValue, changed = controls.ColorEdit4(icon, idPrefix .. key, data[key], opts)
-        if changed then
-            data[key] = newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    function ctx:Combo(icon, key, items, opts)
-        opts = opts or {}
-        local t = opts.transform
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = t and t.read(defaults[key]) or defaults[key]
-        end
-        local displayValue = t and t.read(data[key]) or data[key]
-        local newValue, changed = controls.Combo(icon, idPrefix .. key, displayValue, items, opts)
-        if changed then
-            data[key] = t and t.write(newValue) or newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    function ctx:InputText(icon, key, opts)
-        opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
-        end
-        local newValue, changed = controls.InputText(icon, idPrefix .. key, data[key], opts)
-        if changed then
-            data[key] = newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    function ctx:InputFloat(icon, key, opts)
-        opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
-        end
-        local newValue, changed = controls.InputFloat(icon, idPrefix .. key, data[key], opts)
-        if changed then
-            data[key] = newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    function ctx:InputInt(icon, key, opts)
-        opts = opts or {}
-        if defaults and defaults[key] ~= nil and opts.default == nil then
-            opts.default = defaults[key]
-        end
-        local newValue, changed = controls.InputInt(icon, idPrefix .. key, data[key], opts)
-        if changed then
-            data[key] = newValue
-            if onSave then onSave() end
-        end
-        return newValue, changed
-    end
-
-    --- Render a row of icon toggle buttons bound to boolean keys in data.
-    function ctx:ToggleButtonRow(defs, opts)
-        if not defs or #defs == 0 then return end
-        opts = opts or {}
-        local gap = opts.gap or frameCache.itemSpacingX
-        local availW = ImGui.GetContentRegionAvail()
-
-        -- Phase 1: measure fixed vs flex
-        local fixedW, totalWeight, measured, totalMinWidth = measureButtonDefs(defs, gap, function(d) return d.key end)
-
-        if opts.id then
-            buttonRowMinWidths[opts.id] = totalMinWidth
-        end
-
-        local remainingW = math.max(availW - fixedW, 0)
-
-        -- Phase 2: render
-        for i, def in ipairs(defs) do
-            local key = def.key
-            local icon = resolveIcon(def.icon)
-            local displayLabel = icon or def.label or key
-            local isActive = data[key]
-            local w = measured[i] or math.floor(remainingW * (def.weight or 1) / totalWeight)
-
-            controls.Button(displayLabel, isActive and "active" or "inactive", w)
-
-            if ImGui.IsItemClicked(0) then
-                data[key] = not data[key]
-                if onSave then onSave() end
-                if def.onChange then def.onChange(data[key]) end
-            end
-            if ImGui.IsItemClicked(1) and defaults and defaults[key] ~= nil then
-                data[key] = defaults[key]
-                if onSave then onSave() end
-                if def.onChange then def.onChange(data[key]) end
-            end
-
-            if def.tooltip then tooltips.Show(def.tooltip) end
-            if i < #defs then ImGui.SameLine() end
-        end
-    end
-
+    ctx.data = data
+    ctx.defaults = defaults
+    ctx.onSave = onSave
+    ctx.idPrefix = (bindOpts and bindOpts.idPrefix) or ""
     return ctx
+end
+
+--- Return a bind context to the pool for reuse.
+--- Optional; without this, contexts become garbage as before but without closure overhead.
+---@param ctx table Bind context previously returned by controls.bind()
+function controls.unbind(ctx)
+    bindPoolSize = bindPoolSize + 1
+    bindPool[bindPoolSize] = ctx
 end
 
 --------------------------------------------------------------------------------

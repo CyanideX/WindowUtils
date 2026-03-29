@@ -261,20 +261,17 @@ function expand.afterRender(id, panelSize, isAnimating, isDragging)
 end
 
 --------------------------------------------------------------------------------
--- Public API - Window level (must be called at main window scope)
+-- Phase helpers for applyWindowSize (called in order, Phase 1 through Phase 7)
 --------------------------------------------------------------------------------
 
---- Drive window size and position anchoring for all expand panels on a window.
---- MUST be called inside Begin()/End() of the target window, OUTSIDE any children,
---- so that GetWindowSize() returns the main window's dimensions.
+--- Phase 1: Collect panels and sum contributions per axis.
 ---@param windowName string The ImGui window name
-function expand.applyWindowSize(windowName)
-    local curW, curH = ImGui.GetWindowSize()
-    local base = getWindowBase(windowName)
-
-    -- Phase 1: Collect panels and sum contributions per axis
+---@return table panels Array of panel state tables
+---@return number totalPanelW Total horizontal panel contribution in pixels
+---@return number totalPanelH Total vertical panel contribution in pixels
+local function collectPanelContributions(windowName)
     local ids = windowPanels[windowName]
-    if not ids or #ids == 0 then return end
+    if not ids or #ids == 0 then return {}, 0, 0 end
     local panels = {}
     local totalPanelW, totalPanelH = 0, 0
     for _, pid in ipairs(ids) do
@@ -289,12 +286,20 @@ function expand.applyWindowSize(windowName)
             end
         end
     end
-    if #panels == 0 then return end
+    return panels, totalPanelW, totalPanelH
+end
 
-    -- Phase 2: Base capture (naked window = curSize minus settled panel contributions).
-    -- Panels with pendingCapture just opened - their currentPanelSize is already set
-    -- by afterRender but curW/curH hasn't grown to include them yet (no SetWindowSize
-    -- fired). Exclude their contribution to avoid underestimating the base.
+--- Phase 2: Capture base window dimensions (naked = curSize minus settled panels).
+--- Panels with pendingCapture just opened, so their currentPanelSize is already set
+--- by afterRender but curW/curH hasn't grown to include them yet (no SetWindowSize
+--- fired). Exclude their contribution to avoid underestimating the base.
+---@param base table Window base dimensions { w, h, resizeCooldown }
+---@param panels table Array of panel state tables
+---@param curW number Current window width from GetWindowSize
+---@param curH number Current window height from GetWindowSize
+---@param totalPanelW number Total horizontal panel contribution
+---@param totalPanelH number Total vertical panel contribution
+local function captureBase(base, panels, curW, curH, totalPanelW, totalPanelH)
     local needsCapture = false
     local excludeW, excludeH = 0, 0
     for _, s in ipairs(panels) do
@@ -313,8 +318,14 @@ function expand.applyWindowSize(windowName)
         base.w = curW - (totalPanelW - excludeW)
         base.h = curH - (totalPanelH - excludeH)
     end
+end
 
-    -- Phase 3: Effective base (apply fixed-mode drag offsets from all panels)
+--- Phase 3: Compute effective base with fixed-mode drag offsets from all panels.
+---@param base table Window base dimensions { w, h, resizeCooldown }
+---@param panels table Array of panel state tables
+---@return number effW Effective base width (clamped >= 1)
+---@return number effH Effective base height (clamped >= 1)
+local function computeEffectiveBase(base, panels)
     local effW = base.w
     local effH = base.h
     for _, s in ipairs(panels) do
@@ -326,10 +337,13 @@ function expand.applyWindowSize(windowName)
             end
         end
     end
-    effW = math.max(1, effW)
-    effH = math.max(1, effH)
+    return math.max(1, effW), math.max(1, effH)
+end
 
-    -- Phase 4: Determine if any panel needs a resize
+--- Phase 4: Check if any panel needs a resize. Updates settled/flex flags as side effects.
+---@param panels table Array of panel state tables
+---@return boolean shouldResize True if SetWindowSize should be called this frame
+local function determineResize(panels)
     local shouldResize = false
     for _, s in ipairs(panels) do
         local isDragging = s.currentDragging or false
@@ -363,8 +377,21 @@ function expand.applyWindowSize(windowName)
             s.settled = true
         end
     end
+    return shouldResize
+end
 
-    -- Phase 5: Single SetWindowSize (combined dimensions from all panels)
+--- Phase 5: Single SetWindowSize with combined dimensions from all panels.
+--- Returns target dimensions for use by Phase 6.
+---@param windowName string The ImGui window name
+---@param effW number Effective base width
+---@param effH number Effective base height
+---@param totalPanelW number Total horizontal panel contribution
+---@param totalPanelH number Total vertical panel contribution
+---@param base table Window base dimensions { w, h, resizeCooldown }
+---@param shouldResize boolean Whether SetWindowSize should fire
+---@return number targetW Target window width
+---@return number targetH Target window height
+local function applyResize(windowName, effW, effH, totalPanelW, totalPanelH, base, shouldResize)
     local targetW = effW + totalPanelW
     local targetH = effH + totalPanelH
     if shouldResize then
@@ -373,10 +400,24 @@ function expand.applyWindowSize(windowName)
         -- doesn't corrupt base.w
         base.resizeCooldown = 2
     end
+    return targetW, targetH
+end
 
-    -- Phase 6: Manual resize detection (shared across all panels)
-    -- Skip during flex drag (mismatch is intentional) and while SetWindowSize
-    -- is catching up (1-frame lag would corrupt base.w)
+--- Phase 6: Manual resize detection. Updates base dimensions, baseAvail, and
+--- flexRatio when the user resizes the window by dragging its edges.
+--- Skipped during flex drag (mismatch is intentional) and while SetWindowSize
+--- is catching up (1-frame lag would corrupt base.w).
+---@param base table Window base dimensions { w, h, resizeCooldown }
+---@param panels table Array of panel state tables
+---@param curW number Current window width from GetWindowSize
+---@param curH number Current window height from GetWindowSize
+---@param targetW number Expected target width from Phase 5
+---@param targetH number Expected target height from Phase 5
+---@param totalPanelW number Total horizontal panel contribution
+---@param totalPanelH number Total vertical panel contribution
+---@param shouldResize boolean Whether Phase 5 fired SetWindowSize
+local function detectManualResize(base, panels, curW, curH, targetW, targetH,
+                                   totalPanelW, totalPanelH, shouldResize)
     local anyFlexDrag = false
     for _, s in ipairs(panels) do
         if (s.currentDragging or false) and s.sizeMode == "flex" then
@@ -400,8 +441,8 @@ function expand.applyWindowSize(windowName)
                     s.baseAvail = s.baseAvail + (newBase - oldBase)
                 end
                 if s.sizeMode == "flex" and (s.currentPanelSize or 0) > 0 then
-                    -- Maintain panel/window ratio on manual resize
-                    -- Skip on settling frame to protect dragSize from snap-back
+                    -- Maintain panel/window ratio on manual resize.
+                    -- Skip on settling frame to protect dragSize from snap-back.
                     if s.flexRatio and not s.flexDragSettled then
                         local axisDim = s.isVert and curH or curW
                         s.dragSize = math.floor(axisDim * s.flexRatio)
@@ -418,8 +459,14 @@ function expand.applyWindowSize(windowName)
             base.h = newBaseH
         end
     end
+end
 
-    -- Phase 7: Position anchoring for left/top panels + flag cleanup
+--- Phase 7: Position anchoring for left/top panels + flexDragSettled flag cleanup.
+---@param windowName string The ImGui window name
+---@param panels table Array of panel state tables
+---@param curW number Current window width from GetWindowSize
+---@param curH number Current window height from GetWindowSize
+local function anchorPositions(windowName, panels, curW, curH)
     for _, s in ipairs(panels) do
         s.flexDragSettled = false
         if s.side == "left" or s.side == "top" then
@@ -437,6 +484,28 @@ function expand.applyWindowSize(windowName)
             end
         end
     end
+end
+
+--------------------------------------------------------------------------------
+-- Public API - Window level (must be called at main window scope)
+--------------------------------------------------------------------------------
+
+--- Drive window size and position anchoring for all expand panels on a window.
+--- MUST be called inside Begin()/End() of the target window, OUTSIDE any children,
+--- so that GetWindowSize() returns the main window's dimensions.
+---@param windowName string The ImGui window name
+function expand.applyWindowSize(windowName)
+    local curW, curH = ImGui.GetWindowSize()
+    local base = getWindowBase(windowName)
+    local panels, totalPanelW, totalPanelH = collectPanelContributions(windowName)
+    if #panels == 0 then return end
+
+    captureBase(base, panels, curW, curH, totalPanelW, totalPanelH)
+    local effW, effH = computeEffectiveBase(base, panels)
+    local shouldResize = determineResize(panels)
+    local targetW, targetH = applyResize(windowName, effW, effH, totalPanelW, totalPanelH, base, shouldResize)
+    detectManualResize(base, panels, curW, curH, targetW, targetH, totalPanelW, totalPanelH, shouldResize)
+    anchorPositions(windowName, panels, curW, curH)
 end
 
 --------------------------------------------------------------------------------

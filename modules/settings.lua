@@ -361,4 +361,90 @@ function settings.setWindowIgnored(windowName, ignored)
     settings.saveWindows()
 end
 
+--------------------------------------------------------------------------------
+-- Debounced Save
+--------------------------------------------------------------------------------
+
+local dirtyState = {
+    isDirty = false,
+    lastDirtyTime = 0,
+}
+
+local FLUSH_IDLE_THRESHOLD = 0.5  -- seconds
+
+--- Mark settings as dirty, resetting the idle timer.
+function settings.markDirty()
+    dirtyState.isDirty = true
+    dirtyState.lastDirtyTime = os.clock()
+end
+
+--- Flush to disk if dirty and idle for at least FLUSH_IDLE_THRESHOLD seconds.
+function settings.flushIfIdle()
+    if not dirtyState.isDirty then return end
+    local elapsed = os.clock() - dirtyState.lastDirtyTime
+    if elapsed >= FLUSH_IDLE_THRESHOLD then
+        settings.save()
+        dirtyState.isDirty = false
+    end
+end
+
+--- Immediately flush to disk if dirty.
+function settings.flushNow()
+    if dirtyState.isDirty then
+        settings.save()
+        dirtyState.isDirty = false
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Value Validation
+--------------------------------------------------------------------------------
+
+local validationRules = {
+    gridUnits = function(v)
+        if type(v) ~= "number" then return false, "expected number" end
+        if v <= 0 then return false, "must be > 0" end
+        return true
+    end,
+    animationDuration = function(v)
+        if type(v) ~= "number" then return false, "expected number" end
+        if v <= 0 then return false, "must be > 0" end
+        return true
+    end,
+    easeFunction = function(v)
+        if type(v) ~= "string" then return false, "expected string" end
+        for _, k in ipairs(settings.easingKeys) do
+            if k == v then return true end
+        end
+        return false, "unknown easing function"
+    end,
+    gridLineColor = function(v)
+        if type(v) ~= "table" then return false, "expected table" end
+        if #v ~= 4 then return false, "expected 4 elements" end
+        for i = 1, 4 do
+            if type(v[i]) ~= "number" then return false, "element " .. i .. " not a number" end
+        end
+        return true
+    end,
+}
+
+--- Validate a setting value against type and field-specific rules.
+--- Unknown keys (not in settings.master) return true (silently ignored).
+---@param key string Setting key name
+---@param value any Value to validate
+---@return boolean valid
+---@return string|nil reason
+function settings.validateValue(key, value)
+    local existing = settings.master[key]
+    if existing == nil then return true end
+    if type(value) ~= type(existing) then
+        return false, "type mismatch: expected " .. type(existing) .. ", got " .. type(value)
+    end
+    local rule = validationRules[key]
+    if rule then
+        return rule(value)
+    end
+    return true
+end
+
 return settings

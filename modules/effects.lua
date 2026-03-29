@@ -10,9 +10,23 @@ local controls = require("modules/controls")
 local effects = {}
 
 effects.state = {
-    isOverlayOpen = false,
     previewActive = false
 }
+
+-- Single source of truth for overlay open/closed state (set once in onInit)
+local runtimeData = nil
+
+function effects.setRuntimeData(rd)
+    runtimeData = rd
+end
+
+local function isOverlayOpen()
+    return runtimeData and runtimeData.cetOpen or false
+end
+
+function effects.isOverlayOpen()
+    return isOverlayOpen()
+end
 
 effects.blur = {
     isActive = false,
@@ -33,6 +47,7 @@ local dimFade = {
     opacity = 0,
     startTime = 0,
     wasDragging = false,
+    wasActive = false,    -- for computeFadeOpacity() transition tracking
     isClosing = false,    -- true while fade-out runs after overlay close
     closingOpacity = 0    -- opacity snapshot when fade-out started
 }
@@ -166,7 +181,7 @@ end
 function effects.updateBlurDragState()
     if not settings.master.blurOnOverlayOpen then return end
     if not settings.master.blurOnDragOnly then return end
-    if not effects.state.isOverlayOpen then return end
+    if not isOverlayOpen() then return end
 
     local isDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
 
@@ -228,6 +243,8 @@ end
 local gridFade = {
     opacity = 0,
     wasDragging = false,
+    wasActive = false,    -- for computeFadeOpacity() transition tracking
+    startTime = 0,
     fadeStartTime = 0,
     wasFeathering = false,
     lastBounds = nil,
@@ -238,6 +255,30 @@ local gridFade = {
 -- Hardcoded fade durations
 local GRID_FADE_IN_DURATION = 0.15
 local GRID_FADE_OUT_DURATION = 0.25
+
+--- Compute fade opacity for a boolean active/inactive transition.
+--- Tracks transition edges via fadeState and returns opacity in [0, 1].
+---@param isActive boolean current active state
+---@param fadeState table must have `wasActive` (boolean) and `startTime` (number) fields
+---@param fadeInDuration number seconds for 0->1 fade
+---@param fadeOutDuration number seconds for 1->0 fade
+---@return number opacity in [0, 1]
+local function computeFadeOpacity(isActive, fadeState, fadeInDuration, fadeOutDuration)
+    local now = os.clock()
+    if isActive and not fadeState.wasActive then
+        fadeState.startTime = now
+    elseif not isActive and fadeState.wasActive then
+        fadeState.startTime = now
+    end
+    fadeState.wasActive = isActive
+
+    local elapsed = now - fadeState.startTime
+    if isActive then
+        return math.min(1, elapsed / fadeInDuration)
+    else
+        return math.max(0, 1 - (elapsed / fadeOutDuration))
+    end
+end
 
 -- Distance from point to rectangle (0 if inside/within padding).
 local function distanceToRect(px, py, rx, ry, rw, rh, padding)
@@ -321,107 +362,72 @@ local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSiz
     end
 end
 
-local function drawGridVisualization()
-    if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
+--- Render the dim background overlay with fade-in/fade-out.
+--- Returns early when dim background is disabled in settings.
+---@param displayWidth number screen width in pixels
+---@param displayHeight number screen height in pixels
+---@param anyDragging boolean true when any window is being dragged
+local function updateDimOverlay(displayWidth, displayHeight, anyDragging)
+    if not settings.master.gridDimBackground then
         dimFade.opacity = 0
         dimFade.wasDragging = false
-        gridFade.opacity = 0
-        gridFade.wasDragging = false
-        gridFade.wasFeathering = false
-        gridFade.lastBounds = nil
-        gridFade.lastGridSize = nil
-        core.clearDraggingWindowBounds()
+        dimFade.wasActive = false
         return
     end
 
-    local fc = controls.getFrameCache()
-    local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
+    local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
+    local rawOpacity = computeFadeOpacity(
+        shouldDim, dimFade,
+        settings.master.fadeInDuration, settings.master.fadeOutDuration
+    )
+    -- Keep wasDragging in sync for existing disableDim() compatibility
+    dimFade.wasDragging = shouldDim
+    dimFade.opacity = rawOpacity * settings.master.gridDimBackgroundOpacity
 
-    -- Only check drag state when a drag-only feature needs it
-    local anyDragging = false
-    if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
-        or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
-        anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    if dimFade.opacity > 0.001 then
+        local drawList = ImGui.GetBackgroundDrawList()
+        local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
+        ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
     end
-    local now = os.clock()
+end
 
-    -- Dim background (independent of grid viz)
-    if settings.master.gridDimBackground then
-        local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
-
-        if shouldDim and not dimFade.wasDragging then
-            dimFade.startTime = now
-        elseif not shouldDim and dimFade.wasDragging then
-            dimFade.startTime = now
-        end
-        dimFade.wasDragging = shouldDim
-
-        local elapsed = now - dimFade.startTime
-        if shouldDim then
-            local fadeIn = settings.master.fadeInDuration
-            local t = math.min(1, elapsed / fadeIn)
-            dimFade.opacity = t * settings.master.gridDimBackgroundOpacity
-        else
-            local fadeOut = settings.master.fadeOutDuration
-            local t = math.min(1, elapsed / fadeOut)
-            dimFade.opacity = (1 - t) * settings.master.gridDimBackgroundOpacity
-        end
-
-        if dimFade.opacity > 0.001 then
-            local drawList = ImGui.GetBackgroundDrawList()
-            local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
-            ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
-        end
-    else
-        dimFade.opacity = 0
-        dimFade.wasDragging = false
-    end
-
+--- Render grid lines, guides, feathering, and axis lock visualization.
+--- Unifies the three grid fade branches (preview, drag-only, always-on) into
+--- a single computeFadeOpacity() call.
+---@param displayWidth number screen width in pixels
+---@param displayHeight number screen height in pixels
+---@param anyDragging boolean true when any window is being dragged
+local function drawGrid(displayWidth, displayHeight, anyDragging)
     if not settings.master.gridVisualizationEnabled then
         gridFade.opacity = 0
         gridFade.wasDragging = false
+        gridFade.wasActive = false
         gridFade.wasFeathering = false
         gridFade.lastBounds = nil
         gridFade.lastGridSize = nil
+        gridFade.lastWindowName = nil
         core.clearDraggingWindowBounds()
         return
     end
+
     local featherEnabled = settings.master.gridFeatherEnabled
     local previewMode = not settings.master.gridEnabled
 
-    -- Handle fade transitions
+    -- Determine isActive based on mode
+    local isActive
     if previewMode then
-        -- Fade based on slider interaction in Visuals tab
-        local active = effects.state.previewActive
-        if active and not gridFade.wasDragging then
-            gridFade.fadeStartTime = now
-        elseif not active and gridFade.wasDragging then
-            gridFade.fadeStartTime = now
-        end
-        gridFade.wasDragging = active
-
-        local elapsed = now - gridFade.fadeStartTime
-        if active then
-            gridFade.opacity = math.min(1, elapsed / GRID_FADE_IN_DURATION)
-        else
-            gridFade.opacity = math.max(0, 1 - (elapsed / GRID_FADE_OUT_DURATION))
-        end
-
-        if gridFade.opacity <= 0 then
-            gridFade.lastBounds = nil
-            gridFade.lastGridSize = nil
-            gridFade.lastWindowName = nil
-            gridFade.wasFeathering = false
-            core.clearDraggingWindowBounds()
-            return
-        end
+        isActive = effects.state.previewActive
     elseif settings.master.gridShowOnDragOnly then
-        -- Fade based on window drag state
+        isActive = anyDragging
+    else
+        isActive = true
+    end
+
+    -- Capture fade-out state when drag-only mode transitions from dragging to not-dragging
+    if settings.master.gridShowOnDragOnly and not previewMode then
         if anyDragging and not gridFade.wasDragging then
-            gridFade.fadeStartTime = now
             gridFade.wasFeathering = featherEnabled
         elseif not anyDragging and gridFade.wasDragging then
-            gridFade.fadeStartTime = now
             gridFade.lastGridSize = core.getDraggingWindowGridSize()
             gridFade.lastWindowName = core.getDraggingWindowName()
             if featherEnabled or (settings.master.gridShowOnDragOnly and settings.master.gridGuidesEnabled) then
@@ -433,29 +439,33 @@ local function drawGridVisualization()
             end
         end
         gridFade.wasDragging = anyDragging
-
-        local elapsed = now - gridFade.fadeStartTime
-        if anyDragging then
-            gridFade.opacity = math.min(1, elapsed / GRID_FADE_IN_DURATION)
-        else
-            gridFade.opacity = math.max(0, 1 - (elapsed / GRID_FADE_OUT_DURATION))
-        end
-
-        if gridFade.opacity <= 0 then
-            gridFade.lastBounds = nil
-            gridFade.lastGridSize = nil
-            gridFade.lastWindowName = nil
-            gridFade.wasFeathering = false
-            core.clearDraggingWindowBounds()
-            return
-        end
     else
-        gridFade.opacity = 1
         gridFade.wasDragging = false
+    end
+
+    -- Unified fade calculation
+    if isActive == true and not previewMode and not settings.master.gridShowOnDragOnly then
+        -- Always-on mode: skip fade, full opacity
+        gridFade.opacity = 1
+        gridFade.wasActive = true
         gridFade.wasFeathering = false
         gridFade.lastBounds = nil
         gridFade.lastGridSize = nil
         gridFade.lastWindowName = nil
+    else
+        gridFade.opacity = computeFadeOpacity(
+            isActive, gridFade,
+            GRID_FADE_IN_DURATION, GRID_FADE_OUT_DURATION
+        )
+    end
+
+    if gridFade.opacity <= 0 then
+        gridFade.lastBounds = nil
+        gridFade.lastGridSize = nil
+        gridFade.lastWindowName = nil
+        gridFade.wasFeathering = false
+        core.clearDraggingWindowBounds()
+        return
     end
 
     -- Preserve lastBounds for fade-out
@@ -470,7 +480,7 @@ local function drawGridVisualization()
     local drawList = ImGui.GetBackgroundDrawList()
     local thickness = settings.master.gridLineThickness or settings.defaults.gridLineThickness
     local color = settings.master.gridLineColor or settings.defaults.gridLineColor
-    if not color or not color[4] then return end  -- Safety check
+    if not color or not color[4] then return end
     local baseAlpha = color[4] * gridFade.opacity
 
     local featherRadius = settings.master.gridFeatherRadius
@@ -529,7 +539,34 @@ end
 
 --- Draw the grid overlay (full-screen background draw list). Call every frame when CET overlay is open.
 function effects.drawGridOverlay()
-    drawGridVisualization()
+    -- Early exit when both dim and grid are disabled
+    if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
+        dimFade.opacity = 0
+        dimFade.wasDragging = false
+        dimFade.wasActive = false
+        gridFade.opacity = 0
+        gridFade.wasDragging = false
+        gridFade.wasActive = false
+        gridFade.wasFeathering = false
+        gridFade.lastBounds = nil
+        gridFade.lastGridSize = nil
+        gridFade.lastWindowName = nil
+        core.clearDraggingWindowBounds()
+        return
+    end
+
+    -- Compute shared state once
+    local fc = controls.getFrameCache()
+    local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
+
+    local anyDragging = false
+    if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
+        or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
+        anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    end
+
+    updateDimOverlay(displayWidth, displayHeight, anyDragging)
+    drawGrid(displayWidth, displayHeight, anyDragging)
 end
 
 return effects
