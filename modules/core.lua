@@ -839,6 +839,7 @@ local function getExternalWindowState(windowName)
         state.blockedSizeY = 0
         state.wasActive = false
         state.wasFocused = false
+        state.autoRemoved = false
         externalWindowStates[windowName] = state
     end
     return externalWindowStates[windowName]
@@ -884,7 +885,8 @@ local function probeWindowActivity(windowName)
 end
 
 -- Advance snap animation for an external window (called after manageExternalWindow).
--- Needs a separate Begin/End scope because SetWindowPos/Size must target the window.
+-- Uses deferred operations to avoid an extra Begin/End scope that could conflict
+-- with the owning mod's window flags.
 local function animateExternalWindow(windowName, state)
     if not state.animating then return end
 
@@ -896,50 +898,20 @@ local function animateExternalWindow(windowName, state)
     local duration = settings.master.animationDuration
     local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
 
-    local hasCloseButton = resolveHasCloseButton(windowName)
-    if hasCloseButton then
-        ImGui.Begin(windowName, true, 0)
-    else
-        ImGui.Begin(windowName)
-    end
-    ImGui.SetWindowPos(newPosX, newPosY)
-    if newSizeX and newSizeY then
-        ImGui.SetWindowSize(newSizeX, newSizeY)
-    end
-    ImGui.End()
+    addDeferredSnap(windowName, newPosX, newPosY, newSizeX, newSizeY)
 
     if t >= 1 then
         state.animating = false
     end
 end
 
-local function manageExternalWindow(windowName, state)
-    local hasCloseButton = resolveHasCloseButton(windowName)
-
-    local visible
-    if hasCloseButton then
-        local pOpen
-        visible, pOpen = ImGui.Begin(windowName, true, 0)
-        if not pOpen then
-            -- User closed via X button
-            ImGui.End()
-            state.probePhase = PROBE_BLOCKED
-            state.blockedPosX = 0
-            state.blockedPosY = 0
-            state.blockedSizeX = 0
-            state.blockedSizeY = 0
-            state.animating = false
-            state.isDragging = false
-            state.pendingDragCheck = false
-            return
-        end
-    else
-        visible = ImGui.Begin(windowName)
-    end
-
-    -- Track whether the owning mod is actively rendering this window.
-    -- If appearing, no other mod called Begin this frame (empty shell).
-    state.lastAppearing = ImGui.IsWindowAppearing()
+--- Manage an external window: drag detection, snap, animation.
+--- Uses Begin/End for real-time position and focus queries.
+---@param windowName string
+---@param state table External window state
+---@param windowInfo table Discovery data (used for collapsed check only)
+local function manageExternalWindow(windowName, state, windowInfo)
+    local visible = ImGui.Begin(windowName)
 
     local isCollapsed = not visible
     local currentPosX, currentPosY = ImGui.GetWindowPos()
@@ -958,10 +930,21 @@ local function manageExternalWindow(windowName, state)
 
     local currentSizeX, currentSizeY = ImGui.GetWindowSize()
 
+    -- On first management frame, restore cached size if available.
+    -- Prevents the owning mod's default/min size from overwriting the cache.
+    if not state.initialized then
+        state.initialized = true
+        if not isCollapsed and state.expandedSizeX and state.expandedSizeY then
+            addDeferredSnap(windowName, nil, nil, state.expandedSizeX, state.expandedSizeY)
+            currentSizeX = state.expandedSizeX
+            currentSizeY = state.expandedSizeY
+        end
+    end
+
     -- Restore size when expanding from collapsed
     if state.wasCollapsed and not isCollapsed then
         if state.expandedSizeX and state.expandedSizeY then
-            ImGui.SetWindowSize(windowName, state.expandedSizeX, state.expandedSizeY)
+            addDeferredSnap(windowName, nil, nil, state.expandedSizeX, state.expandedSizeY)
             currentSizeX = state.expandedSizeX
             currentSizeY = state.expandedSizeY
         end
@@ -1015,7 +998,6 @@ local function manageExternalWindow(windowName, state)
                 targetSizeX = core.snapToGrid(currentSizeX, windowName)
                 targetSizeY = core.snapToGrid(currentSizeY, windowName)
             else
-                -- Snap remembered expanded size so restore uses grid-aligned values
                 local targetExpandedW = core.snapToGrid(state.expandedSizeX or currentSizeX, windowName)
                 local targetExpandedH = core.snapToGrid(state.expandedSizeY or currentSizeY, windowName)
                 state.expandedSizeX = targetExpandedW
@@ -1058,11 +1040,12 @@ local function manageExternalWindow(windowName, state)
     end
 
     -- Click-to-clean: focus triggers re-probe to detect empty shells
-    -- Skip for hasCloseButton windows (they never need empty-shell detection)
+    local hasCloseButton = resolveHasCloseButton(windowName)
     if isFocused and not state.wasFocused and not hasCloseButton then
         state.probePhase = PROBE_SKIP
         state.skipFrames = 1
         state.wasActive = true
+        state.autoRemoved = false
         state.pendingDragCheck = false
     end
     state.wasFocused = isFocused
@@ -1097,13 +1080,22 @@ function core.updateExternalWindows()
         then
             local state = getExternalWindowState(windowName)
 
-            -- hasCloseButton windows bypass the probe state machine entirely.
+            -- hasCloseButton windows bypass the probe state machine.
             -- They have a proper close mechanism (pOpen), so empty-shell detection
-            -- is unnecessary. manageExternalWindow handles the pOpen=false transition.
+            -- is unnecessary. manageExternalWindow sets BLOCKED when pOpen=false.
+            -- Respect BLOCKED state; only discovery data changes can wake them.
             if resolveHasCloseButton(windowName) then
-                state.probePhase = PROBE_ACTIVE
-                manageExternalWindow(windowName, state)
-                animateExternalWindow(windowName, state)
+                if state.probePhase == PROBE_BLOCKED then
+                    local posChanged = windowInfo.posX ~= state.blockedPosX or windowInfo.posY ~= state.blockedPosY
+                    local sizeChanged = windowInfo.sizeX ~= state.blockedSizeX or windowInfo.sizeY ~= state.blockedSizeY
+                    if posChanged or sizeChanged then
+                        state.probePhase = PROBE_ACTIVE
+                    end
+                else
+                    state.probePhase = PROBE_ACTIVE
+                    manageExternalWindow(windowName, state, windowInfo)
+                    animateExternalWindow(windowName, state)
+                end
             elseif state.probePhase == PROBE_SKIP then
                 state.skipFrames = (state.skipFrames or 0) + 1
                 -- wasActive needs only 1 skip frame (owning mod handles rendering).
@@ -1114,21 +1106,13 @@ function core.updateExternalWindows()
                 end
 
             elseif state.probePhase == PROBE_CHECK then
-                local active
-                if state.wasActive then
-                    -- Manage normally so grid/drag still works on this frame.
-                    -- Check IsWindowAppearing inside our Begin/End to detect
-                    -- if the owning mod stopped rendering during PROBE_SKIP.
-                    manageExternalWindow(windowName, state)
-                    active = not state.lastAppearing
-                else
-                    -- Invisible probe for previously-blocked
-                    active = probeWindowActivity(windowName)
-                end
+                -- Always use invisible probe to avoid 1-frame flash for empty shells
+                local active = probeWindowActivity(windowName)
                 state.wasActive = false
 
                 if active then
                     state.probePhase = PROBE_ACTIVE
+                    state.autoRemoved = false
                 else
                     state.probePhase = PROBE_BLOCKED
                     state.animating = false
@@ -1147,16 +1131,16 @@ function core.updateExternalWindows()
                 end
 
             elseif state.probePhase == PROBE_ACTIVE then
-                manageExternalWindow(windowName, state)
+                manageExternalWindow(windowName, state, windowInfo)
                 animateExternalWindow(windowName, state)
 
             elseif state.probePhase == PROBE_BLOCKED then
-                -- Detect if a mod started drawing this window (discovery data changed)
                 local posChanged = windowInfo.posX ~= state.blockedPosX or windowInfo.posY ~= state.blockedPosY
                 local sizeChanged = windowInfo.sizeX ~= state.blockedSizeX or windowInfo.sizeY ~= state.blockedSizeY
                 if posChanged or sizeChanged then
                     state.probePhase = PROBE_SKIP
                     state.skipFrames = 0
+                    state.autoRemoved = false
                 end
 
             end
@@ -1295,12 +1279,13 @@ function core.updateExternalWindows()
 
     local interval = settings.master.probeInterval or 0.5
 
-    -- Batch re-probe ALL BLOCKED windows every probeInterval (safe: no Begin() calls for blocked)
+    -- Re-probe BLOCKED windows that haven't been auto-removed.
+    -- Auto-removed windows stay blocked until discovery data changes or overlay reopens.
     blockedReprobeTimer = blockedReprobeTimer + deltaTime
     if blockedReprobeTimer >= interval then
         blockedReprobeTimer = blockedReprobeTimer - interval
         for _, state in pairs(externalWindowStates) do
-            if state.probePhase == PROBE_BLOCKED then
+            if state.probePhase == PROBE_BLOCKED and not state.autoRemoved then
                 state.probePhase = PROBE_SKIP
                 state.skipFrames = 0
             end
@@ -1314,21 +1299,42 @@ function core.updateExternalWindows()
         if activeReprobeTimer >= autoRemoveInterval then
             activeReprobeTimer = activeReprobeTimer - autoRemoveInterval
 
-            -- Transition idle ACTIVE windows to PROBE_SKIP for 1 frame.
-            -- WindowUtils stops calling Begin; if the owning mod is still
-            -- rendering, it handles the window with its own flags (no flicker).
-            -- On the next frame, if the window is still in discovery, it's active.
-            -- If it disappeared, it was an empty shell kept alive by our Begin.
-            for windowName, state in pairs(externalWindowStates) do
-                if state.probePhase == PROBE_ACTIVE
-                    and not state.isDragging
-                    and not state.animating
-                    and not state.pendingDragCheck
-                    and not resolveHasCloseButton(windowName)
-                then
+            if settings.master.batchAutoRemove ~= false then
+                -- Batch: check all idle windows at once
+                for windowName, state in pairs(externalWindowStates) do
+                    if state.probePhase == PROBE_ACTIVE
+                        and not state.isDragging
+                        and not state.animating
+                        and not state.pendingDragCheck
+                        and not resolveHasCloseButton(windowName)
+                    then
+                        state.probePhase = PROBE_SKIP
+                        state.skipFrames = 1
+                        state.wasActive = true
+                        state.autoRemoved = true
+                        state.pendingDragCheck = false
+                    end
+                end
+            else
+                -- Sequential: check one idle window per interval (round-robin)
+                local candidates = {}
+                for windowName, state in pairs(externalWindowStates) do
+                    if state.probePhase == PROBE_ACTIVE
+                        and not state.isDragging
+                        and not state.animating
+                        and not state.pendingDragCheck
+                        and not resolveHasCloseButton(windowName)
+                    then
+                        candidates[#candidates + 1] = state
+                    end
+                end
+                if #candidates > 0 then
+                    activeReprobeIndex = (activeReprobeIndex % #candidates) + 1
+                    local state = candidates[activeReprobeIndex]
                     state.probePhase = PROBE_SKIP
                     state.skipFrames = 1
                     state.wasActive = true
+                    state.autoRemoved = true
                     state.pendingDragCheck = false
                 end
             end
@@ -1339,7 +1345,9 @@ end
 function core.processDeferred()
     for i = 1, deferredSnapCount do
         local op = deferredSnapOperations[i]
-        ImGui.SetWindowPos(op.windowName, op.targetPosX, op.targetPosY)
+        if op.targetPosX and op.targetPosY then
+            ImGui.SetWindowPos(op.windowName, op.targetPosX, op.targetPosY)
+        end
         if op.targetSizeX and op.targetSizeY then
             ImGui.SetWindowSize(op.windowName, op.targetSizeX, op.targetSizeY)
         end
@@ -1366,6 +1374,7 @@ function core.resetExternalProbes()
         elseif state.probePhase == PROBE_BLOCKED then
             state.probePhase = PROBE_SKIP
             state.skipFrames = 0
+            state.autoRemoved = false
             state.wasActive = false
         end
     end
