@@ -10,16 +10,33 @@ local utils = require("modules/utils")
 local controls = {}
 
 --------------------------------------------------------------------------------
+-- Constants
+--------------------------------------------------------------------------------
+
+local PANEL_DEFAULT_BG = { 0.65, 0.7, 1.0, 0.045 }
+
+--------------------------------------------------------------------------------
 -- Per-frame style cache (call controls.cacheFrameState() once per onDraw)
 --------------------------------------------------------------------------------
 
 local frameCache = {}
 
 --------------------------------------------------------------------------------
--- ButtonRow minimum width cache (measured per-frame, keyed by opts.id)
+-- State tables (grouped here for organization; used by various controls below)
 --------------------------------------------------------------------------------
 
-local buttonRowMinWidths = {}
+local buttonRowMinWidths = {}   -- ButtonRow minimum width cache (keyed by opts.id)
+local holdStates = {}           -- HoldButton per-id state
+local HOLD_OVERLAY_COLOR = nil  -- Cached overlay color for HoldButton
+local fillChildBgState = {}     -- BeginFillChild bg push tracking
+local columnAutoCache = {}      -- Column auto-size cache: [columnId][childIndex] = height
+local panelHoverState = {}      -- Panel hover state for borderOnHover
+local bindPool = {}             -- Reusable bind context pool
+local bindPoolSize = 0
+
+-- Reused tables for ActionButton (avoids per-frame allocation)
+local actionButtonHoldOpts = { duration = 0, style = "", progressDisplay = "external" }
+local actionButtonResult = { primaryClicked = false, secondaryTriggered = false }
 
 ---@param id string ButtonRow id (from opts.id)
 ---@return number|nil minWidth Cached minimum width in pixels, or nil if unknown
@@ -632,10 +649,6 @@ end
 -- Hold-to-Confirm Button
 --------------------------------------------------------------------------------
 
--- State for hold buttons: [id] = { holding, startTime, holdDuration, progress, lastTime }
-local holdStates = {}
-local HOLD_OVERLAY_COLOR = nil
-
 --- Create a hold-to-confirm button with progress fill overlay
 ---@param id string Unique button ID (also used as label in legacy mode)
 ---@param label string Button label text
@@ -788,9 +801,6 @@ end
 ---@param label string Primary button label text
 ---@param opts? table {onPrimary?, onSecondary?, secondaryIcon?, secondaryDuration?, secondaryStyle?, progressStyle?, style?, isActive?, width?}
 ---@return table result {primaryClicked: boolean, secondaryTriggered: boolean}
-local actionButtonHoldOpts = { duration = 0, style = "", progressDisplay = "external" }
--- Reused return table - callers should read fields immediately, not store the reference
-local actionButtonResult = { primaryClicked = false, secondaryTriggered = false }
 function controls.ActionButton(id, label, opts)
     opts = opts or {}
     local onPrimary = opts.onPrimary
@@ -863,9 +873,9 @@ end
 -- Fill-Available-Space Child Region
 --------------------------------------------------------------------------------
 
-local fillChildBgState = {}
-
---- Begin a child region that fills remaining vertical space in the window
+--- Begin a child region that fills remaining vertical space in the window.
+--- bg defaults to the standard panel background. Pass false for transparent,
+--- or an {r,g,b,a} table for a custom color.
 ---@param id string Unique child ID (## prefix added automatically if missing)
 ---@param opts? table {footerHeight?, border?, flags?, bg?}
 ---@return boolean visible True if the child region is visible
@@ -875,13 +885,14 @@ function controls.BeginFillChild(id, opts)
     local border = opts.border or false
     local extraFlags = opts.flags or 0
     local bg = opts.bg
+    if bg == nil then bg = PANEL_DEFAULT_BG end
 
     local childId = id
     if not id:find("^##") then
         childId = "##" .. id
     end
 
-    if bg then
+    if bg and bg ~= false then
         ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bg[1], bg[2], bg[3], bg[4] or 1.0))
         fillChildBgState[id] = true
     else
@@ -983,9 +994,6 @@ end
 --------------------------------------------------------------------------------
 -- Layout: Column (vertical child windows)
 --------------------------------------------------------------------------------
-
--- Auto-size cache for Column: [columnId] = { [childIndex] = measuredHeight }
-local columnAutoCache = {}
 
 --- Vertical column of child windows that fills available height.
 --- Children can be flex (fill proportional space), fixed height, or auto-sized.
@@ -1329,10 +1337,6 @@ local bindMT = { __index = bindMethods }
 -- Bound Controls API
 --------------------------------------------------------------------------------
 
---- Pool of reusable bind context tables (avoids per-frame allocation)
-local bindPool = {}
-local bindPoolSize = 0
-
 --- Create a bound context that auto-reads, auto-writes, auto-resets, and auto-saves.
 --- Usage: local c = controls.bind(data, defaults, onSave, { idPrefix = "prefix_" })
 ---        c:SliderFloat(icon, key, min, max, opts)  -- reads data[key], resets to defaults[key]
@@ -1371,8 +1375,6 @@ end
 
 --- Render a child window panel with default styling (opts: bg, border, width, height, flags)
 ---@param id string Unique panel ID (## prefix added automatically if missing)
-local panelHoverState = {}
-local PANEL_DEFAULT_BG = { 0.65, 0.7, 1.0, 0.045 }
 
 --------------------------------------------------------------------------------
 -- PanelGroup: visual panel using BeginGroup/EndGroup + DrawList.

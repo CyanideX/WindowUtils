@@ -513,8 +513,8 @@ local function drawWindowOverridePanel()
     if not settings.master.overrideAllWindows then return end
 
     local dw, dh = GetDisplayResolution()
-    ImGui.SetNextWindowSize(dw * 0.18, dh * 0.35, ImGuiCond.FirstUseEver)
-    core.setNextWindowSizeConstraintsPercent(10, 15, 30, 60, WB_WINDOW_NAME)
+    ImGui.SetNextWindowSize(dw * 0.15, dh * 0.35, ImGuiCond.FirstUseEver)
+    core.setNextWindowSizeConstraintsPercent(12, 15, 50, 90, WB_WINDOW_NAME)
 
     if not ImGui.Begin(WB_WINDOW_NAME) then
         ImGui.End()
@@ -545,7 +545,73 @@ local function drawWindowOverridePanel()
         end
     end
 
-    if controls.BeginFillChild("wb_list", { bg = CONTENT_BG }) then
+    local lowerCache = {}
+    for _, name in ipairs(visibleWindows) do lowerCache[name] = name:lower() end
+    for _, name in ipairs(hiddenWindows) do lowerCache[name] = name:lower() end
+    for _, name in ipairs(ignoredWindows) do lowerCache[name] = name:lower() end
+    local function cmpAlpha(a, b) return lowerCache[a] < lowerCache[b] end
+    table.sort(visibleWindows, cmpAlpha)
+    table.sort(hiddenWindows, cmpAlpha)
+    table.sort(ignoredWindows, cmpAlpha)
+
+    -- Column header row with bulk action buttons (indented to match child content)
+    controls.Separator(4, 4)
+    local btnW = utils.minIconButtonWidth()
+    local headerIndent = ImGui.GetStyle().WindowPadding.x
+    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + headerIndent)
+    local allVisible = {}
+    for _, name in ipairs(visibleWindows) do allVisible[#allVisible + 1] = name end
+    for _, name in ipairs(hiddenWindows) do allVisible[#allVisible + 1] = name end
+    for _, name in ipairs(ignoredWindows) do allVisible[#allVisible + 1] = name end
+
+    -- Toggle All
+    local toggleAllIcon = ic.ToggleSwitchOffOutline or "Off"
+    if controls.Button(toggleAllIcon .. "##wb_toggle_all", "inactive", btnW) then
+        for _, name in ipairs(allVisible) do
+            local override = settings.windows.overrides[name]
+            if not override and not settings.isWindowIgnored(name) and not settings.isWindowHidden(name) then
+                settings.setWindowOverride(name, true)
+            end
+        end
+    end
+    tooltips.Show("Toggle All\nEnable Close Button on all visible windows")
+
+    ImGui.SameLine()
+
+    -- Ignore All
+    local ignoreAllIcon = ic.CircleOffOutline or "-"
+    if controls.Button(ignoreAllIcon .. "##wb_ignore_all", "inactive", btnW) then
+        for _, name in ipairs(allVisible) do
+            if not settings.isWindowIgnored(name) then
+                settings.setWindowIgnored(name, true)
+            end
+        end
+    end
+    tooltips.Show("Ignore All\nIgnore all listed windows")
+
+    ImGui.SameLine()
+
+    -- Hide All
+    local hideAllIcon = ic.EyeOff or "H"
+    if controls.Button(hideAllIcon .. "##wb_hide_all", "inactive", btnW) then
+        for _, name in ipairs(allVisible) do
+            if not settings.isWindowIgnored(name) and not settings.isWindowHidden(name) then
+                settings.setWindowOverride(name, nil)
+                settings.setWindowHidden(name, true)
+            end
+        end
+    end
+    tooltips.Show("Hide All\nHide all listed windows")
+
+    ImGui.SameLine()
+
+    styles.PushTextMuted()
+    ImGui.Text("Window Name")
+    styles.PopTextMuted()
+
+    ImGui.Dummy(0, 2)
+
+    if controls.BeginFillChild("wb_list") then
         for _, name in ipairs(visibleWindows) do
             drawWindowBrowserEntry(name, "visible")
         end
