@@ -8,6 +8,7 @@ local core      = require("modules/core")
 local controls  = require("modules/controls")
 local styles    = require("modules/styles")
 local splitter  = require("modules/splitter")
+local expand    = require("modules/expand")
 local effects   = require("modules/effects")
 local discovery = require("modules/discovery")
 local utils     = require("modules/utils")
@@ -22,9 +23,6 @@ ui.state = {
 ui.selectedSection = 1
 
 ui.sections = {}
-
--- Measured each frame, used for experimental panel sizing next frame
-local cachedExperimentalH = nil
 
 local CONTENT_BG = { 0.65, 0.7, 1.0, 0.0225 }
 
@@ -67,7 +65,7 @@ local function drawGeneralSection()
     if changed then settings.debugPrint("Debug Output Enabled") end
 
     controls.SectionHeader("Experimental", 10, 0)
-    local toggleId = "gui_outer_tgl_trail"
+    local toggleId = "gui_experimental"
     local isOpen = splitter.getToggle(toggleId) or false
     local newOpen
     newOpen, changed = controls.Checkbox("Show Experimental Settings", isOpen, {
@@ -75,6 +73,8 @@ local function drawGeneralSection()
     })
     if changed then
         splitter.setToggle(toggleId, newOpen)
+        settings.master.showExperimental = newOpen
+        settings.markDirty()
     end
 end
 
@@ -708,9 +708,13 @@ function ui.drawWindow()
     local minH = math.max(outerMinH + padY2, pctMinH)
 
     ImGui.SetNextWindowSize(displayW * 0.30, displayH * 0.40, ImGuiCond.FirstUseEver)
-    core.setNextWindowSizeConstraints(minW, minH, displayW * 0.45, displayH * 0.5, GUI_WINDOW_NAME)
 
-    if not ImGui.Begin(GUI_WINDOW_NAME) then
+    -- Animate max height constraint when experimental panel expands
+    local maxHPct = splitter.getExpandConstraint("gui_experimental")
+    local maxH = maxHPct and (displayH * maxHPct / 100) or (displayH * 0.5)
+    core.setNextWindowSizeConstraints(minW, minH, displayW * 0.45, maxH, GUI_WINDOW_NAME)
+
+    if not ImGui.Begin(GUI_WINDOW_NAME, ImGuiWindowFlags.NoScrollbar) then
         core.update(GUI_WINDOW_NAME, {
             gridEnabled = settings.master.gridEnabled,
             animationEnabled = settings.master.animationEnabled,
@@ -721,14 +725,16 @@ function ui.drawWindow()
         return
     end
 
-    -- Use measured content height from previous frame, or text-metric estimate
-    local padY = ImGui.GetStyle().WindowPadding.y
-    local experimentalH = cachedExperimentalH
-        or (ImGui.GetTextLineHeightWithSpacing() * 6 + ImGui.GetStyle().ItemSpacing.y * 5 + padY * 2)
-
     local sidebarMaxW = math.floor(displayW * 0.15)
 
-    splitter.multi("gui_outer", {
+    splitter.toggle("gui_experimental", {
+        { content = function()
+            controls.Panel("gui_experimental_panel", function()
+                drawExperimentalSection()
+                local padY = ImGui.GetStyle().WindowPadding.y
+                expand.setMeasuredSize("gui_experimental", ImGui.GetCursorPosY() + padY)
+            end)
+        end },
         { content = function()
             splitter.multi("gui_inner", {
                 { maxWidth = sidebarMaxW, content = function()
@@ -741,13 +747,25 @@ function ui.drawWindow()
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.3, 0.7 } })
         end },
-        { toggle = true, size = experimentalH, defaultOpen = false, content = function()
-            controls.Panel("gui_experimental", function()
-                drawExperimentalSection()
-                cachedExperimentalH = ImGui.GetCursorPosY() + padY
-            end)
-        end },
-    }, { direction = "vertical" })
+    }, {
+        side = "bottom",
+        size = 200,
+        defaultOpen = settings.master.showExperimental,
+        expand = true,
+        sizeMode = "auto",
+        windowName = GUI_WINDOW_NAME,
+        normalConstraintPct = 50,
+        toggleOnClick = true,
+    })
+
+    expand.applyWindowSize(GUI_WINDOW_NAME)
+
+    -- Sync bar-toggle state to settings
+    local expOpen = splitter.getToggle("gui_experimental") or false
+    if expOpen ~= settings.master.showExperimental then
+        settings.master.showExperimental = expOpen
+        settings.markDirty()
+    end
 
     core.update(GUI_WINDOW_NAME, {
         gridEnabled = settings.master.gridEnabled,

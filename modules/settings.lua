@@ -61,7 +61,8 @@ local function createDefaultSettings()
         autoAdjustOnResize = false,
         windowBrowserOpen = false,
         overrideStyling = false,
-        disableScrollbar = false
+        disableScrollbar = false,
+        showExperimental = false
     }
 end
 

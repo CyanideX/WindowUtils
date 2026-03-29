@@ -547,6 +547,9 @@ local function getToggleState(id, opts)
             dragging = false,           -- expand mode: drag-in-progress
             expandDragStart = nil,      -- expand mode: panel size at drag start
             expandId = nil,             -- set by splitter.toggle() when opts.expand is truthy
+            toggleOnClick = opts.toggleOnClick or false,
+            pressedForToggle = false,   -- toggleOnClick: tracks press-to-release cycle
+            pressedOnBar = false,       -- expand: tracks press on bar for drag initiation
         }
     end
     return toggleStates[id]
@@ -556,19 +559,83 @@ local function drawToggleBar(id, state, side)
     local isVert = (side == "top" or side == "bottom")
     local barW = state.barWidth
 
-    local icon = state.expandId
-        and (isVert and getGrabIconV() or getGrabIcon())
-        or getToggleIcon(side, state.isOpen)
+    -- Icon selection
+    local icon
+    if state.expandId and not state.toggleOnClick then
+        -- Expand without toggleOnClick: always show drag handle
+        icon = isVert and getGrabIconV() or getGrabIcon()
+    elseif state.expandId and state.dragging then
+        -- Expand with toggleOnClick, actively dragging: show drag handle
+        icon = isVert and getGrabIconV() or getGrabIcon()
+    else
+        -- Normal toggle or expand with toggleOnClick (idle): show toggle arrow
+        local arrowOpen = state.isOpen
+        if state.expandId then arrowOpen = not arrowOpen end
+        icon = getToggleIcon(side, arrowOpen)
+    end
 
     local bgColor, iconColor = resolveBarColors(state, state.barBg)
     state.hovering = drawBar("##toggle_bar_" .. id, barW, icon, bgColor, iconColor, isVert)
 
     if state.expandId then
-        -- === Expand mode: double-click to toggle, drag to resize (when open) ===
+        -- === Expand mode ===
 
-        -- Double-click: toggle open/close (works in all modes including auto)
-        local doubleClicked = state.hovering and ImGui.IsMouseDoubleClicked(0)
-        if doubleClicked then
+        -- Drag: only when open and fully expanded
+        local canDrag = state.isOpen and state.animProgress >= 1.0
+
+        -- Track press on bar for drag initiation
+        if state.hovering and ImGui.IsItemClicked(0) and canDrag then
+            state.pressedOnBar = true
+        end
+        if not ImGui.IsMouseDown(0) then
+            state.pressedOnBar = false
+        end
+
+        if not state.dragging and state.pressedOnBar
+                and ImGui.IsMouseDragging(0, 2) then
+            state.dragging = true
+            state.pressedOnBar = false
+        end
+        if state.dragging and not ImGui.IsMouseDown(0) then
+            state.dragging = false
+            state.expandDragStart = nil
+            expand.commitDrag(state.expandId)
+        end
+
+        if state.dragging then
+            state.expandDragStart = true
+            local dirMul = (side == "right" or side == "bottom") and 1 or -1
+            local delta = isVert
+                and select(2, ImGui.GetMouseDragDelta(0, 0))
+                or (ImGui.GetMouseDragDelta(0, 0))
+            expand.applyDrag(state.expandId, delta, dirMul)
+        end
+
+        -- Toggle
+        local toggled = false
+        if state.toggleOnClick then
+            if state.hovering and ImGui.IsItemClicked(0) and not state.dragging then
+                state.pressedForToggle = true
+            end
+            if state.pressedForToggle and (state.dragging or state.pressedOnBar == false) then
+                -- Cancel toggle if drag started
+                if state.dragging then
+                    state.pressedForToggle = false
+                end
+            end
+            if state.pressedForToggle and not ImGui.IsMouseDown(0) then
+                state.pressedForToggle = false
+                if not state.dragging then
+                    toggled = true
+                end
+            end
+        else
+            if state.hovering and ImGui.IsMouseDoubleClicked(0) then
+                toggled = true
+            end
+        end
+
+        if toggled then
             state.dragging = false
             state.expandDragStart = nil
             expand.commitDrag(state.expandId)
@@ -579,31 +646,14 @@ local function drawToggleBar(id, state, side)
             expand.onToggle(state.expandId, state.isOpen)
         end
 
-        if not doubleClicked and state.hovering and ImGui.IsMouseDragging(0, 0) and state.isOpen and state.animProgress >= 1.0 then
-            state.dragging = true
-        end
-        if state.dragging and not ImGui.IsMouseDragging(0, 0) then
-            state.dragging = false
-            state.expandDragStart = nil
-            expand.commitDrag(state.expandId)
-        end
-
-        if state.dragging then
-            state.expandDragStart = true
-
-            local dirMul = (side == "right" or side == "bottom") and 1 or -1
-            local delta = isVert
-                and select(2, ImGui.GetMouseDragDelta(0, 0))
-                or (ImGui.GetMouseDragDelta(0, 0))
-
-            expand.applyDrag(state.expandId, delta, dirMul)
-        end
-
+        -- Cursor
         if state.hovering or state.dragging then
-            if isVert then
-                ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNS)
+            if state.dragging then
+                ImGui.SetMouseCursor(isVert and ImGuiMouseCursor.ResizeNS or ImGuiMouseCursor.ResizeEW)
+            elseif canDrag then
+                ImGui.SetMouseCursor(isVert and ImGuiMouseCursor.ResizeNS or ImGuiMouseCursor.ResizeEW)
             else
-                ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEW)
+                ImGui.SetMouseCursor(ImGuiMouseCursor.Hand)
             end
         end
     else
@@ -1052,7 +1102,9 @@ function splitter.toggle(id, panels, opts)
     opts = opts or {}
     local side = opts.side or "left"
     local isVert = (side == "top" or side == "bottom")
+
     local state = getToggleState(id, opts)
+    state.toggleOnClick = opts.toggleOnClick or false
 
     local availW, availH = ImGui.GetContentRegionAvail()
     local totalAvail = isVert and availH or availW

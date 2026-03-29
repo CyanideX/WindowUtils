@@ -488,6 +488,25 @@ function expand.applyWindowSize(windowName)
     local panels, totalPanelW, totalPanelH = collectPanelContributions(windowName)
     if #panels == 0 then return end
 
+    -- On first frame, if any panel is already open (started via defaultOpen),
+    -- skip resize and just derive the base from the current window size.
+    -- The window is already at the correct size from CET .ini or SetNextWindowSize.
+    if not base.w then
+        base.w = curW - totalPanelW
+        base.h = curH - totalPanelH
+        -- If any panel is open, don't call SetWindowSize this frame.
+        -- The auto measurement hasn't happened yet, so the computed target
+        -- would be wrong. Let the window stay as-is until next frame.
+        local anyOpen = false
+        for _, s in ipairs(panels) do
+            if (s.currentPanelSize or 0) > 0 then
+                anyOpen = true
+                s.settled = true
+            end
+        end
+        if anyOpen then return end
+    end
+
     captureBase(base, panels, curW, curH, totalPanelW, totalPanelH)
     local effW, effH = computeEffectiveBase(base, panels)
     local shouldResize = determineResize(panels)
@@ -509,11 +528,16 @@ function expand.getConstraint(id, isOpen)
     local s = expandStates[id]
     if not s or not s.constraintProp or not s.normalPct then return nil end
 
-    -- During drag, skip constraint to allow free sizing
-    if s.currentDragging then return nil end
-
     local dim = s.cachedDisplayDim
     if not dim or dim <= 0 then return nil end
+
+    -- During drag, return a live constraint based on current panel size
+    if s.currentDragging then
+        local liveSize = s.currentPanelSize or 0
+        if liveSize <= 0 then return s.normalPct end
+        local livePct = (liveSize / dim) * 100
+        return s.normalPct + livePct
+    end
 
     local effectiveSize = s.dragSize or s.panelSizePx
     if not effectiveSize then return nil end
