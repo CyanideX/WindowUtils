@@ -1,17 +1,5 @@
---------------------------------------------------------------------------------
 -- expand.lua - Window Expansion Manager
---
--- Manages window resizing for expand-mode toggle panels. Owns all SetWindowSize/
--- SetWindowPos logic, base-size caching, and constraint animation integration.
--- Keeps splitter.lua free of window-sizing concerns.
---
--- Two-phase design:
---   1. Content-level calls (init, cacheBase, afterRender) work inside any child
---      window - they only store state, never call SetWindowSize/SetWindowPos.
---   2. Window-level call (applyWindowSize) must be called at the main window
---      scope (after EndChild, inside Begin/End) where GetWindowSize() returns
---      the actual window dimensions, not a child's.
---------------------------------------------------------------------------------
+-- Manages window resizing for expand-mode toggle panels. See docs/expand.md for architecture.
 
 local core = require("modules/core")
 local controls = require("modules/controls")

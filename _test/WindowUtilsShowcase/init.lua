@@ -963,7 +963,7 @@ end
 local function drawTelemetryDemo()
     local controls = wu.Controls
     local splitter  = wu.Splitter
-    local s         = wu.API.GetSettings()
+    local s         = wu.API.Get()
     local UNIT_PX   = 20  -- WindowUtils base grid unit (px)
     local cellPx    = UNIT_PX * s.gridUnits
 
@@ -1073,7 +1073,7 @@ local function drawTelemetryDemo()
                         ImGui.Text("States")
                         ImGui.Separator()
                         ImGui.Dummy(0, 3)
-                        boolRow("Master:",        wu.API.IsEnabled())
+                        boolRow("Master:",        s.enabled)
                         boolRow("Grid snap:",      s.gridEnabled)
                         boolRow("Animation:",      s.animationEnabled)
                         boolRow("Tooltips:",       s.tooltipsEnabled)

@@ -14,103 +14,19 @@ local api = {}
 -- Settings Window Control
 --------------------------------------------------------------------------------
 
-api.ToggleSettings = ui.toggle
-api.ShowSettings = ui.show
-api.HideSettings = ui.hide
-api.IsSettingsVisible = ui.isVisible
-
---------------------------------------------------------------------------------
--- Master Override
---------------------------------------------------------------------------------
-
----@return boolean
-function api.IsEnabled()
-    return settings.master.enabled
-end
-
-function api.Enable()
-    settings.master.enabled = true
-    settings.save()
-end
-
-function api.Disable()
-    settings.master.enabled = false
-    settings.save()
-end
-
----@param enabled boolean
-function api.SetEnabled(enabled)
-    settings.master.enabled = enabled
-    settings.save()
-end
-
---------------------------------------------------------------------------------
--- Grid
---------------------------------------------------------------------------------
-
----@return boolean
-function api.IsGridEnabled()
-    return settings.master.gridEnabled
-end
-
----@param enabled boolean
-function api.SetGridEnabled(enabled)
-    settings.master.gridEnabled = enabled
-    settings.save()
-end
-
----@return number
-function api.GetGridUnits()
-    return settings.master.gridUnits
-end
-
----@param units number Grid unit count (must be > 0)
----@return boolean success
-function api.SetGridUnits(units)
-    if type(units) ~= "number" or units <= 0 then return false end
-    settings.master.gridUnits = units
-    settings.save()
-    core.invalidateGridCache()
-    return true
-end
-
---------------------------------------------------------------------------------
--- Animation
---------------------------------------------------------------------------------
-
----@return boolean
-function api.IsAnimationEnabled()
-    return settings.master.animationEnabled
-end
-
----@param enabled boolean
-function api.SetAnimationEnabled(enabled)
-    settings.master.animationEnabled = enabled
-    settings.save()
-end
-
----@return number
-function api.GetAnimationDuration()
-    return settings.master.animationDuration
-end
-
----@param duration number Seconds (must be > 0)
----@return boolean success
-function api.SetAnimationDuration(duration)
-    if type(duration) ~= "number" or duration <= 0 then return false end
-    settings.master.animationDuration = duration
-    settings.save()
-    return true
-end
+api.Toggle = ui.toggle
+api.Show = ui.show
+api.Hide = ui.hide
+api.IsVisible = ui.isVisible
 
 --------------------------------------------------------------------------------
 -- Settings Access
 --------------------------------------------------------------------------------
 
 --- Get the current master settings table (mutable reference).
---- Call api.SaveSettings() to persist after direct changes.
+--- Call api.Save() to persist after direct changes.
 ---@return table
-function api.GetSettings()
+function api.Get()
     return settings.master
 end
 
@@ -123,7 +39,7 @@ end
 --- Apply multiple settings at once, persist, and trigger side effects.
 ---@param settingsTable table Key-value pairs of settings to apply
 ---@return boolean applied True if any settings were applied
-function api.ApplySettings(settingsTable)
+function api.Set(settingsTable)
     if type(settingsTable) ~= "table" then return false end
 
     local applied = false
@@ -136,7 +52,7 @@ function api.ApplySettings(settingsTable)
                 applied = true
                 if key == "gridUnits" then gridChanged = true end
             else
-                settings.debugPrint("ApplySettings: skipping '" .. key .. "': " .. (reason or "invalid"))
+                settings.debugPrint("Set: skipping '" .. key .. "': " .. (reason or "invalid"))
             end
         end
     end
@@ -144,25 +60,29 @@ function api.ApplySettings(settingsTable)
     if applied then
         settings.save()
         if gridChanged then core.invalidateGridCache() end
+        -- Sync UI state for settings that drive live behavior
+        if settingsTable.showGuiWindow ~= nil then
+            ui.state.showWindow = settings.master.showGuiWindow
+        end
     end
     return applied
 end
 
 --- Reset all settings to defaults and save.
-function api.ResetSettings()
+function api.Reset()
     settings.reset()
     core.invalidateGridCache()
 end
 
 --- Reload settings from disk.
-function api.ReloadSettings()
+function api.Reload()
     settings.reload()
     core.invalidateGridCache()
 end
 
 --- Save current settings to disk.
 ---@return boolean success
-function api.SaveSettings()
+function api.Save()
     return settings.save()
 end
 
@@ -202,6 +122,48 @@ function api.UnregisterWindow(windowName)
     local result = registry.unregister(windowName)
     settings.debugPrint("UnregisterWindow: '" .. windowName .. "'")
     return result
+end
+
+--------------------------------------------------------------------------------
+-- Console Helpers
+--------------------------------------------------------------------------------
+
+--- Print all settings keys with current value, default value, and type.
+--- Intended for use in the CET console: GetMod("WindowUtils").API.Info()
+function api.Info()
+    local keys = {}
+    for key in pairs(settings.defaults) do
+        keys[#keys + 1] = key
+    end
+    table.sort(keys)
+
+    local lines = {}
+    for _, key in ipairs(keys) do
+        local default = settings.defaults[key]
+        local current = settings.master[key]
+        local curStr = tostring(current)
+        local defStr = tostring(default)
+        if type(default) == "table" then
+            curStr = "{" .. table.concat(current, ", ") .. "}"
+            defStr = "{" .. table.concat(default, ", ") .. "}"
+        end
+        local changed = curStr ~= defStr
+        local entry = key .. " = " .. curStr
+        if changed then
+            entry = entry .. "  (default: " .. defStr .. ")"
+        end
+        lines[#lines + 1] = entry
+    end
+
+    print(string.rep("-", 40))
+    print("WindowUtils Settings (" .. #lines .. " keys)")
+    print(string.rep("-", 40))
+    print("Get: local s = wu.API.Get(); print(s.gridEnabled)")
+    print("Set: wu.API.Set({ gridEnabled = false })")
+    print(string.rep("-", 40))
+    for _, line in ipairs(lines) do
+        print(line)
+    end
 end
 
 return api

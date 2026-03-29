@@ -113,3 +113,36 @@ Compute the minimum usable width for a single icon button based on live ImGui me
 **Returns:** `number`  - minimum pixel width (icon glyph + frame padding)
 
 Used internally by `Splitter.multi()` to auto-detect minimum panel widths.
+
+
+## Reusable Table Convention
+
+WindowUtils modules frequently reuse pre-allocated tables to avoid per-frame garbage collection pressure. The convention distinguishes two cases:
+
+### When to Reuse
+
+Tables used only within a single frame's scope (internal scratch buffers, intermediate results consumed immediately by the caller before the next frame) should be allocated once at module level and reset each use. This avoids per-frame garbage.
+
+**Examples:**
+- `dragdrop.lua` `reusableCtx` - scratch context rebuilt every frame
+- `controls.lua` `actionButtonResult` - result table read immediately by caller
+
+### When to Allocate Fresh
+
+Tables returned to callers who may store references (public API return values, callback arguments, tables passed to other modules that might cache them) must be freshly allocated. Reusing would silently corrupt stored references.
+
+**Examples:**
+- `registry.getAll()` returns a copy
+- `dragdrop.createState()` returns a new state object
+
+### Pattern
+
+```lua
+local reusable = { field1 = false, field2 = 0 }
+
+function myModule.compute(input)
+    reusable.field1 = input > 0
+    reusable.field2 = input * 2
+    return reusable  -- caller must read fields before next call
+end
+```
