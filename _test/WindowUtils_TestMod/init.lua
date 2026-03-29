@@ -365,7 +365,7 @@ local function drawControlsDemo()
                 -- Layout Helpers
                 controls.TextMuted("BeginFillChild: scrollable child filling remaining space")
                 ImGui.Dummy(0, 2)
-                if controls.BeginFillChild("demo_fill", { bg = { 0.65, 0.7, 1.0, 0.045 } }) then
+                if controls.BeginFillChild("demo_fill") then
                     for i = 1, 30 do
                         ImGui.Text("  Scrollable item " .. i)
                     end

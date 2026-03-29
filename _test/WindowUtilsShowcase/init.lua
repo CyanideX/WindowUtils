@@ -354,7 +354,7 @@ local function drawControlsDemo()
                 -- Layout Helpers
                 controls.TextMuted("BeginFillChild: scrollable child filling remaining space")
                 ImGui.Dummy(0, 2)
-                if controls.BeginFillChild("demo_fill", { bg = { 0.65, 0.7, 1.0, 0.045 } }) then
+                if controls.BeginFillChild("demo_fill") then
                     for i = 1, 30 do
                         ImGui.Text("  Scrollable item " .. i)
                     end
@@ -1140,7 +1140,7 @@ local function drawTooltipsDemo()
     local ctx = controls.bind(ttState, ttDefaults)
 
     -- Scrollable wrapper with styled scrollbar (matches other tabs)
-    if controls.BeginFillChild("tt_scroll", { bg = { 0.65, 0.7, 1.0, 0.045 } }) then
+    if controls.BeginFillChild("tt_scroll") then
     -- content rendered below; EndFillChild at bottom of function
     end
 
