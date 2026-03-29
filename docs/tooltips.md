@@ -1,4 +1,4 @@
-# Tooltips — WindowUtils Tooltip Helpers
+# Tooltips  - WindowUtils Tooltip Helpers
 
 Hover tooltips for ImGui elements with styling variants, keybind hints, and multi-line support.
 
@@ -15,7 +15,7 @@ ImGui.Button("Delete")
 tips.ShowDanger("This cannot be undone!")
 ```
 
-All tooltip functions check `ImGui.IsItemHovered()` internally — call them immediately after the ImGui element they describe.
+All tooltip functions check `ImGui.IsItemHovered()` internally  - call them immediately after the ImGui element they describe.
 
 > **`tooltipsEnabled` setting:** Only `Show()` and `ShowIf()` respect the global `tooltipsEnabled` setting. All other functions (`ShowAlways`, `ShowWrapped`, `ShowTitled`, `ShowColored`, `ShowMuted`, `ShowSuccess`, `ShowDanger`, `ShowWarning`, `ShowHelp`, `ShowKeybind`, `ShowWithHint`, `ShowLines`, `ShowBullets`) always display when hovered.
 
@@ -41,7 +41,7 @@ Tooltip with text wrapping at a maximum width.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| text | string | — | Tooltip text |
+| text | string |  - | Tooltip text |
 | maxWidth | number | 300 | Wrap width in pixels |
 
 ### Styled Tooltips

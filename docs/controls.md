@@ -1,4 +1,4 @@
-# Controls — WindowUtils UI Control Library
+# Controls  - WindowUtils UI Control Library
 
 Grid-based layout system, styled buttons, sliders, inputs, hold-to-confirm buttons, bound controls, and layout helpers.
 
@@ -31,7 +31,7 @@ Calculate pixel width for a column span.
 | gap | number | ItemSpacing.x | Gap between elements in pixels |
 | hasIcon | boolean | false | Adjust for icon prefix width |
 
-**Returns:** `number` — width in pixels (minimum 20px)
+**Returns:** `number`  - width in pixels (minimum 20px)
 
 ```lua
 -- Half-width button
@@ -56,12 +56,12 @@ Styled button with automatic push/pop.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| label | string | — | Button label |
+| label | string |  - | Button label |
 | styleName | string | "inactive" | Style name (see Styles module) |
 | width | number | 0 | Width (0 = auto, negative = fill available) |
 | height | number | 0 | Height |
 
-**Returns:** `boolean` — true if clicked
+**Returns:** `boolean`  - true if clicked
 
 ### `ToggleButton(label, isActive, width?, height?)`
 
@@ -85,7 +85,7 @@ Non-interactive status bar with a label and optional value.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| label | string | — | Left-side label (rendered inside button) |
+| label | string |  - | Left-side label (rendered inside button) |
 | value | any\|nil | nil | Right-side value (rendered via `SameLine()`) |
 | opts.widthFraction | number | 1 | Divides available width (2 = half width) |
 | opts.style | string | "statusbar" | Button style name |
@@ -101,8 +101,8 @@ Button that adapts content based on available width. Full text at normal widths,
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| label | string | — | Full button label |
-| icon | string\|nil | — | Icon glyph for narrow display |
+| label | string |  - | Full button label |
+| icon | string\|nil |  - | Icon glyph for narrow display |
 | opts.style | string | "inactive" | Button style |
 | opts.width | number | available | Button width |
 | opts.height | number | 0 | Button height |
@@ -111,7 +111,7 @@ Button that adapts content based on available width. Full text at normal widths,
 | opts.iconFallback | string | "?" | Fallback if icon resolves to nil |
 | opts.tooltip | string\|nil | label | Tooltip when truncated or icon mode |
 
-**Returns:** `boolean` — true if clicked
+**Returns:** `boolean`  - true if clicked
 
 ```lua
 -- Adapts from "Save Changes" → "Sav..." → icon
@@ -128,17 +128,17 @@ Float slider with optional icon prefix, column width, right-click reset, and too
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| icon | string\|nil | — | IconGlyph (nil = no icon) |
-| id | string | — | Unique slider ID |
-| value | number | — | Current value |
-| min | number | — | Minimum |
-| max | number | — | Maximum |
+| icon | string\|nil |  - | IconGlyph (nil = no icon) |
+| id | string |  - | Unique slider ID |
+| value | number |  - | Current value |
+| min | number |  - | Minimum |
+| max | number |  - | Maximum |
 | opts.format | string | "%.2f" | Display format |
 | opts.cols | number\|nil | nil | Grid columns (nil = fill remaining) |
 | opts.default | number\|nil | nil | Right-click reset value |
 | opts.tooltip | string\|nil | nil | Always-visible icon tooltip |
 
-**Returns:** `number, boolean` — new value, whether changed
+**Returns:** `number, boolean`  - new value, whether changed
 
 ```lua
 local brightness, changed = c.SliderFloat(
@@ -163,15 +163,15 @@ Text input with optional icon, column width, and tooltip.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| icon | string\|nil | — | IconGlyph |
-| id | string | — | Unique input ID |
-| text | string | — | Current text |
+| icon | string\|nil |  - | IconGlyph |
+| id | string |  - | Unique input ID |
+| text | string |  - | Current text |
 | opts.maxLength | number | 256 | Max characters |
 | opts.cols | number\|nil | nil | Grid columns |
 | opts.tooltip | string\|nil | nil | Icon tooltip |
 | opts.alwaysShowTooltip | boolean | false | Show tooltip always (not just on hover) |
 
-**Returns:** `string, boolean` — new text, whether changed
+**Returns:** `string, boolean`  - new text, whether changed
 
 ### `InputFloat(icon, id, value, opts?)`
 
@@ -184,8 +184,9 @@ Float input with +/- step buttons.
 | opts.format | string | "%.2f" | Display format |
 | opts.cols | number\|nil | nil | Grid columns |
 | opts.tooltip | string\|nil | nil | Icon tooltip |
+| opts.alwaysShowTooltip | boolean | false | Show tooltip always (not just on hover) |
 
-**Returns:** `number, boolean` — new value, whether changed
+**Returns:** `number, boolean`  - new value, whether changed
 
 ### `InputInt(icon, id, value, opts?)`
 
@@ -197,8 +198,9 @@ Integer input with +/- step buttons.
 | opts.stepFast | number | 10 | Large step |
 | opts.cols | number\|nil | nil | Grid columns |
 | opts.tooltip | string\|nil | nil | Icon tooltip |
+| opts.alwaysShowTooltip | boolean | false | Show tooltip always (not just on hover) |
 
-**Returns:** `number, boolean` — new value, whether changed
+**Returns:** `number, boolean`  - new value, whether changed
 
 ## Combo/Dropdown
 
@@ -208,15 +210,15 @@ Dropdown with optional icon, column width, right-click reset.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| icon | string\|nil | — | IconGlyph |
-| id | string | — | Unique combo ID |
-| currentIndex | number | — | Selected index (0-based) |
-| items | table | — | Array of item strings |
+| icon | string\|nil |  - | IconGlyph |
+| id | string |  - | Unique combo ID |
+| currentIndex | number |  - | Selected index (0-based) |
+| items | table |  - | Array of item strings |
 | opts.cols | number\|nil | nil | Grid columns |
 | opts.default | number\|nil | nil | Right-click reset index |
 | opts.tooltip | string\|nil | nil | Icon tooltip |
 
-**Returns:** `number, boolean` — new index, whether changed
+**Returns:** `number, boolean`  - new index, whether changed
 
 ## Checkboxes
 
@@ -226,14 +228,14 @@ Checkbox with optional icon prefix, right-click reset, and tooltip.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| label | string | — | Checkbox label |
-| value | boolean | — | Current checked state |
+| label | string |  - | Checkbox label |
+| value | boolean |  - | Current checked state |
 | opts.icon | string\|nil | nil | Icon prefix (replaces the old `CheckboxWithIcon`) |
 | opts.default | boolean\|nil | nil | Right-click reset value |
 | opts.tooltip | string\|nil | nil | Tooltip text |
 | opts.alwaysShowTooltip | boolean | false | Show tooltip always |
 
-**Returns:** `boolean, boolean` — new value, whether changed
+**Returns:** `boolean, boolean`  - new value, whether changed
 
 ```lua
 -- Simple checkbox
@@ -253,7 +255,7 @@ Styled progress bar.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| fraction | number | — | Progress 0-1 |
+| fraction | number |  - | Progress 0-1 |
 | width | number\|nil | full width | Bar width |
 | height | number | 0 | Bar height |
 | overlay | string | "" | Overlay text |
@@ -269,14 +271,14 @@ Color picker with icon prefix and right-click reset.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| icon | string\|nil | — | IconGlyph |
-| id | string | — | Unique picker ID |
-| color | table | — | RGBA color `{r,g,b,a}` |
+| icon | string\|nil |  - | IconGlyph |
+| id | string |  - | Unique picker ID |
+| color | table |  - | RGBA color `{r,g,b,a}` |
 | opts.label | string\|nil | nil | Text label before the picker |
 | opts.default | table\|nil | nil | Right-click reset color |
 | opts.tooltip | string\|nil | nil | Icon tooltip |
 
-**Returns:** `table, boolean` — new `{r,g,b,a}` color, whether changed
+**Returns:** `table, boolean`  - new `{r,g,b,a}` color, whether changed
 
 ## Hold-to-Confirm Button
 
@@ -286,8 +288,8 @@ Button that requires holding to trigger. Prevents accidental destructive actions
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique button ID |
-| label | string | — | Display label |
+| id | string |  - | Unique button ID |
+| label | string |  - | Display label |
 | opts.duration | number | 2.0 | Hold duration in seconds |
 | opts.style | string | "danger" | Button style name |
 | opts.width | number | 0 | Button width (negative = fill) |
@@ -299,12 +301,12 @@ Button that requires holding to trigger. Prevents accidental destructive actions
 | opts.onClick | function\|nil | nil | Callback on early release (click) |
 | opts.onHold | function\|nil | nil | Callback on hold completion |
 
-**Returns:** `boolean, boolean` — `triggered` (hold completed), `clicked` (released early)
+**Returns:** `boolean, boolean`  - `triggered` (hold completed), `clicked` (released early)
 
 Progress display modes:
-- **overlay** — rect fills over the button as you hold
-- **replace** — button is replaced by a progress bar while held
-- **external** — no visual on the button itself; use `ShowHoldProgress()` elsewhere
+- **overlay**  - rect fills over the button as you hold
+- **replace**  - button is replaced by a progress bar while held
+- **external**  - no visual on the button itself; use `ShowHoldProgress()` elsewhere
 
 ```lua
 local held, clicked = c.HoldButton("delete_all", "Delete All", {
@@ -316,13 +318,13 @@ local held, clicked = c.HoldButton("delete_all", "Delete All", {
 
 ### `getHoldProgress(id)`
 
-**Returns:** `number|nil` — progress 0-1, or nil if not holding
+**Returns:** `number|nil`  - progress 0-1, or nil if not holding
 
 ### `ShowHoldProgress(sourceId, width?, progressStyle?)`
 
 Renders a progress bar showing another button's hold state. Use with `progressDisplay = "external"`.
 
-**Returns:** `boolean` — true if progress bar is showing
+**Returns:** `boolean`  - true if progress bar is showing
 
 ### `ActionButton(id, label, opts?)`
 
@@ -330,8 +332,8 @@ Compound button: primary click + secondary hold-to-confirm with cross-element pr
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| opts.onPrimary | function\|nil | — | Primary click callback |
-| opts.onSecondary | function\|nil | — | Secondary hold callback |
+| opts.onPrimary | function\|nil |  - | Primary click callback |
+| opts.onSecondary | function\|nil |  - | Secondary hold callback |
 | opts.secondaryIcon | string | trash icon | Secondary button icon |
 | opts.secondaryDuration | number | 1.0 | Hold duration |
 | opts.secondaryStyle | string | "danger" | Secondary button style |
@@ -340,7 +342,7 @@ Compound button: primary click + secondary hold-to-confirm with cross-element pr
 | opts.isActive | boolean\|nil | nil | Override to "active" style |
 | opts.width | number\|nil | full width | Total width |
 
-**Returns:** `table` — `{ primaryClicked, secondaryTriggered }`
+**Returns:** `table`  - `{ primaryClicked, secondaryTriggered }`
 
 ```lua
 c.ActionButton("preset_1", "My Preset", {
@@ -362,7 +364,7 @@ Row of buttons with automatic width distribution. Icon-only buttons auto-size; t
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| defs | table | — | Array of button definitions |
+| defs | table |  - | Array of button definitions |
 | opts.gap | number | ItemSpacing.x | Gap between buttons |
 | opts.id | string\|nil | nil | ID for min-width caching |
 
@@ -398,7 +400,7 @@ c.ButtonRow({
 
 Get cached minimum width for a ButtonRow (when `opts.id` is set).
 
-**Returns:** `number|nil` — minimum width in pixels
+**Returns:** `number|nil`  - minimum width in pixels
 
 ## Bound Controls
 
@@ -448,7 +450,7 @@ ctx:Combo(IconGlyphs.Palette, "colorMode", { "RGB", "HSL", "HSV" })
 
 #### Transform Option
 
-Bound sliders and combos support a `transform` option for value conversion between display and storage:
+Bound sliders (`SliderFloat`, `SliderInt`) and `Combo` support a `transform` option for value conversion between display and storage:
 
 ```lua
 ctx:SliderFloat(icon, "gamma", 0, 100, {
@@ -458,11 +460,45 @@ ctx:SliderFloat(icon, "gamma", 0, 100, {
     },
     percent = true,  -- show as "50%" format
 })
+
+ctx:Combo(IconGlyphs.Palette, "themeIndex", { "Light", "Dark", "Auto" }, {
+    transform = {
+        read = function(v) return v - 1 end,   -- 1-based storage → 0-based ImGui index
+        write = function(v) return v + 1 end,   -- 0-based ImGui index → 1-based storage
+    },
+})
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| transform.read | function | Converts storage value → display value |
+| transform.write | function | Converts display value → storage value |
+
+#### Percent Option
+
+Bound `SliderFloat` and `SliderInt` support a `percent` option that auto-formats the slider label as a percentage of the slider range:
+
+```lua
+ctx:SliderFloat(icon, "opacity", 0, 1, {
+    percent = true,  -- displays "50%" when value is 0.5
+})
 ```
 
 #### `ctx:ToggleButtonRow(defs, opts?)`
 
 Row of toggle buttons bound to boolean keys in data. Left-click toggles, right-click resets to default.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| def.key | string |  - | Data table key for this toggle |
+| def.icon | string\|nil | nil | Icon glyph (auto-sizes if no label) |
+| def.label | string\|nil | nil | Button text label |
+| def.weight | number | 1 | Flex weight for text buttons |
+| def.width | number\|nil | nil | Fixed width override |
+| def.tooltip | string\|nil | nil | Tooltip text |
+| def.onChange | function\|nil | nil | Callback `(newValue)` after toggle |
+| opts.gap | number | ItemSpacing.x | Gap between buttons |
+| opts.id | string\|nil | nil | ID for min-width caching |
 
 ```lua
 ctx:ToggleButtonRow({
@@ -480,20 +516,26 @@ Child region that fills remaining vertical space.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Child window ID |
+| id | string |  - | Child window ID (## prefix added automatically if missing) |
 | opts.footerHeight | number | 0 | Reserve space at bottom |
 | opts.border | boolean | false | Show border |
 | opts.flags | number | 0 | Extra ImGui window flags |
 | opts.bg | table\|nil | nil | Background color `{r,g,b,a}` |
 
-### `EndFillChild(opts?)`
+**Returns:** `boolean`  - true if the child region is visible
 
-End fill child. Pass `{ bg = true }` if a background color was set.
+### `EndFillChild(id)`
+
+End fill child. Pass the same `id` used in `BeginFillChild` so the background color can be popped correctly.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Child ID passed to `BeginFillChild` |
 
 ```lua
 c.BeginFillChild("scrollArea", { footerHeight = 30, bg = {0.1, 0.1, 0.1, 0.5} })
 -- scrollable content
-c.EndFillChild({ bg = true })
+c.EndFillChild("scrollArea")
 ImGui.Button("Footer Button", c.RemainingWidth(), 0)
 ```
 
@@ -505,8 +547,8 @@ Child region with optional background color and border. Always has internal padd
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Child window ID (auto-prefixed with `##` if needed) |
-| contentFn | function | — | Renders panel content |
+| id | string |  - | Child window ID (auto-prefixed with `##` if needed) |
+| contentFn | function |  - | Renders panel content |
 | opts.bg | table\|false | subtle blue | Background color `{r,g,b,a}` or `false` for none |
 | opts.border | boolean | false | Show border |
 | opts.borderOnHover | boolean | false | Show border only when hovered |
@@ -524,6 +566,33 @@ c.Panel("interactive", function()
 end, { borderOnHover = true })
 
 c.Panel("fixed", drawContent, { width = 300, height = 200 })
+```
+
+## PanelGroup
+
+### `PanelGroup(id, contentFn, opts?)`
+
+Visual panel wrapper using `BeginGroup`/`EndGroup` + DrawList instead of `BeginChild`. No explicit height is needed; content flows in the parent scroll region. Background and border are drawn via DrawList with padding and rounding.
+
+Use this instead of `Panel` when you need a styled panel inside a scrollable region without creating a nested scroll context.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string |  - | Unique identifier (for hover state tracking) |
+| contentFn | function\|nil | nil | Callback that renders panel content |
+| opts.bg | table\|false | subtle blue | Background color `{r,g,b,a}` or `false` for none |
+| opts.border | boolean | false | Show border |
+| opts.borderOnHover | boolean | false | Show border only when hovered (with tooltip) |
+
+```lua
+c.PanelGroup("info", function()
+    ImGui.Text("This panel scrolls with its parent")
+    ImGui.Text("No nested scroll context")
+end)
+
+c.PanelGroup("hover_panel", function()
+    ImGui.Text("Hover to see border")
+end, { borderOnHover = true })
 ```
 
 ## Text Display
@@ -553,8 +622,8 @@ Horizontal row of child windows that fills available width.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique row ID |
-| defs | table | — | Array of child definitions |
+| id | string |  - | Unique row ID |
+| defs | table |  - | Array of child definitions |
 | opts.height | number\|nil | nil | Row height (nil = auto) |
 | opts.gap | number\|nil | ItemSpacing.x | Gap between children |
 
@@ -562,7 +631,7 @@ Horizontal row of child windows that fills available width.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| content | function | — | Renders child content |
+| content | function |  - | Renders child content |
 | width | number\|nil | nil | Fixed width in pixels |
 | cols | number\|nil | nil | Width from ColWidth grid (1-12) |
 | flex | number\|nil | 1 | Proportional share of remaining space |
@@ -585,15 +654,15 @@ Vertical column of child windows that fills available height. Children can be fl
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique column ID |
-| defs | table | — | Array of child definitions |
+| id | string |  - | Unique column ID |
+| defs | table |  - | Array of child definitions |
 | opts.gap | number\|nil | ItemSpacing.y x 2 | Gap between children (0 = flush) |
 
 **Child definition fields:**
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| content | function | — | Renders child content |
+| content | function |  - | Renders child content |
 | flex | number\|nil | 1 | Proportional share of remaining height |
 | height | number\|nil | nil | Fixed height (auto-adds `NoScrollbar`) |
 | auto | boolean\|nil | nil | Auto-size to content (no child window) |
@@ -613,7 +682,9 @@ c.Column("page", {
 
 ## Frame Cache
 
-`controls.cacheFrameState()` is called automatically each frame by WindowUtils. It caches ImGui style and metric values to avoid repeated lookups.
+### `cacheFrameState()`
+
+Populates the per-frame style/metric cache. Called automatically once per `onDraw` frame by WindowUtils before any control rendering. You do not need to call this yourself unless you are using Controls outside of the standard WindowUtils draw loop.
 
 ### `getFrameCache()`
 

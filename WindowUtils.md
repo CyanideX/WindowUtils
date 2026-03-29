@@ -11,9 +11,9 @@ A universal library for ImGui window management in Cyber Engine Tweaks mods. Pro
 local wu = GetMod("WindowUtils")
 ```
 
-`Update()` must be called between `ImGui.Begin()` and `ImGui.End()` so it can query window state. It must run every frame — including when the window is collapsed — so that collapsed windows still snap to the grid.
+`Update()` must be called between `ImGui.Begin()` and `ImGui.End()` so it can query window state. It must run every frame  - including when the window is collapsed  - so that collapsed windows still snap to the grid.
 
-**Critical: `Update()` must be called AFTER your content, just before `ImGui.End()`.** During shift+drag axis locking, `Update()` calls `SetWindowPos` internally. If called before content, this changes the window position without updating ImGui's internal layout cursor (set during `Begin`), causing content to render at the old position while the window frame draws at the new one. Calling `Update()` after content avoids this entirely — content is already rendered, and the position change takes effect on the next frame's `Begin`.
+**Critical: `Update()` must be called AFTER your content, just before `ImGui.End()`.** During shift+drag axis locking, `Update()` calls `SetWindowPos` internally. If called before content, this changes the window position without updating ImGui's internal layout cursor (set during `Begin`), causing content to render at the old position while the window frame draws at the new one. Calling `Update()` after content avoids this entirely  - content is already rendered, and the position change takes effect on the next frame's `Begin`.
 
 ### Option A: Early Return (recommended)
 
@@ -21,7 +21,7 @@ Minimal changes to the standard `if ImGui.Begin() then` pattern. Add a collapsed
 
 ```lua
 if not ImGui.Begin("My Window") then
-    -- Window is collapsed — still update for grid snapping
+    -- Window is collapsed  - still update for grid snapping
     if wu then wu.Update("My Window") end
     ImGui.End()
     return
@@ -52,9 +52,9 @@ ImGui.End()
 
 ### AlwaysAutoResize Windows
 
-If your window uses `ImGuiWindowFlags.AlwaysAutoResize`, you **must** use Option A (early return). With Option B, the collapsed path still executes `Begin`/`End` with no content widgets between them — `AlwaysAutoResize` sees an empty content area and can shrink its internal size target to minimum. On expand, the window starts at that minimum instead of sizing to content.
+If your window uses `ImGuiWindowFlags.AlwaysAutoResize`, you **must** use Option A (early return). With Option B, the collapsed path still executes `Begin`/`End` with no content widgets between them  - `AlwaysAutoResize` sees an empty content area and can shrink its internal size target to minimum. On expand, the window starts at that minimum instead of sizing to content.
 
-Note: `AlwaysAutoResize` overrides `ImGui.SetWindowSize()` calls, so WindowUtils cannot grid-snap window **size** — only **position** snapping works. If you need grid-aligned sizing, remove `AlwaysAutoResize` and let WindowUtils manage the window size.
+Note: `AlwaysAutoResize` overrides `ImGui.SetWindowSize()` calls, so WindowUtils cannot grid-snap window **size**  - only **position** snapping works. If you need grid-aligned sizing, remove `AlwaysAutoResize` and let WindowUtils manage the window size.
 
 
 
@@ -138,9 +138,9 @@ local w, h = wu.GetExpandedSize("My Window")
 wu.SetWindowConfig("My Window", { snapCollapsed = false })
 ```
 
-The `snapCollapsed` setting (default: `true`) controls whether collapsed windows snap when dragged. When enabled, grid snapping uses the remembered expanded size for alignment — so the window lands on a correct grid position for when it's expanded again, not based on the narrow collapsed title bar width.
+The `snapCollapsed` setting (default: `true`) controls whether collapsed windows snap when dragged. When enabled, grid snapping uses the remembered expanded size for alignment  - so the window lands on a correct grid position for when it's expanded again, not based on the narrow collapsed title bar width.
 
-`Update()` handles all of this automatically — no extra code needed beyond the standard call.
+`Update()` handles all of this automatically  - no extra code needed beyond the standard call.
 
 
 
@@ -599,19 +599,19 @@ If the user right-clicks the control, `changed` returns `true` and `value` retur
 
 ### Why does my GUI content float separately from the window frame during Shift+drag?
 
-`Update()` is being called **before** your content widgets. During Shift+drag axis locking, `Update()` internally calls `ImGui.SetWindowPos()` to constrain movement to one axis. If this runs before your widgets are rendered, ImGui's internal layout cursor (`DC.CursorStartPos` — set once during `Begin()`) still points to the old window position. Your content renders at that stale position while the window frame draws at the new one, creating a visual split.
+`Update()` is being called **before** your content widgets. During Shift+drag axis locking, `Update()` internally calls `ImGui.SetWindowPos()` to constrain movement to one axis. If this runs before your widgets are rendered, ImGui's internal layout cursor (`DC.CursorStartPos`  - set once during `Begin()`) still points to the old window position. Your content renders at that stale position while the window frame draws at the new one, creating a visual split.
 
 **Fix:** Move `Update()` to after all content, just before `ImGui.End()`. Content is already rendered at the correct position, and the `SetWindowPos` takes effect on the next frame's `Begin()`. See the [Quick Start](#quick-start) examples.
 
 ### Why does my AlwaysAutoResize window start at minimum size after collapsing and expanding?
 
-You're likely using Option B (`IsWindowCollapsed()` guard) with `AlwaysAutoResize`. When collapsed, `Begin()`/`End()` executes with no content widgets between them — `AlwaysAutoResize` sees an empty content area and shrinks its internal size target to the minimum. On expand, the window starts at that minimum size instead of fitting your content.
+You're likely using Option B (`IsWindowCollapsed()` guard) with `AlwaysAutoResize`. When collapsed, `Begin()`/`End()` executes with no content widgets between them  - `AlwaysAutoResize` sees an empty content area and shrinks its internal size target to the minimum. On expand, the window starts at that minimum size instead of fitting your content.
 
 **Fix:** Use Option A (early return). The `return` after the collapsed path prevents `AlwaysAutoResize` from ever processing a frame with no content. See the [AlwaysAutoResize Windows](#alwaysautoresize-windows) section.
 
 ### Why doesn't WindowUtils grid-snap my window's size?
 
-Your window likely uses `ImGuiWindowFlags.AlwaysAutoResize`. This flag causes ImGui to override all `SetWindowSize()` calls every frame — including the ones WindowUtils uses for size snapping. Only **position** snapping works with `AlwaysAutoResize`.
+Your window likely uses `ImGuiWindowFlags.AlwaysAutoResize`. This flag causes ImGui to override all `SetWindowSize()` calls every frame  - including the ones WindowUtils uses for size snapping. Only **position** snapping works with `AlwaysAutoResize`.
 
 **Fix:** If you need grid-aligned sizing, remove `AlwaysAutoResize` and set an initial size with `ImGui.SetNextWindowSize()`. WindowUtils will then manage both position and size snapping.
 

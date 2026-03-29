@@ -1,4 +1,4 @@
-# Expand — WindowUtils Window Expansion
+# Expand  - WindowUtils Window Expansion
 
 Automatic window resizing for toggle panels. When a panel opens, the window grows to accommodate it; when it closes, the window shrinks back. Supports three sizing modes, drag-to-resize, constraint animation, and position anchoring.
 
@@ -6,9 +6,9 @@ Automatic window resizing for toggle panels. When a panel opens, the window grow
 
 Expand uses a two-level design:
 
-1. **Content level** — `splitter.toggle()` with `expand = true` calls `expand.init()`, `expand.cacheBase()`, and `expand.afterRender()` internally. These run inside child windows and only store state (never call `SetWindowSize`/`SetWindowPos`).
+1. **Content level**  - `splitter.toggle()` with `expand = true` calls `expand.init()`, `expand.cacheBase()`, and `expand.afterRender()` internally. These run inside child windows and only store state (never call `SetWindowSize`/`SetWindowPos`).
 
-2. **Window level** — `expand.applyWindowSize(windowName)` must be called at the main window scope (inside `Begin()`/`End()`, outside any children) where `GetWindowSize()` returns the actual window dimensions.
+2. **Window level**  - `expand.applyWindowSize(windowName)` must be called at the main window scope (inside `Begin()`/`End()`, outside any children) where `GetWindowSize()` returns the actual window dimensions.
 
 You typically interact with expand through `splitter.toggle()` opts and one call to `expand.applyWindowSize()`. Direct `expand.*` calls are only needed for auto mode measurement or programmatic control.
 
@@ -104,7 +104,7 @@ These opts are passed to `splitter.toggle()` to enable expand mode:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | expand | boolean | false | Enable expand mode |
-| windowName | string | — | ImGui window name (must match `Begin()`) |
+| windowName | string |  - | ImGui window name (must match `Begin()`) |
 | sizeMode | string | "fixed" | `"fixed"`, `"flex"`, or `"auto"` |
 | size | number\|string | 200 | Panel size in pixels or percentage |
 | side | string | "left" | `"left"`, `"right"`, `"top"`, `"bottom"` |
@@ -135,9 +135,107 @@ Returns the current animated constraint percentage, or nil if:
 
 ## Expand API
 
-These functions are exposed on `wu.Expand`. Most are called internally by `splitter.toggle()` — you only need them for auto mode or programmatic control.
+These functions are exposed on `wu.Expand`. Most are called internally by `splitter.toggle()`  - you only need them for auto mode or programmatic control.
 
-### `applyWindowSize(windowName)`
+### Content-Level Functions
+
+These run inside child windows and only store state. Called internally by `splitter.toggle()`.
+
+#### `init(id, opts)`
+
+Register or update an expand panel configuration. Idempotent  - safe to call every frame. On first call, creates the panel state; on subsequent calls, updates mutable fields.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier (same id used with `splitter.toggle`) |
+| opts | table | Configuration table (see below) |
+
+**opts fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| windowName | string |  - | ImGui window name (must match `Begin()`) |
+| side | string | "right" | `"left"`, `"right"`, `"top"`, `"bottom"` |
+| size | number | 200 | Panel size in pixels |
+| sizeMode | string | "fixed" | `"fixed"`, `"flex"`, or `"auto"` |
+| normalConstraintPct | number\|nil | nil | Normal max-size constraint as display % |
+| expandDuration | number | 0.3 | Constraint animation duration (seconds) |
+| expandEasing | string | "easeOut" | Constraint animation easing function |
+
+#### `onToggle(id, isOpen)`
+
+Signal a toggle event. Marks the panel as unsettled and triggers constraint animation via `core.startConstraintAnimation()` when `normalConstraintPct` is configured.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+| isOpen | boolean | New open state (after the toggle) |
+
+#### `cacheBase(id, totalAvail, panelSize)`
+
+Cache the content-region available space. Only updates `baseAvail` when the panel has been closed for 2+ frames, ensuring `SetWindowSize` lag has resolved.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+| totalAvail | number | Current content region available (from `GetContentRegionAvail`) |
+| panelSize | number | Current animated panel size (0 when closed) |
+
+#### `getBaseAvail(id)`
+
+Get the cached base content-region available space. This is the "naked" content width/height before any expand panels are added.
+
+**Returns:** `number|nil`
+
+#### `getTargetSize(id)`
+
+Get the effective panel target size. Returns `measuredSize` for auto mode, `dragSize` for flex mode (after drag), or `panelSizePx` as fallback.
+
+**Returns:** `number|nil`
+
+#### `setMeasuredSize(id, size)`
+
+Report measured content size for auto mode. Call this inside the panel's content callback after rendering.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+| size | number | Measured content extent in pixels |
+
+#### `applyDrag(id, delta, dirMul)`
+
+Apply drag delta to an expand panel. In fixed mode, adjusts the window via `dragOffset`. In flex mode, adjusts the panel size via `dragSize`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+| delta | number | Cumulative drag delta in pixels (from `GetMouseDragDelta`) |
+| dirMul | number | Direction multiplier: `+1` for right/bottom, `-1` for left/top |
+
+#### `commitDrag(id)`
+
+Finalize drag state. In fixed mode, commits the drag offset to the window base dimensions. In flex mode, clears the drag start reference and lets the ratio reconciliation phase handle it.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+
+#### `afterRender(id, panelSize, isAnimating, isDragging)`
+
+Store per-frame panel state for `applyWindowSize()` to consume. Called after the panel content has been rendered.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+| panelSize | number | Current animated panel size |
+| isAnimating | boolean | Whether the splitter animation is in progress |
+| isDragging | boolean | Whether the user is currently dragging the expand bar |
+
+### Window-Level Functions
+
+Must be called at main window scope (inside `Begin()`/`End()`, outside any children).
+
+#### `applyWindowSize(windowName)`
 
 Drive window resizing for all expand panels on a window. **Must be called at window scope** (inside `Begin()`/`End()`, outside any child windows).
 
@@ -150,28 +248,20 @@ Internally runs a 7-phase pipeline each frame:
 6. Manual resize detection and ratio maintenance
 7. Position anchoring for left/top panels
 
-### `setMeasuredSize(id, size)`
+### Constraint and Control Functions
 
-Report measured content size for auto mode. Call this inside the panel's content callback after rendering.
+#### `getConstraint(id, isOpen)`
+
+Get the animated constraint value for pre-`Begin()` setup. Returns the current animated constraint percentage, or nil if the panel hasn't been initialized, `normalConstraintPct` wasn't configured, or the user is currently dragging.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | id | string | Panel identifier |
-| size | number | Measured content extent in pixels |
+| isOpen | boolean | Current open state |
 
-### `getTargetSize(id)`
+**Returns:** `number|nil`  - animated constraint % for `SetNextWindowSizeConstraintsPercent`
 
-Get the effective panel target size. Returns `measuredSize` for auto mode, `dragSize` for flex mode (after drag), or `panelSizePx` as fallback.
-
-**Returns:** `number|nil`
-
-### `getBaseAvail(id)`
-
-Get the cached base content-region available space. This is the "naked" content width/height before any expand panels are added.
-
-**Returns:** `number|nil`
-
-### `setOpen(id, isOpen)`
+#### `setOpen(id, isOpen)`
 
 Programmatically open or close an expand panel. Triggers the same constraint animation as a user toggle.
 
@@ -192,7 +282,7 @@ Dragging the toggle bar resizes the panel:
 - **Fixed/Auto:** Window grows or shrinks. Bar shows resize cursor.
 - **Flex:** Panel redistributes space within the window. Bar shows resize cursor.
 
-Drag offsets persist across toggle cycles — closing and reopening the panel keeps any size adjustment.
+Drag offsets persist across toggle cycles  - closing and reopening the panel keeps any size adjustment.
 
 ### Position Anchoring
 
@@ -200,7 +290,7 @@ For `left` and `top` side panels, the window's right/bottom edge stays anchored 
 
 ## Examples
 
-### Fixed Mode — Settings Sidebar
+### Fixed Mode  - Settings Sidebar
 
 ```lua
 local wu = GetMod("WindowUtils")
@@ -236,7 +326,7 @@ end
 ImGui.End()
 ```
 
-### Flex Mode — Resizable Inspector
+### Flex Mode  - Resizable Inspector
 
 ```lua
 split.toggle("inspector", {
@@ -253,7 +343,7 @@ split.toggle("inspector", {
 expand.applyWindowSize("Editor")
 ```
 
-### Auto Mode — Dynamic Content Panel
+### Auto Mode  - Dynamic Content Panel
 
 ```lua
 split.toggle("details", {
@@ -280,7 +370,7 @@ expand.applyWindowSize("MyApp")
 ### Multiple Expand Panels on One Window
 
 ```lua
--- Left sidebar + bottom details — both expand the same window
+-- Left sidebar + bottom details  - both expand the same window
 split.toggle("sidebar", {
     { content = drawSidebar },
     { content = function()

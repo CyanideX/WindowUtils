@@ -1,4 +1,4 @@
-# Tabs — WindowUtils Tab Bars
+# Tabs  - WindowUtils Tab Bars
 
 Styled tab bars with badge indicators, disabled tabs, and programmatic selection.
 
@@ -26,11 +26,11 @@ Render a tab bar with content callbacks.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique tab bar ID |
-| tabDefs | table | — | Array of tab definitions (see below) |
+| id | string |  - | Unique tab bar ID |
+| tabDefs | table |  - | Array of tab definitions (see below) |
 | opts.flags | number | 0 | ImGuiTabBarFlags |
 
-**Returns:** `number, boolean` — `selected` (1-based active tab index, or 0 if empty), `changed` (true on the frame the user clicked a different tab)
+**Returns:** `number, boolean`  - `selected` (1-based active tab index, or 0 if empty), `changed` (true on the frame the user clicked a different tab)
 
 #### Tab Definition
 
@@ -38,7 +38,7 @@ Each entry in `tabDefs` is a table:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| label | string | — | Tab label text |
+| label | string |  - | Tab label text |
 | content | function\|nil | nil | Callback to render tab content |
 | badge | boolean\|number\|nil | nil | Badge indicator (see below) |
 | disabled | boolean | false | Grey out and prevent selection |
@@ -46,9 +46,9 @@ Each entry in `tabDefs` is a table:
 
 #### Badges
 
-- `badge = true` — small green dot indicator
-- `badge = 3` — red circle with number "3" (notification count)
-- `badge = nil` — no badge
+- `badge = true`  - small green dot indicator
+- `badge = 3`  - red circle with number "3" (notification count)
+- `badge = nil`  - no badge
 
 ### `select(id, index)`
 
@@ -58,7 +58,7 @@ Programmatically select a tab by 1-based index. Takes effect on the next frame.
 
 Get the currently selected tab index.
 
-**Returns:** `number` — 1-based index, or 1 if not initialized
+**Returns:** `number`  - 1-based index, or 1 if not initialized
 
 ## Examples
 

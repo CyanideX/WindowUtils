@@ -1,4 +1,4 @@
-# Notifications — WindowUtils Toast Notifications
+# Notifications  - WindowUtils Toast Notifications
 
 Screen-edge toast notifications with level-based styling, auto-dismiss, and fade-out.
 
@@ -40,7 +40,7 @@ Show a notification with a specific level.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| message | string | — | Notification text |
+| message | string |  - | Notification text |
 | level | string | "info" | "info", "success", "warn", "error" |
 | opts.ttl | number | 3.0 | Seconds before fade starts |
 | opts.fadeOut | number | 0.5 | Fade-out duration in seconds |
@@ -82,11 +82,11 @@ Remove all pending notifications immediately.
 
 ### `count()`
 
-**Returns:** `number` — current notification count in the queue
+**Returns:** `number`  - current notification count in the queue
 
 ### `draw()`
 
-Render all active notifications. Called automatically each frame by WindowUtils — you do not need to call this yourself.
+Render all active notifications. Called automatically each frame by WindowUtils  - you do not need to call this yourself.
 
 ## Examples
 

@@ -1,4 +1,4 @@
-# DragDrop — WindowUtils List Reordering
+# DragDrop  - WindowUtils List Reordering
 
 Drag-and-drop reordering for ImGui lists with visual feedback and drop indicators.
 
@@ -25,10 +25,10 @@ Render a reorderable list with all state, visuals, and array mutation handled in
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique list ID |
-| items | table | — | Array to reorder in-place on drop |
-| renderFn | function | — | `function(item, index, ctx)` — render each item |
-| onReorder | function\|nil | nil | `function(fromIndex, toIndex)` — called after reorder |
+| id | string |  - | Unique list ID |
+| items | table |  - | Array to reorder in-place on drop |
+| renderFn | function |  - | `function(item, index, ctx)`  - render each item |
+| onReorder | function\|nil | nil | `function(fromIndex, toIndex)`  - called after reorder |
 | opts.colors | table\|nil | nil | Custom colors (see below) |
 | opts.showHandle | boolean | false | Show a drag handle icon before each item |
 | opts.handleIcon | string | "DragVertical" | IconGlyph name for the drag handle |
@@ -65,7 +65,7 @@ For full control over rendering and state, use the manual API.
 
 Create a new drag-drop state object.
 
-**Returns:** `table` — state with `draggingIndex`, `hoverIndex`, `dropPosition` fields
+**Returns:** `table`  - state with `draggingIndex`, `hoverIndex`, `dropPosition` fields
 
 ### `resetState(state)`
 
@@ -75,13 +75,13 @@ Reset all drag state fields to nil.
 
 Get drag context for an item at the given index.
 
-**Returns:** `table` — `{ isDragged, isHoverTarget, dropAbove, dropBelow }`
+**Returns:** `table`  - `{ isDragged, isHoverTarget, dropAbove, dropBelow }`
 
 ### `handleDrag(index, totalCount, state)`
 
 Process drag interaction for an item. Call after the interactive ImGui element.
 
-**Returns:** `boolean, number|nil, number|nil` — shouldReorder, fromIndex, toIndex
+**Returns:** `boolean, number|nil, number|nil`  - shouldReorder, fromIndex, toIndex
 
 ### `isDragging(state)`
 
@@ -93,7 +93,7 @@ Check whether a drag is in progress.
 
 Get the index of the item currently being dragged.
 
-**Returns:** `number|nil` — 1-based index, or nil if not dragging
+**Returns:** `number|nil`  - 1-based index, or nil if not dragging
 
 ### Visual Helpers
 

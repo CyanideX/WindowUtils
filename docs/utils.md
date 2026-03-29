@@ -1,4 +1,4 @@
-# Utils — WindowUtils Shared Utilities
+# Utils  - WindowUtils Shared Utilities
 
 Low-level helper functions used across WindowUtils modules. Available for direct use in mods that need icon resolution, text truncation, or size parsing.
 
@@ -28,7 +28,7 @@ Resolve an icon name to its glyph character. If `IconGlyphs` is available and th
 |-----------|------|-------------|
 | icon | string\|nil | Icon name (e.g. `"ContentSave"`) or raw glyph string |
 
-**Returns:** `string|nil` — the resolved glyph, or nil if input was nil/empty
+**Returns:** `string|nil`  - the resolved glyph, or nil if input was nil/empty
 
 ```lua
 local glyph = utils.resolveIcon("ContentSave")  -- IconGlyphs.ContentSave
@@ -45,7 +45,7 @@ Binary-search truncation that fits text within a pixel width, appending `"..."` 
 | text | string | The full text |
 | maxWidth | number | Maximum pixel width |
 
-**Returns:** `string, boolean` — display text, whether truncation occurred
+**Returns:** `string, boolean`  - display text, whether truncation occurred
 
 ```lua
 local label, wasTruncated = utils.truncateText(windowTitle, 150)
@@ -64,7 +64,7 @@ Parse a size specification into pixels. Supports absolute pixels, percentage str
 | spec | number\|string\|nil | Pixel value, percentage string (e.g. `"30%"`), or nil |
 | available | number | Total available space in pixels |
 
-**Returns:** `number|nil` — computed pixel value, or nil if spec was nil/invalid
+**Returns:** `number|nil`  - computed pixel value, or nil if spec was nil/invalid
 
 ```lua
 utils.parseSizeSpec(200, 800)    -- 200 (absolute pixels)
@@ -92,10 +92,10 @@ Snap a value to the nearest increment.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| val | number | — | The value to snap |
+| val | number |  - | The value to snap |
 | increment | number | 0.05 | The snap increment |
 
-**Returns:** `number` — snapped value
+**Returns:** `number`  - snapped value
 
 ```lua
 utils.snapToIncrement(0.37)        -- 0.35 (nearest 0.05)
@@ -110,6 +110,6 @@ Compute the minimum usable width for a single icon button based on live ImGui me
 |-----------|------|---------|-------------|
 | framePaddingX | number\|nil | `ImGui.GetStyle().FramePadding.x` | Override frame padding for the calculation |
 
-**Returns:** `number` — minimum pixel width (icon glyph + frame padding)
+**Returns:** `number`  - minimum pixel width (icon glyph + frame padding)
 
 Used internally by `Splitter.multi()` to auto-detect minimum panel widths.

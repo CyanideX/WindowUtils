@@ -1,4 +1,4 @@
-# Styles — WindowUtils Color & Style Presets
+# Styles  - WindowUtils Color & Style Presets
 
 Push/pop style helpers for consistent ImGui theming across CET mods.
 
@@ -57,7 +57,7 @@ All colors are `{r, g, b, a}` tables with values 0–1, accessible via `styles.c
 | `scrollbarHover` | 0.8, 0.8, 1, 0.6 | Scrollbar thumb hover |
 | `scrollbarActive` | 0.8, 0.8, 1, 0.8 | Scrollbar thumb drag |
 
-Colors are passed as RGBA float tables directly to ImGui — no pre-computation needed.
+Colors are passed as RGBA float tables directly to ImGui  - no pre-computation needed.
 
 ## API Reference
 
@@ -85,7 +85,7 @@ Padded variants add `FramePadding` and `ItemSpacing` from `styles.spacing`:
 
 ### `PushButton(styleNameOrTable)` / `PopButton(styleNameOrTable)`
 
-Universal button style — accepts a name string or a custom color table.
+Universal button style  - accepts a name string or a custom color table.
 
 ```lua
 -- By name:
@@ -149,7 +149,7 @@ For sliders, progress bars, and other framed elements.
 
 `PushScrollbar(opts?)` / `PopScrollbar()`
 
-Themed scrollbar with transparent track and styled thumb. Call before any scrollable region. `PopScrollbar` takes no arguments — it always pops 4 colors and 2 style vars.
+Themed scrollbar with transparent track and styled thumb. Call before any scrollable region. `PopScrollbar` takes no arguments  - it always pops 4 colors and 2 style vars.
 
 ```lua
 -- Simple (uses defaults)
@@ -175,6 +175,27 @@ styles.PopScrollbar()
 | active | table | scrollbarActive | Thumb drag color |
 
 Default colors: transparent background, light blue-white thumb (0.8, 0.8, 1.0) at increasing opacity for rest/hover/active.
+
+### External Window Styles
+
+`PushExternalWindow(overrideStyling, disableScrollbar)` / `PopExternalWindow(varCount, colorCount)`
+
+Push/pop style overrides for externally managed windows. Used internally by `core.updateExternalWindows()` to apply scrollbar styling or hide scrollbars on all managed windows.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| overrideStyling | boolean | Apply WindowUtils scrollbar styling (size, rounding, colors) |
+| disableScrollbar | boolean | Set scrollbar size to 0 (hides scrollbars entirely) |
+
+**Returns (Push):** `number, number` - varCount, colorCount (pass both to Pop)
+
+```lua
+local vars, colors = styles.PushExternalWindow(true, false)
+-- render managed windows
+styles.PopExternalWindow(vars, colors)
+```
+
+When `disableScrollbar` is true, only scrollbar size is pushed (1 var). When `overrideStyling` is true, scrollbar size, rounding, and 4 colors are pushed. When both are false, nothing is pushed.
 
 ### `ToColor(c)`
 

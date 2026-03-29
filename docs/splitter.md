@@ -1,4 +1,4 @@
-# Splitter — WindowUtils Panel Dividers
+# Splitter  - WindowUtils Panel Dividers
 
 Draggable dividers for two-panel, multi-panel, and collapsible toggle layouts with visual feedback and animated transitions.
 
@@ -37,15 +37,15 @@ Create a horizontal split (left | right) with a draggable grab bar.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique splitter ID |
-| leftFn | function\|nil | — | Renders left panel content |
-| rightFn | function\|nil | — | Renders right panel content |
+| id | string |  - | Unique splitter ID |
+| leftFn | function\|nil |  - | Renders left panel content |
+| rightFn | function\|nil |  - | Renders right panel content |
 | opts.defaultPct | number | 0.5 | Default split position (0–1) |
 | opts.minPct | number | 0.1 | Minimum left panel fraction |
 | opts.maxPct | number | 0.9 | Maximum left panel fraction |
 | opts.grabWidth | number | ItemSpacing.x | Grab bar width in pixels |
 
-**Returns:** `number` — current split fraction (0–1)
+**Returns:** `number`  - current split fraction (0–1)
 
 **Alias:** `split.h(...)`
 
@@ -55,15 +55,15 @@ Create a vertical split (top / bottom) with a draggable grab bar.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique splitter ID |
-| topFn | function\|nil | — | Renders top panel content |
-| bottomFn | function\|nil | — | Renders bottom panel content |
+| id | string |  - | Unique splitter ID |
+| topFn | function\|nil |  - | Renders top panel content |
+| bottomFn | function\|nil |  - | Renders bottom panel content |
 | opts.defaultPct | number | 0.5 | Default split position (0–1) |
 | opts.minPct | number | 0.1 | Minimum top panel fraction |
 | opts.maxPct | number | 0.9 | Maximum top panel fraction |
 | opts.grabWidth | number | ItemSpacing.x | Grab bar height in pixels |
 
-**Returns:** `number` — current split fraction (0–1)
+**Returns:** `number`  - current split fraction (0–1)
 
 **Alias:** `split.v(...)`
 
@@ -73,7 +73,7 @@ Create a vertical split (top / bottom) with a draggable grab bar.
 
 Get current split fraction for a two-panel splitter.
 
-**Returns:** `number|nil` — fraction (0–1), or nil if not initialized
+**Returns:** `number|nil`  - fraction (0–1), or nil if not initialized
 
 #### `setSplitPct(id, pct)`
 
@@ -91,8 +91,8 @@ Layout with any number of panels separated by independently draggable dividers. 
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique splitter ID |
-| panels | table | — | Array of panel definitions (see below) |
+| id | string |  - | Unique splitter ID |
+| panels | table |  - | Array of panel definitions (see below) |
 | opts.direction | string | "horizontal" | `"horizontal"` or `"vertical"` |
 | opts.grabWidth | number | ItemSpacing.x | Divider width in pixels |
 | opts.minPct | number | 0.05 | Minimum panel fraction (fallback) |
@@ -104,7 +104,7 @@ Layout with any number of panels separated by independently draggable dividers. 
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| content | function | — | Renders panel content |
+| content | function |  - | Renders panel content |
 | width | number\|string\|nil | nil | Fixed width: pixels or `"25%"` (horizontal) |
 | height | number\|string\|nil | nil | Fixed height: pixels or `"25%"` (vertical) |
 | minWidth | number\|string\|nil | auto | Minimum width: pixels or percentage |
@@ -114,9 +114,9 @@ Layout with any number of panels separated by independently draggable dividers. 
 | flex | number | 1 | Proportional weight for remaining space |
 | autoMin | boolean | true | Auto-detect minimum from icon button width |
 
-Size specs accept pixels (`200`), percentages (`"25%"`), or nil (flex). Panels with an explicit width/height are "fixed" — they get their requested size first. Remaining space is distributed to flex panels proportionally by `flex` weight.
+Size specs accept pixels (`200`), percentages (`"25%"`), or nil (flex). Panels with an explicit width/height are "fixed"  - they get their requested size first. Remaining space is distributed to flex panels proportionally by `flex` weight.
 
-When `autoMin` is true (default) and no explicit min is set, panels automatically get a minimum width equal to one icon button plus window padding — preventing panels from collapsing to zero.
+When `autoMin` is true (default) and no explicit min is set, panels automatically get a minimum width equal to one icon button plus window padding  - preventing panels from collapsing to zero.
 
 ```lua
 -- 3-panel IDE layout: file tree (fixed) + editor (flex 2x) + properties (flex 1x)
@@ -129,13 +129,13 @@ split.multi("ide", {
 
 ### Edge Toggle Panels
 
-The first and/or last panel in a `multi()` call can be a **toggle panel** — a collapsible sidebar that slides in/out with a clickable bar. Set `toggle = true` on the panel definition.
+The first and/or last panel in a `multi()` call can be a **toggle panel**  - a collapsible sidebar that slides in/out with a clickable bar. Set `toggle = true` on the panel definition.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
 | toggle | boolean | false | Makes this panel a collapsible edge toggle |
-| content | function | — | Renders panel content |
-| size | number\|string | — | Expanded size (pixels or percentage) |
+| content | function |  - | Renders panel content |
+| size | number\|string |  - | Expanded size (pixels or percentage) |
 | defaultOpen | boolean | true | Initial open state |
 | speed | number | 6.0 | Animation speed multiplier |
 | barWidth | number | ItemSpacing.x | Toggle bar thickness |
@@ -163,8 +163,8 @@ Standalone collapsible panel with animated slide in/out. `panels[1]` is the fixe
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| id | string | — | Unique toggle ID |
-| panels | table | — | Two-element array: `[1]` = fixed, `[2]` = flex |
+| id | string |  - | Unique toggle ID |
+| panels | table |  - | Two-element array: `[1]` = fixed, `[2]` = flex |
 | opts.side | string | "left" | `"left"`, `"right"`, `"top"`, or `"bottom"` |
 | opts.size | number\|string | 200 | Expanded size (pixels or percentage) |
 | opts.defaultOpen | boolean | true | Initial open state |
@@ -178,7 +178,7 @@ Standalone collapsible panel with animated slide in/out. `panels[1]` is the fixe
 | opts.expandDuration | number | 0.3 | Constraint animation duration in seconds (expand only) |
 | opts.expandEasing | string | "easeOut" | Constraint animation easing (expand only) |
 
-**Returns:** `boolean` — current open state
+**Returns:** `boolean`  - current open state
 
 **Alias:** `split.t(...)`
 
@@ -226,7 +226,7 @@ Programmatically set toggle open/closed state.
 
 Query current toggle state.
 
-**Returns:** `boolean|nil` — open state, or nil if not initialized
+**Returns:** `boolean|nil`  - open state, or nil if not initialized
 
 #### `setToggleAnimate(id, enabled)`
 
@@ -236,7 +236,7 @@ Enable or disable toggle animation at runtime.
 
 Query whether animation is enabled.
 
-**Returns:** `boolean|nil` — animation state, or nil if not initialized
+**Returns:** `boolean|nil`  - animation state, or nil if not initialized
 
 #### `getMinSize(id)`
 
@@ -244,22 +244,22 @@ Get the cached minimum size (in pixels) for a splitter's primary direction. Retu
 
 Works with both `multi()` and `toggle()` splitters.
 
-**Returns:** `number|nil` — minimum pixels, or nil if splitter hasn't rendered yet
+**Returns:** `number|nil`  - minimum pixels, or nil if splitter hasn't rendered yet
 
 #### `getExpandConstraint(id)`
 
 Get the current animated constraint value for an expand-mode toggle. Call before `ImGui.Begin()` to feed into `SetNextWindowSizeConstraintsPercent`. Returns nil if the toggle hasn't rendered yet, isn't in expand mode, or the user is dragging.
 
-**Returns:** `number|nil` — animated constraint percentage
+**Returns:** `number|nil`  - animated constraint percentage
 
 ## Interaction
 
 ### Grab Bar
 
 The divider bar shows state through color and cursor:
-- **Idle** — transparent background, muted grey icon
-- **Hover** — subtle blue background, bright icon, resize cursor
-- **Dragging** — green background, white icon, resize cursor
+- **Idle**  - transparent background, muted grey icon
+- **Hover**  - subtle blue background, bright icon, resize cursor
+- **Dragging**  - green background, white icon, resize cursor
 
 Icon glyphs (requires IconGlyphs): vertical bars `||` for horizontal splits, horizontal bars `==` for vertical splits.
 
@@ -282,8 +282,8 @@ Collapse uses a smoothstep animation.
 ### Context Menu (Multi-Splitter)
 
 Right-clicking a multi-splitter divider opens a context menu:
-- **Reset Column/Row** — reset this splitter's breakpoints to defaults
-- **Reset All** — reset all multi-splitters to defaults
+- **Reset Column/Row**  - reset this splitter's breakpoints to defaults
+- **Reset All**  - reset all multi-splitters to defaults
 
 ## Examples
 
@@ -347,7 +347,7 @@ end, function()
 end, { defaultPct = 0.6 })
 ```
 
-### Expand Mode — Auto-Resizing Window
+### Expand Mode  - Auto-Resizing Window
 
 ```lua
 local wu = GetMod("WindowUtils")
