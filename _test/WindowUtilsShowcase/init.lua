@@ -1,5 +1,5 @@
 ------------------------------------------------------
--- WindowUtils Demo
+-- Window Utils Showcase
 -- Production-ready reference sample for the WindowUtils API.
 -- Hover any interactive element for API usage info.
 ------------------------------------------------------
@@ -7,7 +7,8 @@
 local wu = nil
 local visible = false
 local overlayOpen = false
-local DEMO_WINDOW_NAME = "WindowUtils Demo"
+local DEMO_WINDOW_NAME = "Window Utils Showcase"
+local resW, resH = 1920, 1080
 
 -- Demo state for standard controls
 local demoDefaults = { slider = 0.5, checkbox = true, combo = 0, input = "Hello, World!" }
@@ -31,9 +32,31 @@ local advState = {
 local easingNames = { "Linear", "Ease In", "Ease In Out", "Ease Out" }
 local easingKeys  = { "linear", "easeIn", "easeInOut", "easeOut" }
 
+-- Demo state for Tooltips tab bound controls
+local ttDefaults = {
+    ttSliderF = 0.5, ttSliderI = 5, ttCheck = true,
+    ttCombo = 0, ttInput = "demo", ttInputF = 1.5,
+    ttInputI = 42, ttColor = { 0.4, 0.6, 0.8, 1.0 },
+    ttTogA = true, ttTogB = false,
+}
+local ttState = {
+    ttSliderF = 0.5, ttSliderI = 5, ttCheck = true,
+    ttCombo = 0, ttInput = "demo", ttInputF = 1.5,
+    ttInputI = 42, ttColor = { 0.4, 0.6, 0.8, 1.0 },
+    ttTogA = true, ttTogB = false,
+}
+
 -- Expand demo state
 local expSizeMode = "fixed"
 local expVertSizeMode = "fixed"
+
+-- Telemetry: cached main-window metrics (updated each draw before BeginChild)
+local showcaseWinX, showcaseWinY = 0, 0
+local showcaseWinW, showcaseWinH = 0, 0
+local showcaseIsDragging  = false
+local showcaseIsAnimating = false
+local showcaseIsCollapsed = false
+local showcaseIsFocused   = false
 
 -- Controls tab sidebar navigation
 local controlsPage = 1
@@ -57,7 +80,6 @@ local dragItems = {
 
 local function drawControlsDemo()
     local controls = wu.Controls
-    local tooltips = wu.Tooltips
 
     wu.Splitter.multi("ctl_split", {
         { content = function()
@@ -67,6 +89,7 @@ local function drawControlsDemo()
                     if controls.DynamicButton(entry.label, entry.icon, {
                         style = controlsPage == entry.page and "active" or "inactive",
                         width = -1,
+                        tooltip = entry.label,
                     }) then
                         controlsPage = entry.page
                     end
@@ -82,17 +105,17 @@ local function drawControlsDemo()
 
                 c:SliderFloat("Reload", "slider", 0.0, 1.0, {
                     format = "%.2f",
-                    tooltip = "ctx:SliderFloat(icon, key, min, max, opts)\nRight-click to reset to default",
+                    tooltip = "Adjusts the slider value between 0 and 1",
                 })
                 c:Checkbox("Enable Feature", "checkbox", {
-                    tooltip = "ctx:Checkbox(label, key, opts)\nRight-click to reset to default",
+                    tooltip = "Toggles a boolean on or off",
                 })
                 c:Combo("Reload", "combo", { "Option A", "Option B", "Option C" }, {
-                    tooltip = "ctx:Combo(icon, key, items, opts)\nRight-click to reset to default",
+                    tooltip = "Pick one option from the dropdown",
                 })
                 c:InputText("Reload", "input", {
                     maxLength = 256,
-                    tooltip = "ctx:InputText(icon, key, opts)\nmaxLength = 256",
+                    tooltip = "Type any text value here",
                 })
                 ImGui.Dummy(0, 2)
                 controls.TextMuted("All controls use controls.bind(data, defaults) for auto-read/write/reset.")
@@ -103,16 +126,16 @@ local function drawControlsDemo()
 
                 ac:SliderFloat("Brightness6", "opacity", 0, 1, {
                     percent = true,
-                    tooltip = "ctx:SliderFloat(icon, key, 0, 1, {percent=true})\nDisplays 0-100% for a 0.0-1.0 float",
+                    tooltip = "Opacity as a percentage",
                 })
 
                 ac:SliderInt("TuneVariant", "quality", 1, 23, {
                     percent = true,
-                    tooltip = "ctx:SliderInt(icon, key, 1, 23, {percent=true})\nDisplays percentage of range for integers",
+                    tooltip = "Quality level as a percentage",
                 })
 
                 ac:SliderInt("Speedometer", "speed", 0, 10, {
-                    tooltip = "ctx:SliderInt(icon, key, min, max, opts)\nNormal slider (no percent) for comparison",
+                    tooltip = "Speed value from 0 to 10",
                 })
 
                 ImGui.Dummy(0, 6)
@@ -123,11 +146,11 @@ local function drawControlsDemo()
                     return 0
                 end
                 ac:Combo("SineWave", "easeFunction", easingNames, {
-                    tooltip = "ctx:Combo(icon, key, items, {transform={read, write}})\nStored as \"" .. tostring(advState.easeFunction) .. "\", displayed as dropdown index",
                     transform = {
                         read  = function(v) return findIdx(v) end,
                         write = function(v) return easingKeys[v + 1] end,
                     },
+                    tooltip = "Easing function for animations",
                 })
 
             elseif controlsPage == 2 then
@@ -136,7 +159,7 @@ local function drawControlsDemo()
                 ImGui.Dummy(0, 2)
                 local held, clicked = controls.HoldButton("demo_overlay", "  Hold to Reset  ", {
                     duration = 2.0, style = "danger", width = controls.ColWidth(6),
-                    tooltip = "controls.HoldButton(id, label, opts)\nprogressDisplay = \"overlay\" (default), duration = 2.0",
+                    tooltip = "Hold for 2 seconds to reset all values",
                 })
                 if held then
                     for k, v in pairs(demoDefaults) do demoState[k] = v end
@@ -152,7 +175,7 @@ local function drawControlsDemo()
                 held, clicked = controls.HoldButton("demo_replace", "  Hold (Replace)  ", {
                     duration = 1.5, style = "warning", width = controls.ColWidth(6),
                     progressDisplay = "replace", progressStyle = "danger",
-                    tooltip = "controls.HoldButton(id, label, opts)\nprogressDisplay = \"replace\", progressStyle = \"danger\"",
+                    tooltip = "Hold to see the button replaced by a progress bar",
                 })
                 if held then wu.Notify.success("Replace mode triggered!") end
                 if clicked then wu.Notify.info("Hold the button to confirm") end
@@ -164,7 +187,7 @@ local function drawControlsDemo()
                 held, clicked = controls.HoldButton("demo_external", "  Hold Me  ", {
                     duration = 2.0, style = "danger", width = controls.ColWidth(4),
                     progressDisplay = "external",
-                    tooltip = "controls.HoldButton(id, label, opts)\nprogressDisplay = \"external\"",
+                    tooltip = "Hold to show progress on the element to the right",
                 })
                 if held then wu.Notify.success("External progress triggered!") end
                 if clicked then wu.Notify.info("Hold the button to confirm") end
@@ -181,7 +204,7 @@ local function drawControlsDemo()
                     style = "active", width = -1,
                     onClick = function() wu.Notify.success("Settings saved!") end,
                     onHold = function() wu.Notify.success("Settings force-saved!") end,
-                    tooltip = "controls.HoldButton(id, label, opts)\nonClick + onHold callbacks, width = -1 (full width)",
+                    tooltip = "Click to save, hold to force-save",
                 })
 
                 ImGui.Dummy(0, 6)
@@ -193,7 +216,7 @@ local function drawControlsDemo()
                     onHold = function() wu.Notify.success("All data deleted!") end,
                     onClick = function() wu.Notify.info("Hold to confirm deletion") end,
                     warningMessage = "Hold to confirm deletion",
-                    tooltip = "controls.HoldButton(id, label, opts)\nwarningMessage shows text while holding",
+                    tooltip = "Hold for 2 seconds to delete all data",
                 })
 
                 ImGui.Dummy(0, 6)
@@ -202,7 +225,7 @@ local function drawControlsDemo()
                 ImGui.Dummy(0, 2)
                 controls.HoldButton("ctl_locked", "  Cannot Click  ", {
                     style = "inactive", width = -1, disabled = true,
-                    tooltip = "controls.HoldButton(id, label, opts)\ndisabled = true",
+                    tooltip = "This button is disabled and cannot be interacted with",
                 })
 
                 controls.Separator(8, 8)
@@ -220,11 +243,6 @@ local function drawControlsDemo()
                     end,
                     secondaryDuration = 1.0,
                 })
-                tooltips.ShowBullets("controls.ActionButton(id, label, opts)", {
-                    "onPrimary: click callback",
-                    "onSecondary: hold-to-confirm callback",
-                    "secondaryDuration = 1.0",
-                })
 
                 controls.ActionButton("demo_action_2", "  Item Two  ", {
                     onPrimary = function()
@@ -238,10 +256,6 @@ local function drawControlsDemo()
                     secondaryDuration = 1.0,
                     progressStyle = "success",
                 })
-                tooltips.ShowBullets("controls.ActionButton(id, label, opts)", {
-                    "progressStyle = \"success\"",
-                    "Changes the hold progress bar color",
-                })
 
             elseif controlsPage == 3 then
                 -- Rows: ButtonRow + ToggleButtonRow
@@ -250,10 +264,6 @@ local function drawControlsDemo()
                     { label = "  Select A  ", style = "active",   onClick = function() wu.Notify.info("Clicked A") end },
                     { label = "  Select B  ", style = "inactive", onClick = function() wu.Notify.info("Clicked B") end },
                     { label = "  Select C  ", style = "inactive", onClick = function() wu.Notify.info("Clicked C") end },
-                })
-                tooltips.ShowBullets("controls.ButtonRow(defs)", {
-                    "defs: {label, style, onClick}",
-                    "Auto-distributes width across buttons",
                 })
 
                 ImGui.Dummy(0, 6)
@@ -264,15 +274,10 @@ local function drawControlsDemo()
                       onClick = function() wu.Notify.info("Load preset") end,
                       progressFrom = "ctl_del_b", progressStyle = "danger" },
                     { icon = "Undo", style = "inactive",
-                      onClick = function() wu.Notify.info("Reset") end, tooltip = "Reset preset" },
+                      onClick = function() wu.Notify.info("Reset") end },
                     { icon = "Delete", style = "danger",
                       onHold = function() wu.Notify.success("Deleted!") end,
                       holdDuration = 1.0, id = "ctl_del_b", progressDisplay = "external" },
-                })
-                tooltips.ShowBullets("controls.ButtonRow(defs)", {
-                    "progressFrom = id: show another button's hold progress",
-                    "onHold + holdDuration: hold-to-confirm on icon",
-                    "progressDisplay = \"external\": progress shown elsewhere",
                 })
 
                 ImGui.Dummy(0, 6)
@@ -284,11 +289,7 @@ local function drawControlsDemo()
                     { label = "Cancel", style = "inactive",
                       onClick = function() wu.Notify.info("Cancel") end },
                     { icon = "ContentSave", style = "active",
-                      onClick = function() wu.Notify.info("Quick save") end, tooltip = "Quick save" },
-                })
-                tooltips.ShowBullets("controls.ButtonRow(defs)", {
-                    "weight = 2: takes twice the space of unweighted",
-                    "icon: auto-sized icon-only button",
+                      onClick = function() wu.Notify.info("Quick save") end },
                 })
 
                 controls.Separator(8, 8)
@@ -297,15 +298,10 @@ local function drawControlsDemo()
 
                 controls.TextMuted("Auto-sized icon toggles (left-click toggle, right-click reset):")
                 tc:ToggleButtonRow({
-                    { key = "featureA", icon = "AngleAcute", tooltip = "Feature A" },
-                    { key = "featureB", icon = "SineWave",   tooltip = "Feature B" },
-                    { key = "featureC", icon = "Motorbike",  tooltip = "Feature C" },
-                    { key = "featureD", icon = "Car",        tooltip = "Feature D" },
-                })
-                tooltips.ShowBullets("ctx:ToggleButtonRow(defs)", {
-                    "key: settings key to toggle (boolean)",
-                    "icon: IconGlyphs name",
-                    "Auto-sized to icon width",
+                    { key = "featureA", icon = "AngleAcute", tooltip = "Toggle angle mode" },
+                    { key = "featureB", icon = "SineWave", tooltip = "Toggle wave mode" },
+                    { key = "featureC", icon = "Motorbike", tooltip = "Toggle motorbike mode" },
+                    { key = "featureD", icon = "Car", tooltip = "Toggle car mode" },
                 })
                 controls.TextMuted("A=" .. tostring(advState.featureA) .. "  B=" .. tostring(advState.featureB)
                     .. "  C=" .. tostring(advState.featureC) .. "  D=" .. tostring(advState.featureD))
@@ -314,13 +310,10 @@ local function drawControlsDemo()
 
                 controls.TextMuted("With weight = 1 (fill remaining space evenly):")
                 tc:ToggleButtonRow({
-                    { key = "featureA", icon = "AngleAcute", weight = 1, tooltip = "Feature A (fill)" },
-                    { key = "featureB", icon = "SineWave",   weight = 1, tooltip = "Feature B (fill)" },
-                    { key = "featureC", icon = "Motorbike",  weight = 1, tooltip = "Feature C (fill)" },
-                    { key = "featureD", icon = "Car",        weight = 1, tooltip = "Feature D (fill)" },
-                })
-                tooltips.ShowBullets("ctx:ToggleButtonRow(defs)", {
-                    "weight = 1: each button fills equal space",
+                    { key = "featureA", icon = "AngleAcute", weight = 1, tooltip = "Toggle angle mode" },
+                    { key = "featureB", icon = "SineWave",   weight = 1, tooltip = "Toggle wave mode" },
+                    { key = "featureC", icon = "Motorbike",  weight = 1, tooltip = "Toggle motorbike mode" },
+                    { key = "featureD", icon = "Car",        weight = 1, tooltip = "Toggle car mode" },
                 })
 
             elseif controlsPage == 4 then
@@ -334,10 +327,6 @@ local function drawControlsDemo()
                     controls.Button("  col-3  ", "active", w3)
                     if i < 4 then ImGui.SameLine() end
                 end
-                tooltips.ShowBullets("controls.ColWidth(3)", {
-                    "Returns pixel width for 3/12 of available space",
-                    "Accounts for item spacing between elements",
-                })
 
                 controls.SectionHeader("2 x col-6", 8, 4)
                 local w6 = controls.ColWidth(6)
@@ -371,10 +360,6 @@ local function drawControlsDemo()
                     end
                 end
                 controls.EndFillChild("demo_fill")
-                tooltips.ShowBullets("controls.BeginFillChild(id, opts)", {
-                    "opts: {bg, footerHeight, border, flags}",
-                    "Call EndFillChild(id) to close",
-                })
 
             elseif controlsPage == 6 then
                 -- Notifications
@@ -386,36 +371,24 @@ local function drawControlsDemo()
                     notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.info("This is an info message #" .. notifCounter)
                 end
-                tooltips.ShowBullets("wu.Notify.info(message, opts)", {
-                    "opts: {ttl, fadeOut}",
-                })
                 ImGui.SameLine()
                 if controls.Button("  Success Toast  ", "active", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
                     notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.success("Operation completed! #" .. notifCounter)
                 end
-                tooltips.ShowBullets("wu.Notify.success(message, opts)", {
-                    "Green success toast notification",
-                })
 
                 if controls.Button("  Warning Toast  ", "warning", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
                     notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.warn("Caution: something needs attention #" .. notifCounter)
                 end
-                tooltips.ShowBullets("wu.Notify.warn(message, opts)", {
-                    "Yellow warning toast notification",
-                })
                 ImGui.SameLine()
                 if controls.Button("  Error Toast  ", "danger", controls.ColWidth(6)) then
                     notifCounter = notifCounter + 1
                     notifBadgeCount = notifBadgeCount + 1
                     wu.Notify.error("Something went wrong! #" .. notifCounter)
                 end
-                tooltips.ShowBullets("wu.Notify.error(message, opts)", {
-                    "Red error toast notification",
-                })
 
                 ImGui.Dummy(0, 8)
                 controls.TextMuted("Tab badge demo:")
@@ -428,11 +401,6 @@ local function drawControlsDemo()
                       onClick = function() notifBadgeMode = "dot" end },
                     { label = "Count Badge", style = notifBadgeMode == "count" and "active" or "inactive",
                       onClick = function() notifBadgeMode = "count" end },
-                })
-                tooltips.ShowBullets("Tab badge options", {
-                    "tab.badge = true  -> green dot",
-                    "tab.badge = <number>  -> red count badge",
-                    "tab.badge = nil/false  -> no badge",
                 })
 
                 ImGui.Dummy(0, 4)
@@ -457,8 +425,6 @@ end
 local function drawDragDropDemo()
     local controls = wu.Controls
     local dragdrop = wu.DragDrop
-    local tooltips = wu.Tooltips
-
     controls.Column("dd_layout", {
         { flex = 1, content = function()
             controls.TextMuted("Drag items to reorder:")
@@ -502,11 +468,6 @@ local function drawDragDropDemo()
                 }
                 wu.Notify.success("List order reset!")
             end
-            tooltips.ShowBullets("controls.Column(id, defs)", {
-                "flex = 1: equal height distribution",
-                "height = N: fixed-height child",
-                "border = true: visible border",
-            })
         end },
     })
 end
@@ -518,7 +479,6 @@ end
 local function drawSplitterDemo()
     local controls = wu.Controls
     local splitter = wu.Splitter
-    local tooltips = wu.Tooltips
 
     controls.Column("sp_layout", {
         { flex = 1, content = function()
@@ -545,11 +505,6 @@ local function drawSplitterDemo()
                 ImGui.EndChild()
                 ImGui.PopStyleColor()
             end, { defaultPct = 0.35, minPct = 0.15, maxPct = 0.7 })
-            tooltips.ShowBullets("wu.Splitter.horizontal(id, leftFn, rightFn, opts)", {
-                "defaultPct = 0.35 (left panel gets 35%)",
-                "minPct = 0.15, maxPct = 0.7",
-                "Position persists per ID",
-            })
         end },
         { flex = 1, content = function()
             controls.TextMuted("Vertical splitter:")
@@ -563,10 +518,6 @@ local function drawSplitterDemo()
                 ImGui.Separator()
                 controls.TextMuted("Log output, status, or detail pane")
             end, { defaultPct = 0.4 })
-            tooltips.ShowBullets("wu.Splitter.vertical(id, topFn, bottomFn, opts)", {
-                "defaultPct = 0.4 (top panel gets 40%)",
-                "Same opts as horizontal: minPct, maxPct, grabWidth",
-            })
         end },
     })
 end
@@ -676,7 +627,6 @@ end
 local function drawTogglePanelDemo()
     local controls = wu.Controls
     local splitter = wu.Splitter
-    local tooltips = wu.Tooltips
 
     controls.Column("tgl_layout", {
         { flex = 1, content = function()
@@ -701,11 +651,6 @@ local function drawTogglePanelDemo()
                     end, { borderOnHover = true })
                 end },
             }, { side = "left", size = 200, defaultOpen = true })
-            tooltips.ShowBullets("wu.Splitter.toggle(id, panels, opts)", {
-                "side = \"left\", size = 200",
-                "defaultOpen = true",
-                "Panels: [{content}] (toggle panel first, main second)",
-            })
         end },
         { flex = 1, content = function()
             ImGui.Text("Top Toolbar (50px)")
@@ -729,10 +674,6 @@ local function drawTogglePanelDemo()
                     end, { borderOnHover = true })
                 end },
             }, { side = "top", size = 50, defaultOpen = true })
-            tooltips.ShowBullets("wu.Splitter.toggle(id, panels, opts)", {
-                "side = \"top\", size = 50",
-                "Also supports: \"right\", \"bottom\"",
-            })
         end },
         { auto = true, content = function()
             ImGui.Text("Programmatic Control")
@@ -747,16 +688,10 @@ local function drawTogglePanelDemo()
             if controls.Button(leftOpen and "  Close Left  " or "  Open Left  ", leftOpen and "danger" or "active", w6) then
                 splitter.setToggle("tgl_left", not leftOpen)
             end
-            tooltips.ShowBullets("splitter.setToggle(id, bool)", {
-                "Programmatically open/close a toggle panel",
-            })
             ImGui.SameLine()
             if controls.Button(topOpen and "  Close Top  " or "  Open Top  ", topOpen and "danger" or "active", w6) then
                 splitter.setToggle("tgl_top", not topOpen)
             end
-            tooltips.ShowBullets("splitter.getToggle(id)", {
-                "Returns current open/closed state (boolean)",
-            })
         end },
     })
 end
@@ -849,13 +784,6 @@ local function drawEdgeToggleDemo()
                                 if controls.DynamicButton(animLabel, animIcon, { style = animOn and "inactive" or "active" }) then
                                     for _, aid in ipairs(animIds) do splitter.setToggleAnimate(aid, not animOn) end
                                 end
-                                if ImGui.IsItemHovered() then
-                                    ImGui.BeginTooltip()
-                                    ImGui.Text("Toggles collapse animation for Toolbar and Status Bar.")
-                                    ImGui.Text("Use animate=false on any toggle panel definition,")
-                                    ImGui.Text("or splitter.setToggleAnimate(id, bool) at runtime.")
-                                    ImGui.EndTooltip()
-                                end
                                 ImGui.Dummy(0, 2)
                                 for _, t in ipairs(toggleIds) do
                                     local isOpen = splitter.getToggle(t.id)
@@ -898,8 +826,6 @@ end
 local function drawExpandDemo()
     local splitter = wu.Splitter
     local controls = wu.Controls
-    local tooltips = wu.Tooltips
-
     splitter.toggle("exp_right", {
         { content = function()
             controls.Panel("exp_props", function()
@@ -917,11 +843,6 @@ local function drawExpandDemo()
                       onClick = function() expSizeMode = "flex" end },
                     { label = "Auto",  style = expSizeMode == "auto"  and "active" or "inactive",
                       onClick = function() expSizeMode = "auto" end },
-                })
-                tooltips.ShowBullets("sizeMode option", {
-                    "\"fixed\" - panel keeps pixel size on window resize",
-                    "\"flex\" - panel scales proportionally with window",
-                    "\"auto\" - panel sizes to fit content",
                 })
                 -- Auto-fit measurement (inside Panel child where cursor reflects content)
                 local padY = ImGui.GetStyle().WindowPadding.y
@@ -949,10 +870,6 @@ local function drawExpandDemo()
                 if controls.DynamicButton(animLabel, animIcon, { style = animOn and "inactive" or "active" }) then
                     splitter.setToggleAnimate("exp_right", not animOn)
                 end
-                tooltips.ShowBullets("Animation control", {
-                    "splitter.setToggleAnimate(id, bool)",
-                    "Works for both toggle and expand panels",
-                })
 
                 ImGui.Dummy(0, 4)
                 for i = 1, 6 do
@@ -968,12 +885,6 @@ local function drawExpandDemo()
         defaultOpen = false,
         windowName = DEMO_WINDOW_NAME,
     })
-
-    tooltips.ShowBullets("splitter.toggle(id, panels, { expand = true })", {
-        "expand = true - window grows instead of stealing space",
-        "Drag the bar to resize the panel",
-        "Double-click to fully open/close",
-    })
 end
 
 --------------------------------------------------------------------------------
@@ -983,8 +894,6 @@ end
 local function drawExpandVertDemo()
     local splitter = wu.Splitter
     local controls = wu.Controls
-    local tooltips = wu.Tooltips
-
     splitter.toggle("exp_bottom", {
         { content = function()
             controls.Panel("exp_output", function()
@@ -1002,11 +911,6 @@ local function drawExpandVertDemo()
                       onClick = function() expVertSizeMode = "flex" end },
                     { label = "Auto",  style = expVertSizeMode == "auto"  and "active" or "inactive",
                       onClick = function() expVertSizeMode = "auto" end },
-                })
-                tooltips.ShowBullets("sizeMode option", {
-                    "\"fixed\" - panel keeps pixel size on window resize",
-                    "\"flex\" - panel scales proportionally with window",
-                    "\"auto\" - panel sizes to fit content",
                 })
                 -- Auto-fit measurement (inside Panel child where cursor reflects content)
                 local padY = ImGui.GetStyle().WindowPadding.y
@@ -1034,11 +938,6 @@ local function drawExpandVertDemo()
                 if controls.DynamicButton(animLabel, animIcon, { style = animOn and "inactive" or "active" }) then
                     splitter.setToggleAnimate("exp_bottom", not animOn)
                 end
-                tooltips.ShowBullets("Animation control", {
-                    "splitter.setToggleAnimate(id, bool)",
-                    "Works for both toggle and expand panels",
-                })
-
                 ImGui.Dummy(0, 4)
                 for i = 1, 6 do
                     controls.TextMuted(string.format("  Content line %d", i))
@@ -1054,29 +953,652 @@ local function drawExpandVertDemo()
         windowName = DEMO_WINDOW_NAME,
     })
 
-    tooltips.ShowBullets("splitter.toggle(id, panels, { side = \"bottom\" })", {
-        "side = \"bottom\" - panel expands downward",
-        "Drag the bar to resize the panel",
-        "Double-click to fully open/close",
-    })
 end
 
 --------------------------------------------------------------------------------
--- Main Draw
+-- Tab 9: Telemetry
+-- Live window metrics, grid math, WU feature states, and animation settings.
+--------------------------------------------------------------------------------
+
+local function drawTelemetryDemo()
+    local controls = wu.Controls
+    local splitter  = wu.Splitter
+    local s         = wu.API.GetSettings()
+    local UNIT_PX   = 20  -- WindowUtils base grid unit (px)
+    local cellPx    = UNIT_PX * s.gridUnits
+
+    local function midX()
+        local availW = ImGui.GetContentRegionAvail()
+        return ImGui.GetCursorPosX() + availW * 0.5
+    end
+
+    local function statRow(label, val)
+        local vx = midX()
+        ImGui.Text(label)
+        ImGui.SameLine(vx)
+        ImGui.TextColored(0.65, 0.85, 1.0, 1.0, tostring(val))
+    end
+
+    local function boolRow(label, val)
+        local vx = midX()
+        ImGui.Text(label)
+        ImGui.SameLine(vx)
+        if val then
+            ImGui.TextColored(0.35, 1.0, 0.55, 1.0, "On")
+        else
+            ImGui.TextColored(1.0, 0.4, 0.4, 1.0, "Off")
+        end
+    end
+
+    local function gap() ImGui.Dummy(0, 3) end
+
+    local function statusRow(label, text, r, g, b)
+        local vx = midX()
+        ImGui.Text(label)
+        ImGui.SameLine(vx)
+        ImGui.TextColored(r, g, b, 1.0, text)
+    end
+
+    splitter.multi("tele_rows", {
+        -- ── Row 1 ──────────────────────────────────────────────────────
+        { content = function()
+            splitter.multi("tele_top", {
+                -- Q1: Window Dimensions
+                { content = function()
+                    controls.Panel("tele_q1", function()
+                        ImGui.Text("Window")
+                        ImGui.Separator()
+                        ImGui.Dummy(0, 3)
+                        statRow("Position:",    string.format("(%.0f, %.0f) px", showcaseWinX, showcaseWinY))
+                        statRow("Size:",        string.format("%.0f \xc3\x97 %.0f px",  showcaseWinW, showcaseWinH))
+                        gap()
+                        statRow("Display:",     string.format("%d \xc3\x97 %d px", resW, resH))
+                        statRow("Width %:",     string.format("%.1f%%",  showcaseWinW / resW * 100))
+                        statRow("Height %:",    string.format("%.1f%%",  showcaseWinH / resH * 100))
+                        gap()
+                        statRow("Win cols:",    string.format("%d cells", math.floor(showcaseWinW / cellPx)))
+                        statRow("Win rows:",    string.format("%d cells", math.floor(showcaseWinH / cellPx)))
+                        gap()
+                        ImGui.Separator()
+                        ImGui.Dummy(0, 3)
+                        -- Live status
+                        local statusText, sr, sg, sb
+                        if showcaseIsDragging then
+                            statusText, sr, sg, sb = "Dragging",  1.0,  0.65, 0.2
+                        elseif showcaseIsAnimating then
+                            statusText, sr, sg, sb = "Animating", 0.35, 0.9,  1.0
+                        elseif showcaseIsCollapsed then
+                            statusText, sr, sg, sb = "Collapsed", 0.9,  0.8,  0.3
+                        else
+                            statusText, sr, sg, sb = "Idle",      0.55, 0.55, 0.55
+                        end
+                        statusRow("Status:",    statusText,          sr,   sg,   sb)
+                        boolRow("Focused:",     showcaseIsFocused)
+                        boolRow("Collapsed:",   showcaseIsCollapsed)
+                        boolRow("Animating:",   showcaseIsAnimating)
+                        boolRow("Cstr anim:",   wu.IsAnyConstraintAnimating())
+                        ImGui.Dummy(0, 4)
+                        controls.TextMuted("Live stats. Drag or resize to update.")
+                    end)
+                end },
+                -- Q2: Grid Math
+                { content = function()
+                    controls.Panel("tele_q2", function()
+                        ImGui.Text("Grid")
+                        ImGui.Separator()
+                        ImGui.Dummy(0, 3)
+                        statRow("Unit size:",    string.format("%d px",   UNIT_PX))
+                        statRow("Multiplier:",   string.format("\xc3\x97%d",      s.gridUnits))
+                        statRow("Cell size:",    string.format("%d px",   cellPx))
+                        gap()
+                        statRow("Disp cols:",    string.format("%d cells", math.floor(resW  / cellPx)))
+                        statRow("Disp rows:",    string.format("%d cells", math.floor(resH  / cellPx)))
+                        gap()
+                        boolRow("Grid snap:",    s.gridEnabled)
+                        boolRow("Snap collapse:",s.snapCollapsed)
+                        boolRow("Viz overlay:",  s.gridVisualizationEnabled)
+                        boolRow("Dim bg:",       s.gridDimBackground)
+                        boolRow("Feather:",      s.gridFeatherEnabled)
+                        statRow("Feather r:",    string.format("%d px", s.gridFeatherRadius))
+                    end)
+                end },
+            }, { direction = "horizontal", defaultPcts = { 0.5, 0.5 } })
+        end },
+        -- ── Row 2 ──────────────────────────────────────────────────────
+        { content = function()
+            splitter.multi("tele_bottom", {
+                -- Q3: Feature States
+                { content = function()
+                    controls.Panel("tele_q3", function()
+                        ImGui.Text("States")
+                        ImGui.Separator()
+                        ImGui.Dummy(0, 3)
+                        boolRow("Master:",        wu.API.IsEnabled())
+                        boolRow("Grid snap:",      s.gridEnabled)
+                        boolRow("Animation:",      s.animationEnabled)
+                        boolRow("Tooltips:",       s.tooltipsEnabled)
+                        gap()
+                        boolRow("Override all:",   s.overrideAllWindows)
+                        boolRow("Grid viz:",       s.gridVisualizationEnabled)
+                        boolRow("Grid guides:",    s.gridGuidesEnabled)
+                        boolRow("Dim bg:",         s.gridDimBackground)
+                        boolRow("Auto-adj res:",   s.autoAdjustOnResize)
+                        gap()
+                        boolRow("Show GUI:",       s.showGuiWindow)
+                        boolRow("Debug output:",   s.debugOutput)
+                    end)
+                end },
+                -- Q4: Animation & Effects
+                { content = function()
+                    controls.Panel("tele_q4", function()
+                        ImGui.Text("Animation & Effects")
+                        ImGui.Separator()
+                        ImGui.Dummy(0, 3)
+                        -- Live runtime
+                        local snapAnim = wu.IsAnimating(DEMO_WINDOW_NAME)
+                        local cstrAnim = wu.IsAnyConstraintAnimating()
+                        local blurLive = s.blurOnOverlayOpen
+                            and (not s.blurOnDragOnly or showcaseIsDragging)
+                        boolRow("Snap anim:",   snapAnim)
+                        boolRow("Cstr anim:",   cstrAnim)
+                        boolRow("Blur active:", blurLive)
+                        gap()
+                        ImGui.Separator()
+                        ImGui.Dummy(0, 3)
+                        statRow("Ease fn:",        s.easeFunction)
+                        statRow("Duration:",       string.format("%.3f s",  s.animationDuration))
+                        gap()
+                        boolRow("Blur on open:",   s.blurOnOverlayOpen)
+                        boolRow("Blur drag only:", s.blurOnDragOnly)
+                        statRow("Blur intensity:", string.format("%.4f",    s.blurIntensity))
+                        statRow("Blur fade in:",   string.format("%.2f s",  s.fadeInDuration))
+                        statRow("Blur fade out:",  string.format("%.2f s",  s.fadeOutDuration))
+                        gap()
+                        boolRow("Feather:",        s.gridFeatherEnabled)
+                        statRow("Feather r:",      string.format("%d px",   s.gridFeatherRadius))
+                        statRow("Feather pad:",    string.format("%d px",   s.gridFeatherPadding))
+                        statRow("Feather curve:",  string.format("%.1f",    s.gridFeatherCurve))
+                        gap()
+                        statRow("Probe intv.:",    string.format("%.1f s",  s.probeInterval))
+                        boolRow("Auto-remove:",    s.autoRemoveEmptyWindows)
+                        statRow("Remove intv.:",   string.format("%.1f s",  s.autoRemoveInterval))
+                    end)
+                end },
+            }, { direction = "horizontal", defaultPcts = { 0.5, 0.5 } })
+        end },
+    }, { direction = "vertical", defaultPcts = { 0.5, 0.5 } })
+end
+
+--------------------------------------------------------------------------------
+-- Tab 10: Tooltips
+-- API-reference tab: one working example of each control with signature tooltip.
+--------------------------------------------------------------------------------
+
+local function drawTooltipsDemo()
+    local tooltips = wu.Tooltips
+    local controls = wu.Controls
+    local ctx = controls.bind(ttState, ttDefaults)
+
+    -- Scrollable wrapper with styled scrollbar (matches other tabs)
+    if controls.BeginFillChild("tt_scroll", { bg = { 0.65, 0.7, 1.0, 0.045 } }) then
+    -- content rendered below; EndFillChild at bottom of function
+    end
+
+    ----------------------------------------------------------------------------
+    -- Bound Controls
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Bound Controls", 0, 4)
+    controls.TextMuted("controls.bind(data, defaults)  - right-click any bound control to reset.")
+    tooltips.ShowBullets("controls.bind(data, defaults, onSave, bindOpts)", {
+        "data  - mutable state table",
+        "defaults  - default values (right-click resets)",
+        "onSave  - optional callback on change",
+        "Returns ctx with :SliderFloat, :SliderInt, :Checkbox, :Combo, etc.",
+    })
+    ImGui.Dummy(0, 2)
+
+    ctx:SliderFloat("Tune", "ttSliderF", 0.0, 1.0, {
+        format = "%.2f",
+        tooltip = "ctx:SliderFloat(icon, key, min, max, opts)\nformat = \"%.2f\"",
+    })
+    ctx:SliderFloat("Brightness6", "ttSliderF", 0.0, 1.0, {
+        percent = true,
+        tooltip = "ctx:SliderFloat  - percent = true\nDisplays 0-100% instead of raw float",
+    })
+    ctx:SliderInt("Speedometer", "ttSliderI", 0, 10, {
+        tooltip = "ctx:SliderInt(icon, key, min, max, opts)",
+    })
+    ctx:Checkbox("Enable Feature", "ttCheck", {
+        tooltip = "ctx:Checkbox(label, key, opts)",
+    })
+    ctx:Combo("FormatListBulleted", "ttCombo", { "Alpha", "Beta", "Gamma" }, {
+        tooltip = "ctx:Combo(icon, key, items, opts)",
+    })
+    ctx:InputText("FormTextbox", "ttInput", {
+        maxLength = 256,
+        tooltip = "ctx:InputText(icon, key, opts)\nmaxLength = 256",
+    })
+    ctx:InputFloat("Numeric", "ttInputF", {
+        tooltip = "ctx:InputFloat(icon, key, opts)",
+    })
+    ctx:InputInt("Counter", "ttInputI", {
+        tooltip = "ctx:InputInt(icon, key, opts)",
+    })
+    ImGui.Dummy(0, 2)
+    local newColor, colorChanged = controls.ColorEdit4("Palette", "tt_color", ttState.ttColor, {
+        tooltip = "controls.ColorEdit4(icon, id, color, opts)",
+    })
+    if colorChanged then ttState.ttColor = newColor end
+    ImGui.Dummy(0, 2)
+    ctx:ToggleButtonRow({
+        { key = "ttTogA", icon = "ToggleSwitchOutline",    tooltip = "ctx:ToggleButtonRow  - toggle A" },
+        { key = "ttTogB", icon = "ToggleSwitchOffOutline", tooltip = "ctx:ToggleButtonRow  - toggle B" },
+    })
+    tooltips.ShowBullets("ctx:ToggleButtonRow(defs)", {
+        "defs  - array of {key, icon, label?, weight?, tooltip?}",
+        "Left-click toggles, right-click resets to default",
+    })
+
+    ----------------------------------------------------------------------------
+    -- Section: Direct Controls (non-bound)
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Direct Controls", 8, 4)
+    controls.SliderDisabled("Lock", "Locked Slider")
+    tooltips.ShowBullets("controls.SliderDisabled(icon, label)", {
+        "icon  - IconGlyphs key name",
+        "label  - display label for the disabled slider",
+    })
+    ImGui.Dummy(0, 2)
+    controls.StatusBar("Status", "Online")
+    tooltips.ShowBullets("controls.StatusBar(label, value, opts)", {
+        "label  - left-side label text",
+        "value  - right-side value text",
+        "opts  - {widthFraction?, style?}",
+    })
+    ImGui.Dummy(0, 2)
+    controls.ProgressBar(0.65, nil, 0, "65%", "default")
+    tooltips.ShowBullets("controls.ProgressBar(fraction, width, height, overlay, styleName)", {
+        "fraction  - 0.0 to 1.0",
+        "width  - nil = full width",
+        "overlay  - text drawn over the bar",
+        "styleName  - default, danger, success",
+    })
+    ImGui.Dummy(0, 2)
+    controls.ProgressBar(0.35, nil, 0, "35%", "danger")
+    tooltips.ShowBullets("controls.ProgressBar  - styleName = \"danger\"", {
+        "Red-colored progress bar variant",
+    })
+    ImGui.Dummy(0, 2)
+    controls.ProgressBar(0.85, nil, 0, "85%", "success")
+    tooltips.ShowBullets("controls.ProgressBar  - styleName = \"success\"", {
+        "Green-colored progress bar variant",
+    })
+
+    ----------------------------------------------------------------------------
+    -- Section: Buttons
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Buttons", 8, 4)
+    controls.Button("  Demo Button  ", "active")
+    tooltips.ShowBullets("controls.Button(label, styleName, width, height)", {
+        "label  - button text",
+        "styleName  - active, inactive, danger, warning, update, statusbar",
+        "width  - pixel width (0 = auto)",
+        "height  - pixel height (0 = auto)",
+    })
+    ImGui.Dummy(0, 2)
+    controls.IconButton(IconGlyphs.ContentSave, true)
+    tooltips.ShowBullets("controls.IconButton(icon, clickable)", {
+        "icon  - IconGlyphs glyph string",
+        "clickable  - if true, returns click state",
+    })
+    ImGui.SameLine()
+    controls.IconButton(IconGlyphs.Delete, true)
+    tooltips.ShowBullets("controls.IconButton(icon, clickable)", {
+        "Another icon button example (Delete)",
+    })
+    ImGui.Dummy(0, 2)
+    controls.ToggleButton("  Toggle Me  ", true)
+    tooltips.ShowBullets("controls.ToggleButton(label, isActive, width, height)", {
+        "label  - button text",
+        "isActive  - true = active style, false = inactive",
+    })
+    ImGui.Dummy(0, 2)
+    controls.FullWidthButton("  Full Width Button  ", "active")
+    tooltips.ShowBullets("controls.FullWidthButton(label, styleName)", {
+        "label  - button text",
+        "styleName  - stretches to full available width",
+    })
+    ImGui.Dummy(0, 2)
+    controls.DisabledButton("  Disabled Button  ")
+    tooltips.ShowBullets("controls.DisabledButton(label, width, height)", {
+        "label  - greyed-out, non-interactive button",
+    })
+    ImGui.Dummy(0, 2)
+    controls.DynamicButton("Dynamic Save", "ContentSave", {
+        style = "active",
+        tooltip = "controls.DynamicButton(label, icon, opts)\nCollapses to icon when narrow",
+    })
+    tooltips.ShowBullets("controls.DynamicButton(label, icon, opts)", {
+        "label  - full text label",
+        "icon  - IconGlyphs key (shown when space is tight)",
+        "opts  - {style?, width?, tooltip?, minChars?, iconThreshold?}",
+    })
+
+    ----------------------------------------------------------------------------
+    -- Section: Hold Buttons
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Hold Buttons", 8, 4)
+    controls.HoldButton("tt_hold_overlay", "  Hold (Overlay)  ", {
+        duration = 2.0, style = "danger", width = controls.ColWidth(6),
+        tooltip = "controls.HoldButton  - overlay mode (default)\nduration = 2.0",
+    })
+    ImGui.Dummy(0, 2)
+    controls.HoldButton("tt_hold_replace", "  Hold (Replace)  ", {
+        duration = 1.5, style = "warning", width = controls.ColWidth(6),
+        progressDisplay = "replace", progressStyle = "danger",
+        tooltip = "controls.HoldButton  - progressDisplay = \"replace\"",
+    })
+    ImGui.Dummy(0, 2)
+    controls.HoldButton("tt_hold_ext", "  Hold (External)  ", {
+        duration = 2.0, style = "danger", width = controls.ColWidth(4),
+        progressDisplay = "external",
+        tooltip = "controls.HoldButton  - progressDisplay = \"external\"",
+    })
+    ImGui.SameLine()
+    if not controls.ShowHoldProgress("tt_hold_ext", controls.ColWidth(8), "danger") then
+        controls.TextMuted("  <- Progress appears here")
+    end
+    tooltips.ShowBullets("controls.ShowHoldProgress(sourceId, width, progressStyle)", {
+        "sourceId  - id of the HoldButton to track",
+        "width  - progress bar width in pixels",
+        "progressStyle  - color style name",
+    })
+    ImGui.Dummy(0, 2)
+    controls.HoldButton("tt_hold_cb", "  Click or Hold  ", {
+        style = "active", width = -1,
+        onClick = function() wu.Notify.info("Clicked!") end,
+        onHold = function() wu.Notify.success("Held!") end,
+        tooltip = "controls.HoldButton  - onClick + onHold callbacks",
+    })
+    ImGui.Dummy(0, 2)
+    controls.HoldButton("tt_hold_dis", "  Disabled Hold  ", {
+        style = "inactive", width = -1, disabled = true,
+        tooltip = "controls.HoldButton  - disabled = true",
+    })
+    ImGui.Dummy(0, 4)
+    controls.ActionButton("tt_action", "  Action: Click or Hold  ", {
+        onPrimary = function() wu.Notify.info("Primary click") end,
+        onSecondary = function() wu.Notify.success("Secondary hold") end,
+        secondaryDuration = 1.0,
+    })
+    tooltips.ShowBullets("controls.ActionButton(id, label, opts)", {
+        "id  - unique button group identifier",
+        "label  - primary button text",
+        "opts  - {onPrimary?, onSecondary?, secondaryDuration?, style?}",
+    })
+
+    ----------------------------------------------------------------------------
+    -- Section: Button Rows
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Button Rows", 8, 4)
+    controls.TextMuted("Equal text buttons:")
+    controls.ButtonRow({
+        { label = "  Option A  ", style = "active",   onClick = function() end },
+        { label = "  Option B  ", style = "inactive", onClick = function() end },
+        { label = "  Option C  ", style = "inactive", onClick = function() end },
+    })
+    tooltips.ShowBullets("controls.ButtonRow(defs, opts)", {
+        "defs  - array of {label, icon, style, onClick, onHold, weight, ...}",
+        "opts  - {gap?, id?}",
+    })
+    ImGui.Dummy(0, 4)
+    controls.TextMuted("Weighted (2:1 text + icon):")
+    controls.ButtonRow({
+        { label = "Primary Action", style = "active", weight = 2,
+          onClick = function() end },
+        { label = "Cancel", style = "inactive",
+          onClick = function() end },
+        { icon = "ContentSave", style = "active",
+          onClick = function() end },
+    })
+    tooltips.ShowBullets("controls.ButtonRow  - weighted", {
+        "weight  - relative width share for text buttons",
+        "Icon-only buttons auto-size, text buttons share remaining space",
+    })
+
+    ----------------------------------------------------------------------------
+    -- Section: Layout & Display
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Layout & Display", 8, 4)
+    -- ColWidth
+    local w4 = controls.ColWidth(4)
+    local w8 = controls.ColWidth(8)
+    controls.Button("  col-4  ", "active", w4)
+    tooltips.ShowBullets("controls.ColWidth(cols, gap, hasIcon)", {
+        "cols  - column span 1-12 (Bootstrap-style grid)",
+        "gap  - spacing between columns in pixels",
+        "hasIcon  - whether an icon occupies space to the left",
+    })
+    ImGui.SameLine()
+    controls.Button("  col-8  ", "inactive", w8)
+    tooltips.ShowBullets("controls.ColWidth(8)", {
+        "8/12 of available width",
+    })
+    ImGui.Dummy(0, 2)
+
+    -- RemainingWidth
+    local rw = controls.RemainingWidth(0)
+    controls.Button("  Remaining (" .. math.floor(rw) .. "px)  ", "inactive", rw)
+    tooltips.ShowBullets("controls.RemainingWidth(offset)", {
+        "offset  - pixels to subtract from remaining width",
+        "Returns available width minus offset",
+    })
+    ImGui.Dummy(0, 2)
+
+    -- Separator
+    controls.Separator(4, 4)
+    ImGui.Text("^ Separator above ^")
+    tooltips.ShowBullets("controls.Separator(spacingBefore, spacingAfter)", {
+        "spacingBefore  - pixels above the line",
+        "spacingAfter  - pixels below the line",
+    })
+    ImGui.Dummy(0, 2)
+
+    -- SectionHeader
+    controls.SectionHeader("Example Header", 0, 2)
+    tooltips.ShowBullets("controls.SectionHeader(label, spacingBefore, spacingAfter)", {
+        "label  - section title text",
+        "spacingBefore  - pixels above",
+        "spacingAfter  - pixels below",
+    })
+
+    -- Text styles
+    controls.TextMuted("TextMuted  - dimmed helper text")
+    tooltips.ShowBullets("controls.TextMuted(text)", { "Dimmed text for descriptions and hints" })
+    controls.TextSuccess("TextSuccess  - green text")
+    tooltips.ShowBullets("controls.TextSuccess(text)", { "Green-colored text for success messages" })
+    controls.TextDanger("TextDanger  - red text")
+    tooltips.ShowBullets("controls.TextDanger(text)", { "Red-colored text for error or danger" })
+    controls.TextWarning("TextWarning  - yellow text")
+    tooltips.ShowBullets("controls.TextWarning(text)", { "Yellow-colored text for warnings" })
+
+    ----------------------------------------------------------------------------
+    -- Section: Containers
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Containers", 8, 4)
+    -- Row
+    controls.TextMuted("Row (horizontal flex layout):")
+    controls.Row("tt_row", {
+        { flex = 1, content = function() controls.Button("  Left  ", "active") end },
+        { flex = 1, content = function() controls.Button("  Right  ", "inactive") end },
+    }, { height = ImGui.GetFrameHeight() })
+    tooltips.ShowBullets("controls.Row(id, defs, opts)", {
+        "id  - unique row identifier",
+        "defs  - array of {flex?, auto?, content}",
+        "opts  - {gap?, height?}",
+    })
+    ImGui.Dummy(0, 4)
+
+    -- Column
+    controls.TextMuted("Column (vertical auto layout):")
+    controls.Column("tt_col", {
+        { auto = true, content = function() controls.TextMuted("  Top (auto)") end },
+        { auto = true, content = function() controls.TextMuted("  Bottom (auto)") end },
+    })
+    tooltips.ShowBullets("controls.Column(id, defs, opts)", {
+        "id  - unique column identifier",
+        "defs  - array of {flex?, auto?, content}",
+        "opts  - {gap?}",
+    })
+    ImGui.Dummy(0, 4)
+
+    -- Panel (nested demo with explicit height)
+    controls.TextMuted("Panel (styled child window):")
+    controls.Panel("tt_inner_panel", function()
+        ImGui.Text("Nested panel content")
+        controls.TextMuted("borderOnHover = true, custom bg")
+    end, { borderOnHover = true, bg = { 0.12, 0.14, 0.18, 1.0 }, height = ImGui.GetTextLineHeightWithSpacing() * 2 + ImGui.GetStyle().WindowPadding.y * 2 })
+    tooltips.ShowBullets("controls.Panel(id, contentFn, opts)", {
+        "id  - unique panel identifier",
+        "contentFn  - callback that renders panel content",
+        "opts  - {bg?, border?, borderOnHover?, width?, height?, flags?}",
+    })
+    ImGui.Dummy(0, 4)
+
+    -- BeginFillChild (demo with fixed height)
+    controls.TextMuted("BeginFillChild (scrollable region):")
+    ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(0.65, 0.7, 1.0, 0.045))
+    ImGui.BeginChild("##tt_fill_demo", 0, 80, true)
+    for i = 1, 12 do
+        ImGui.Text("  Scrollable item " .. i)
+    end
+    ImGui.EndChild()
+    ImGui.PopStyleColor()
+    tooltips.ShowBullets("controls.BeginFillChild(id, opts) / EndFillChild(id)", {
+        "id  - unique child region identifier",
+        "opts  - {bg?, footerHeight?, border?, flags?}",
+        "Fills remaining vertical space in normal use",
+    })
+
+    ----------------------------------------------------------------------------
+    -- Section: Tooltip Styles
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Tooltip Styles", 8, 4)
+    controls.TextMuted("Hover each button to see the tooltip style.")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  Show  ", "inactive")
+    tooltips.Show("tooltips.Show(text)  - respects tooltipsEnabled setting")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowAlways  ", "inactive")
+    tooltips.ShowAlways("tooltips.ShowAlways(text)  - always visible, ignores settings")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowWrapped  ", "inactive")
+    tooltips.ShowWrapped("tooltips.ShowWrapped(text, maxWidth)  - wraps long text. This sentence demonstrates the wrapping behavior at 250px width.", 250)
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowTitled  ", "inactive")
+    tooltips.ShowTitled("tooltips.ShowTitled(title, desc)", "Title line with separator and grey description below.")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowHelp  ", "inactive")
+    tooltips.ShowHelp("tooltips.ShowHelp(text)  - blue [?] prefix with wrapped help text.")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowKeybind  ", "inactive")
+    tooltips.ShowKeybind("tooltips.ShowKeybind(action, keybind)", "Ctrl+S")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowWithHint  ", "inactive")
+    tooltips.ShowWithHint("tooltips.ShowWithHint(text, hint)", "Grey hint below a separator")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowLines  ", "inactive")
+    tooltips.ShowLines({
+        "tooltips.ShowLines(lines)",
+        "Line 1  - each entry is a separate line",
+        "Line 2  - no bullets, just plain text",
+    })
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowBullets  ", "inactive")
+    tooltips.ShowBullets("tooltips.ShowBullets(title, bullets)", {
+        "title  - optional header above separator",
+        "bullets  - array of bullet point strings",
+    })
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowColored  ", "inactive")
+    tooltips.ShowColored("tooltips.ShowColored(text, r, g, b, a)  - custom RGBA", 0.2, 0.8, 1.0, 1.0)
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowMuted  ", "inactive")
+    tooltips.ShowMuted("tooltips.ShowMuted(text)  - grey/dimmed")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowSuccess  ", "inactive")
+    tooltips.ShowSuccess("tooltips.ShowSuccess(text)  - green")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowDanger  ", "inactive")
+    tooltips.ShowDanger("tooltips.ShowDanger(text)  - red")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowWarning  ", "inactive")
+    tooltips.ShowWarning("tooltips.ShowWarning(text)  - yellow")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  ShowIf (true)  ", "active")
+    tooltips.ShowIf("tooltips.ShowIf(text, condition)  - shows when condition is true", true)
+    ImGui.SameLine()
+    controls.Button("  ShowIf (false)  ", "inactive")
+    tooltips.ShowAlways("tooltips.ShowIf(text, condition)  - condition is false, so ShowIf would hide this. Using ShowAlways to demonstrate.")
+
+    ----------------------------------------------------------------------------
+    -- Section: Notifications
+    ----------------------------------------------------------------------------
+    controls.SectionHeader("Notifications", 8, 4)
+    controls.TextMuted("Toast notifications via wu.Notify:")
+    tooltips.ShowBullets("wu.Notify", {
+        "wu.Notify.info(msg)  - blue info toast",
+        "wu.Notify.success(msg)  - green success toast",
+        "wu.Notify.warn(msg)  - yellow warning toast",
+        "wu.Notify.error(msg)  - red error toast",
+    })
+    ImGui.Dummy(0, 2)
+    if controls.Button("  Info  ", "inactive", controls.ColWidth(6)) then
+        wu.Notify.info("wu.Notify.info  - informational toast")
+    end
+    tooltips.ShowBullets("wu.Notify.info(msg)", { "Blue informational toast" })
+    ImGui.SameLine()
+    if controls.Button("  Success  ", "active", controls.ColWidth(6)) then
+        wu.Notify.success("wu.Notify.success  - success toast")
+    end
+    tooltips.ShowBullets("wu.Notify.success(msg)", { "Green success toast" })
+    if controls.Button("  Warning  ", "warning", controls.ColWidth(6)) then
+        wu.Notify.warn("wu.Notify.warn  - warning toast")
+    end
+    tooltips.ShowBullets("wu.Notify.warn(msg)", { "Yellow warning toast" })
+    ImGui.SameLine()
+    if controls.Button("  Error  ", "danger", controls.ColWidth(6)) then
+        wu.Notify.error("wu.Notify.error  - error toast")
+    end
+    tooltips.ShowBullets("wu.Notify.error(msg)", { "Red error toast" })
+
+    ImGui.Dummy(0, 8)
+    controls.EndFillChild("tt_scroll")
+end
+
 --------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     wu = GetMod("WindowUtils")
     if not wu then
-        print("[WindowUtils_TestMod] WindowUtils not found!")
+        print("[WindowUtils_Showcase] WindowUtils not found!")
     end
-
-    -- Register test windows for external window detection
-    if wu and wu.API then
-        wu.API.RegisterWindow(DEMO_WINDOW_NAME, { hasCloseButton = true })
-        wu.API.RegisterWindow("Dynamic###stable_test_id", { hasCloseButton = false })
-        print("[WindowUtils_TestMod] Test windows registered")
-    end
+    resW, resH = GetDisplayResolution()
 
     local ic = IconGlyphs or {}
     controlsPages = {
@@ -1089,7 +1611,7 @@ registerForEvent("onInit", function()
     }
 end)
 
-registerHotkey("ToggleTestMod", "Toggle WindowUtils Test Mod", function()
+registerHotkey("ToggleShowcase", "Toggle Window Utils Showcase", function()
     visible = not visible
 end)
 
@@ -1106,18 +1628,24 @@ registerForEvent("onDraw", function()
         splitter.getMinSize("ms_weighted") or 0,
         400 - padX
     ) + padX
-    wu.SetNextWindowSizeConstraints(minW, 300, 9999, 9999, "WindowUtils Demo")
-    ImGui.SetNextWindowSize(620, 550, ImGuiCond.FirstUseEver)
+    wu.SetNextWindowSizeConstraints(minW, 300, 9999, 9999, DEMO_WINDOW_NAME)
+    ImGui.SetNextWindowSize(resW * 0.45, resH * 0.60, ImGuiCond.FirstUseEver)
 
-    if ImGui.Begin("WindowUtils Demo") then
-        ImGui.Text("WindowUtils Demo")
-        wu.Controls.TextMuted("Hover elements for API usage. Right-click bound controls to reset.")
+    if ImGui.Begin(DEMO_WINDOW_NAME) then
+        showcaseWinX,    showcaseWinY    = ImGui.GetWindowPos()
+        showcaseWinW,    showcaseWinH    = ImGui.GetWindowSize()
+        showcaseIsCollapsed = ImGui.IsWindowCollapsed()
+        showcaseIsFocused   = ImGui.IsWindowFocused(ImGuiFocusedFlags.RootAndChildWindows)
+        showcaseIsDragging  = showcaseIsFocused and ImGui.IsMouseDragging(ImGuiMouseButton.Left)
+        showcaseIsAnimating = wu.IsAnimating(DEMO_WINDOW_NAME)
+        ImGui.Text(DEMO_WINDOW_NAME)
+        wu.Controls.TextMuted("See the Tooltips tab for API usage. Right-click bound controls to reset.")
         ImGui.Dummy(0, 4)
 
         -- Wrap tabs in NoScrollbar child to prevent main window scrollbar flash
         local cw, ch = ImGui.GetContentRegionAvail()
         local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
-        ImGui.BeginChild("##testmod_content", cw, ch, false, noScroll)
+        ImGui.BeginChild("##showcase_content", cw, ch, false, noScroll)
         local controlsBadge = nil
         if notifBadgeMode == "dot" and notifBadgeCount > 0 then
             controlsBadge = true
@@ -1125,7 +1653,7 @@ registerForEvent("onDraw", function()
             controlsBadge = notifBadgeCount
         end
 
-        local selected, changed = tabs.bar("##testmod_tabs", {
+        local selected, changed = tabs.bar("##showcase_tabs", {
             { label = "Controls",    content = drawControlsDemo, badge = controlsBadge },
             { label = "Drag & Drop", content = drawDragDropDemo },
             { label = "Splitters",   content = drawSplitterDemo },
@@ -1134,6 +1662,8 @@ registerForEvent("onDraw", function()
             { label = "Edge Toggle", content = drawEdgeToggleDemo },
             { label = "Expand",      content = drawExpandDemo },
             { label = "Expand (V)", content = drawExpandVertDemo },
+            { label = "Telemetry",  content = drawTelemetryDemo },
+            { label = "Tooltips",   content = drawTooltipsDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then
@@ -1144,6 +1674,7 @@ registerForEvent("onDraw", function()
         -- Expand: drive window sizing at main window scope (after EndChild)
         wu.Expand.applyWindowSize(DEMO_WINDOW_NAME)
     end
+    wu.Update(DEMO_WINDOW_NAME)
     ImGui.End()
 end)
 
