@@ -1658,6 +1658,9 @@ end
 ---@param contentFn? function Callback that renders panel content
 ---@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?}
 ---@return nil
+-- Cache for auto-height panels (measured on previous frame)
+local panelAutoHeight = {}
+
 function controls.Panel(id, contentFn, opts)
     opts = opts or {}
     local border = opts.border == true
@@ -1668,7 +1671,11 @@ function controls.Panel(id, contentFn, opts)
     local height = opts.height or 0
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + (opts.flags or 0)
 
-    -- Show border on hover using previous frame's hover state
+    -- Auto-height: use cached content height from previous frame
+    if height == "auto" then
+        height = panelAutoHeight[id] or 100
+    end
+
     local showBorder = border
     if borderOnHover and not border then
         showBorder = panelHoverState[id] or false
@@ -1682,6 +1689,15 @@ function controls.Panel(id, contentFn, opts)
     ImGui.BeginChild(childId, width, height, showBorder, flags)
     if bg then ImGui.PopStyleColor() end
     if contentFn then contentFn() end
+
+    -- Measure content height for auto-sizing on next frame
+    -- Add bottom window padding so content isn't clipped
+    if opts.height == "auto" then
+        local padY = ImGui.GetStyle().WindowPadding.y
+        local spacingY = ImGui.GetStyle().ItemSpacing.y
+        panelAutoHeight[id] = ImGui.GetCursorPosY() + padY - spacingY
+    end
+
     ImGui.EndChild()
 
     if borderOnHover then

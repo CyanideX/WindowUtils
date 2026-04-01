@@ -607,12 +607,20 @@ function ui.drawWindow()
             splitter.multi("gui_inner", {
                 { maxWidth = sidebarMaxW, content = function()
                     controls.Panel("gui_nav", function()
-                        search.SearchBar(ui.searchState, { cols = 12 })
                         drawSidebar()
                     end)
                 end },
                 { content = function()
-                    drawContentPanel()
+                    controls.Column("gui_right", {
+                        { auto = true, content = function()
+                            controls.Panel("gui_search", function()
+                                search.SearchBar(ui.searchState, { cols = 12 })
+                            end, { height = "auto" })
+                        end },
+                        { flex = 1, content = function()
+                            drawContentPanel()
+                        end },
+                    })
                 end },
             }, { direction = "horizontal", defaultPcts = { 0.3, 0.7 } })
         end },
