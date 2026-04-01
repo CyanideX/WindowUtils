@@ -25,9 +25,11 @@ function modal.open(id, opts)
     if activeModals[id] then
         settings.debugPrint("modal.open: replacing existing modal '" .. id .. "'")
     end
-    activeModals[id] = {
+    local title = opts.title or id
+    local entry = {
         id = id,
-        title = opts.title or id,
+        title = title,
+        popupLabel = title .. "###" .. id,
         body = opts.body,
         content = opts.content,
         buttons = opts.buttons,
@@ -39,6 +41,9 @@ function modal.open(id, opts)
         panelBg = opts.panelBg,
         pendingOpen = true,
     }
+    -- Pre-build button defs with close-wrapping (avoids per-frame closure creation)
+    entry.cachedButtonDefs = buildButtonDefs(entry)
+    activeModals[id] = entry
 end
 
 --- Close an open modal.
@@ -156,10 +161,8 @@ function modal.draw()
     local toRemove = {}
 
     for id, entry in pairs(activeModals) do
-        local popupLabel = entry.title .. "###" .. entry.id
-
         if entry.pendingOpen then
-            ImGui.OpenPopup(popupLabel)
+            ImGui.OpenPopup(entry.popupLabel)
             entry.pendingOpen = false
             goto continue
         end
@@ -186,7 +189,7 @@ function modal.draw()
             flags = flags + ImGuiWindowFlags.NoTitleBar
         end
 
-        if ImGui.BeginPopupModal(popupLabel, flags) then
+        if ImGui.BeginPopupModal(entry.popupLabel, flags) then
             local winPadX = ImGui.GetStyle().WindowPadding.x
             local contentWidth = width - winPadX * 2
 
@@ -212,7 +215,7 @@ function modal.draw()
                 ImGui.Dummy(0, padY)
             end
 
-            controls.ButtonRow(buildButtonDefs(entry))
+            controls.ButtonRow(entry.cachedButtonDefs)
             ImGui.EndPopup()
         else
             toRemove[#toRemove + 1] = id
