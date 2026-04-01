@@ -7,6 +7,8 @@ local settings = require("modules/settings")
 local core = require("modules/core")
 local ui = require("modules/ui")
 local registry = require("modules/registry")
+local search = require("modules/search")
+local modal = require("modules/modal")
 
 local api = {}
 
@@ -18,6 +20,13 @@ api.Toggle = ui.toggle
 api.Show = ui.show
 api.Hide = ui.hide
 api.IsVisible = ui.isVisible
+
+--------------------------------------------------------------------------------
+-- Search and Modal
+--------------------------------------------------------------------------------
+
+api.Search = search
+api.Modal = modal
 
 --------------------------------------------------------------------------------
 -- Settings Access

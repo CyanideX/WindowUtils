@@ -27,6 +27,8 @@ local expand = require("modules/expand")
 local tabs = require("modules/tabs")
 local dragdrop = require("modules/dragdrop")
 local notifications = require("modules/notifications")
+local search = require("modules/search")
+local modal = require("modules/modal")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -82,6 +84,8 @@ WindowUtils.Expand = expand
 WindowUtils.Tabs = tabs
 WindowUtils.DragDrop = dragdrop
 WindowUtils.Notify = notifications
+WindowUtils.Search = search
+WindowUtils.Modal = modal
 
 registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
     ui.toggle()
@@ -112,6 +116,8 @@ registerForEvent("onDraw", function()
         styles.PushScrollbar()
         ui.drawWindow()
         styles.PopScrollbar()
+
+        modal.draw()
 
         core.updateExternalWindows()
         core.processDeferred()

@@ -796,6 +796,34 @@ function controls.ShowHoldProgress(sourceId, width, progressStyle)
     return true
 end
 
+--- Return the progress and source ID of the first actively-held button from a list.
+---@param ids string[] Array of button IDs to check
+---@return number|nil progress Hold progress 0.0-1.0, or nil if none active
+---@return string|nil sourceId The ID of the first active button, or nil
+function controls.getFirstActiveHoldProgress(ids)
+    if not ids then return nil end
+    for i = 1, #ids do
+        local progress = controls.getHoldProgress(ids[i])
+        if progress then return progress, ids[i] end
+    end
+    return nil
+end
+
+--- Render a progress bar for the first active hold source, or return false.
+---@param ids string[] Array of button IDs to check
+---@param width? number Bar width in pixels (default fills available)
+---@param progressStyle? string Style name (default "danger")
+---@return boolean shown True if a progress bar was rendered
+function controls.ShowFirstActiveHoldProgress(ids, width, progressStyle)
+    local progress = controls.getFirstActiveHoldProgress(ids)
+    if not progress then return false end
+
+    width = width or ImGui.GetContentRegionAvail()
+    progressStyle = progressStyle or "danger"
+    controls.ProgressBar(progress, width, 0, "", progressStyle)
+    return true
+end
+
 --- Compound action button: primary label + secondary icon with cross-element progress
 ---@param id string Unique button group ID
 ---@param label string Primary button label text
@@ -1174,121 +1202,204 @@ end
 
 local bindMethods = {}
 
+--- Apply def defaults to opts and handle search dimming.
+--- label is included in search matching so localized text is searchable.
+--- Returns opts (possibly modified) and whether dimming was pushed.
+local function applyDefAndSearch(self, key, opts, label)
+    local def = self.defs and self.defs[key]
+    if def then
+        if def.tooltip and not opts.tooltip then opts.tooltip = def.tooltip end
+        if def.format and not opts.format then opts.format = def.format end
+        if def.percent ~= nil and opts.percent == nil then opts.percent = def.percent end
+        if def.transform and not opts.transform then opts.transform = def.transform end
+        if def.items and not opts._items then opts._items = def.items end
+        if def.alwaysShowTooltip and opts.alwaysShowTooltip == nil then opts.alwaysShowTooltip = def.alwaysShowTooltip end
+    end
+
+    local dimmed = false
+    if self.search and not self.search:isEmpty() then
+        local searchLabel = label or (def and def.label)
+        local terms = ""
+        if searchLabel then terms = searchLabel end
+        if def then
+            if def.searchTerms then terms = terms .. " " .. def.searchTerms end
+            -- Include tooltip when explicitly opted in, or when there's no text label
+            -- (icon-only controls like sliders need tooltip as their searchable text)
+            if def.tooltip and (self.searchTooltips or not searchLabel) then
+                terms = terms .. " " .. def.tooltip
+            end
+        end
+        if terms ~= "" then
+            local matched = self.search:matches(key, terms)
+            if not matched then
+                ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
+                dimmed = true
+            end
+        end
+    end
+    return opts, dimmed
+end
+
+local function endDim(dimmed)
+    if dimmed then ImGui.PopStyleVar() end
+end
+
 function bindMethods:SliderFloat(icon, key, min, max, opts)
     opts = opts or {}
-    local t = opts.transform
-    if opts.percent then
-        local pct = (self.data[key] - min) / (max - min) * 100
-        opts.format = string.format("%.0f%%%%", pct)
+    local def = self.defs and self.defs[key]
+    if def then
+        if not icon and def.icon then icon = def.icon end
+        if not min and def.min then min = def.min end
+        if not max and def.max then max = def.max end
     end
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    local t = opts2.transform
+    if opts2.percent then
+        local pct = (self.data[key] - min) / (max - min) * 100
+        opts2.format = string.format("%.0f%%%%", pct)
+    end
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
     end
     local displayValue = t and t.read(self.data[key]) or self.data[key]
-    local newValue, changed = controls.SliderFloat(icon, self.idPrefix .. key, displayValue, min, max, opts)
+    local newValue, changed = controls.SliderFloat(icon, self.idPrefix .. key, displayValue, min, max, opts2)
     if changed then
         self.data[key] = t and t.write(newValue) or newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:SliderInt(icon, key, min, max, opts)
     opts = opts or {}
-    local t = opts.transform
-    if opts.percent then
-        local pct = (self.data[key] - min) / (max - min) * 100
-        opts.format = string.format("%.0f%%%%", pct)
+    local def = self.defs and self.defs[key]
+    if def then
+        if not icon and def.icon then icon = def.icon end
+        if not min and def.min then min = def.min end
+        if not max and def.max then max = def.max end
     end
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    local t = opts2.transform
+    if opts2.percent then
+        local pct = (self.data[key] - min) / (max - min) * 100
+        opts2.format = string.format("%.0f%%%%", pct)
+    end
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
     end
     local displayValue = t and t.read(self.data[key]) or self.data[key]
-    local newValue, changed = controls.SliderInt(icon, self.idPrefix .. key, displayValue, min, max, opts)
+    local newValue, changed = controls.SliderInt(icon, self.idPrefix .. key, displayValue, min, max, opts2)
     if changed then
         self.data[key] = t and t.write(newValue) or newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:Checkbox(label, key, opts)
     opts = opts or {}
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = self.defaults[key]
+    local opts2, dimmed = applyDefAndSearch(self, key, opts, label)
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = self.defaults[key]
     end
-    local newValue, changed = controls.Checkbox(label, self.data[key], opts)
+    local newValue, changed = controls.Checkbox(label, self.data[key], opts2)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:ColorEdit4(icon, key, opts)
     opts = opts or {}
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = self.defaults[key]
+    local def = self.defs and self.defs[key]
+    if def and not icon and def.icon then icon = def.icon end
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = self.defaults[key]
     end
-    local newValue, changed = controls.ColorEdit4(icon, self.idPrefix .. key, self.data[key], opts)
+    local newValue, changed = controls.ColorEdit4(icon, self.idPrefix .. key, self.data[key], opts2)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:Combo(icon, key, items, opts)
     opts = opts or {}
-    local t = opts.transform
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    local def = self.defs and self.defs[key]
+    if def then
+        if not icon and def.icon then icon = def.icon end
+        if not items and def.items then items = def.items end
+    end
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    local t = opts2.transform
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
     end
     local displayValue = t and t.read(self.data[key]) or self.data[key]
-    local newValue, changed = controls.Combo(icon, self.idPrefix .. key, displayValue, items, opts)
+    local newValue, changed = controls.Combo(icon, self.idPrefix .. key, displayValue, items, opts2)
     if changed then
         self.data[key] = t and t.write(newValue) or newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:InputText(icon, key, opts)
     opts = opts or {}
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = self.defaults[key]
+    local def = self.defs and self.defs[key]
+    if def and not icon and def.icon then icon = def.icon end
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = self.defaults[key]
     end
-    local newValue, changed = controls.InputText(icon, self.idPrefix .. key, self.data[key], opts)
+    local newValue, changed = controls.InputText(icon, self.idPrefix .. key, self.data[key], opts2)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:InputFloat(icon, key, opts)
     opts = opts or {}
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = self.defaults[key]
+    local def = self.defs and self.defs[key]
+    if def and not icon and def.icon then icon = def.icon end
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = self.defaults[key]
     end
-    local newValue, changed = controls.InputFloat(icon, self.idPrefix .. key, self.data[key], opts)
+    local newValue, changed = controls.InputFloat(icon, self.idPrefix .. key, self.data[key], opts2)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
 function bindMethods:InputInt(icon, key, opts)
     opts = opts or {}
-    if self.defaults and self.defaults[key] ~= nil and opts.default == nil then
-        opts.default = self.defaults[key]
+    local def = self.defs and self.defs[key]
+    if def and not icon and def.icon then icon = def.icon end
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = self.defaults[key]
     end
-    local newValue, changed = controls.InputInt(icon, self.idPrefix .. key, self.data[key], opts)
+    local newValue, changed = controls.InputInt(icon, self.idPrefix .. key, self.data[key], opts2)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
     end
+    endDim(dimmed)
     return newValue, changed
 end
 
@@ -1331,6 +1442,67 @@ function bindMethods:ToggleButtonRow(defs, opts)
     end
 end
 
+--- Render a text header that auto-dims when no controls in the category match the search query.
+--- No-op dimming when search or defs are not configured.
+---@param text string Header text
+---@param category string Category key to check against defs
+function bindMethods:Header(text, category)
+    local dimmed = false
+    if self.search and self.defs and category and not self.search:isEmpty() then
+        if not self.search:categoryHasMatch(category, self.defs, self.searchTooltips) then
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
+            dimmed = true
+        end
+    end
+    ImGui.Text(text)
+    if dimmed then ImGui.PopStyleVar() end
+end
+
+--- Push search dimming for a key using its def. For wrapping non-bound controls.
+--- Returns true if dimming was pushed (caller must call c:EndDim() after).
+---@param key string Setting key to check
+---@return boolean dimmed
+function bindMethods:BeginDim(key)
+    if not self.search or self.search:isEmpty() then return false end
+    local def = self.defs and self.defs[key]
+    if not def then return false end
+    local searchLabel = def.label
+    local terms = ""
+    if searchLabel then terms = searchLabel end
+    if def.searchTerms then terms = terms .. " " .. def.searchTerms end
+    if def.tooltip and (self.searchTooltips or not searchLabel) then
+        terms = terms .. " " .. def.tooltip
+    end
+    if terms ~= "" and not self.search:matches(key, terms) then
+        ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
+        return true
+    end
+    return false
+end
+
+--- Pop search dimming if it was pushed by BeginDim.
+---@param dimmed boolean Value returned by BeginDim
+function bindMethods:EndDim(dimmed)
+    if dimmed then ImGui.PopStyleVar() end
+end
+
+--- Render a section header (separator + label) that auto-dims based on category match.
+---@param text string Section title text
+---@param category string Category key to check against defs
+---@param spacingBefore? number Vertical spacing before separator
+---@param spacingAfter? number Vertical spacing after label
+function bindMethods:SectionHeader(text, category, spacingBefore, spacingAfter)
+    local dimmed = false
+    if self.search and self.defs and category and not self.search:isEmpty() then
+        if not self.search:categoryHasMatch(category, self.defs, self.searchTooltips) then
+            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
+            dimmed = true
+        end
+    end
+    controls.SectionHeader(text, spacingBefore, spacingAfter)
+    if dimmed then ImGui.PopStyleVar() end
+end
+
 local bindMT = { __index = bindMethods }
 
 --------------------------------------------------------------------------------
@@ -1344,7 +1516,7 @@ local bindMT = { __index = bindMethods }
 ---@param data table Data table to read/write values from
 ---@param defaults? table Default values table for right-click reset
 ---@param onSave? function Callback invoked after any value change
----@param bindOpts? table {idPrefix?: string}
+---@param bindOpts? table {idPrefix?: string, search?: table, defs?: table, searchTooltips?: boolean}
 ---@return table ctx Bound context with SliderFloat, SliderInt, Checkbox, ColorEdit4, Combo, InputText, InputFloat, InputInt, ToggleButtonRow methods
 function controls.bind(data, defaults, onSave, bindOpts)
     local ctx
@@ -1358,6 +1530,9 @@ function controls.bind(data, defaults, onSave, bindOpts)
     ctx.defaults = defaults
     ctx.onSave = onSave
     ctx.idPrefix = (bindOpts and bindOpts.idPrefix) or ""
+    ctx.search = bindOpts and bindOpts.search or nil
+    ctx.defs = bindOpts and bindOpts.defs or nil
+    ctx.searchTooltips = bindOpts and bindOpts.searchTooltips or false
     return ctx
 end
 
