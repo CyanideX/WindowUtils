@@ -157,10 +157,22 @@ function uidefs.init()
                                tooltip = "Apply Grid Snapping to All CET Windows" },
         overrideStyling  = { label = "Scrollbar Style", category = "experimental",
                              searchTerms = "scrollbar styling",
-                             tooltip = "Apply WindowUtils scrollbar styling to all managed windows" },
+                             tooltip = "Apply WindowUtils scrollbar styling to all managed windows",
+                             onChange = function(val)
+                                 if val then
+                                     settings.master.disableScrollbar = false
+                                     settings.markDirty()
+                                 end
+                             end },
         disableScrollbar = { label = "No Scrollbar", category = "experimental",
                              searchTerms = "hide scrollbar",
-                             tooltip = "Hide scrollbars on all managed external windows" },
+                             tooltip = "Hide scrollbars on all managed external windows",
+                             onChange = function(val)
+                                 if val then
+                                     settings.master.overrideStyling = false
+                                     settings.markDirty()
+                                 end
+                             end },
         probeInterval    = { label = "Re-Probe Interval", category = "experimental",
                              searchTerms = "scan discover",
                              icon = "TimerSand", min = 0.1, max = 5.0, format = "%.1f s",

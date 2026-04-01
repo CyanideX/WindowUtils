@@ -1266,6 +1266,8 @@ function bindMethods:SliderFloat(icon, key, min, max, opts)
     if changed then
         self.data[key] = t and t.write(newValue) or newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(self.data[key], key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1293,6 +1295,8 @@ function bindMethods:SliderInt(icon, key, min, max, opts)
     if changed then
         self.data[key] = t and t.write(newValue) or newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(self.data[key], key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1300,6 +1304,7 @@ end
 
 function bindMethods:Checkbox(label, key, opts)
     opts = opts or {}
+    local def = self.defs and self.defs[key]
     local opts2, dimmed = applyDefAndSearch(self, key, opts, label)
     if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
         opts2.default = self.defaults[key]
@@ -1308,6 +1313,8 @@ function bindMethods:Checkbox(label, key, opts)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(newValue, key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1325,6 +1332,8 @@ function bindMethods:ColorEdit4(icon, key, opts)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(newValue, key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1347,6 +1356,8 @@ function bindMethods:Combo(icon, key, items, opts)
     if changed then
         self.data[key] = t and t.write(newValue) or newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(self.data[key], key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1364,6 +1375,8 @@ function bindMethods:InputText(icon, key, opts)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(newValue, key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1381,6 +1394,8 @@ function bindMethods:InputFloat(icon, key, opts)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(newValue, key) end
     end
     endDim(dimmed)
     return newValue, changed
@@ -1398,6 +1413,8 @@ function bindMethods:InputInt(icon, key, opts)
     if changed then
         self.data[key] = newValue
         if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(newValue, key) end
     end
     endDim(dimmed)
     return newValue, changed

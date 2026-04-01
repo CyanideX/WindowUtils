@@ -263,17 +263,9 @@ local function drawExperimentalSection()
 
     if settings.master.overrideAllWindows and discoveryAvailable then
         ImGui.SameLine()
-        local _, scrollStyleChanged = c:Checkbox("Scrollbar Style", "overrideStyling")
-        if scrollStyleChanged and settings.master.overrideStyling then
-            settings.master.disableScrollbar = false
-            settings.markDirty()
-        end
+        c:Checkbox("Scrollbar Style", "overrideStyling")
         ImGui.SameLine()
-        local _, noScrollChanged = c:Checkbox("No Scrollbar", "disableScrollbar")
-        if noScrollChanged and settings.master.disableScrollbar then
-            settings.master.overrideStyling = false
-            settings.markDirty()
-        end
+        c:Checkbox("No Scrollbar", "disableScrollbar")
         c:SliderFloat(nil, "probeInterval")
 
         c:Checkbox("Auto-Remove Empty Windows", "autoRemoveEmptyWindows", {
