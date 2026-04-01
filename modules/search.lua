@@ -6,6 +6,8 @@
 
 local settings = require("modules/settings")
 local controls = require("modules/controls")
+local tooltips = require("modules/tooltips")
+local styles   = require("modules/styles")
 
 local search = {}
 
@@ -183,18 +185,47 @@ end
 --------------------------------------------------------------------------------
 
 --- Render a search bar that drives a search state.
+--- Icon changes to MagnifyClose when query is active (click to clear).
+--- Right-click the input to clear.
 ---@param state table|nil SearchState (no-op if nil)
 ---@param opts? table {cols?: number, placeholder?: string}
 ---@return string query Current query text
 function search.SearchBar(state, opts)
     if not state then return "" end
     opts = opts or {}
-    local newText, changed = controls.InputText(
-        IconGlyphs.Magnify,
-        "search_" .. state.id,
-        state:getQuery(),
-        { cols = opts.cols, placeholder = opts.placeholder }
-    )
+    local hasQuery = not state:isEmpty()
+    local ic = IconGlyphs or {}
+
+    -- Icon: clickable clear button when query is active
+    local icon = hasQuery and (ic.MagnifyClose or "X") or (ic.Magnify or "?")
+    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+    local clicked = controls.IconButton(icon, hasQuery)
+    if hasQuery then
+        tooltips.Show("Clear search")
+    else
+        tooltips.Show("Search settings")
+    end
+    ImGui.SameLine()
+    ImGui.PopStyleVar()
+
+    if clicked and hasQuery then
+        state:clear()
+    end
+
+    -- Input field
+    local w = controls.ColWidth(opts.cols or 12, nil, true)
+    ImGui.SetNextItemWidth(w)
+    styles.PushOutlined()
+    local newText, changed = ImGui.InputText("##search_" .. state.id, state:getQuery(), 256)
+    styles.PopOutlined()
+
+    -- Right-click to clear
+    if ImGui.IsItemClicked(1) then
+        state:clear()
+        newText = ""
+        changed = true
+    end
+
     if changed then
         state:setQuery(newText)
     end
