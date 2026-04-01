@@ -62,6 +62,25 @@ local showcaseIsFocused   = false
 local controlsPage = 1
 local controlsPages = {} -- populated in onInit after IconGlyphs is available
 
+-- Search demo: defs-based approach (no beginDim/endDim needed)
+local searchDemoDefs = {
+    gridSnapping = { label = "Grid Snapping", category = "window", searchTerms = "snap alignment" },
+    animation    = { label = "Animation",     category = "window", searchTerms = "easing duration smooth" },
+    blur         = { label = "Blur",          category = "window", searchTerms = "background overlay" },
+    dimming      = { label = "Dim Background",category = "window", searchTerms = "darken opacity" },
+    feather      = { label = "Feathered Grid",category = "visual", searchTerms = "feather radius fade" },
+    tooltips     = { label = "Tooltips",      category = "visual", searchTerms = "hover help" },
+    debug        = { label = "Debug Output",  category = "visual", searchTerms = "console log" },
+    lineColor    = { label = "Line Color",    category = "visual", searchTerms = "palette colour" },
+}
+local searchDemoData = {
+    gridSnapping = true, animation = true, blur = false, dimming = false,
+    feather = true, tooltips = true, debug = false, lineColor = false,
+}
+
+-- Modal demo state
+local modalContentCounter = 0
+
 -- DragDrop demo items
 local dragItems = {
     { name = "First Item",  icon = "1" },
@@ -1592,6 +1611,454 @@ local function drawTooltipsDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 11: Search Demo
+--------------------------------------------------------------------------------
+
+local searchDemoState = nil
+local searchDemoCtx = nil
+
+local function drawSearchDemo()
+    local controls = wu.Controls
+    local search = wu.Search
+
+    -- Create state and bind context once
+    if not searchDemoState then
+        searchDemoState = search.new("showcase_search")
+        searchDemoCtx = controls.bind(searchDemoData, nil, nil, {
+            search = searchDemoState,
+            defs = searchDemoDefs,
+        })
+    end
+
+    local c = searchDemoCtx
+
+    controls.TextMuted("Search module with defs-based bind integration.")
+    controls.TextMuted("No beginDim/endDim needed. Controls dim automatically.")
+    ImGui.Dummy(0, 4)
+
+    search.SearchBar(searchDemoState, { cols = 12 })
+    ImGui.Dummy(0, 4)
+
+    -- Group A: headers and controls dim automatically via category
+    c:Header("Window Settings", "window")
+    ImGui.Dummy(0, 2)
+    c:Checkbox("Grid Snapping", "gridSnapping")
+    c:Checkbox("Animation", "animation")
+    c:Checkbox("Blur", "blur")
+    c:Checkbox("Dim Background", "dimming")
+
+    ImGui.Dummy(0, 4)
+
+    -- Group B
+    c:SectionHeader("Visual Settings", "visual", 0, 4)
+    c:Checkbox("Feathered Grid", "feather")
+    c:Checkbox("Tooltips", "tooltips")
+    c:Checkbox("Debug Output", "debug")
+    c:Checkbox("Line Color", "lineColor")
+
+    ImGui.Dummy(0, 8)
+
+    controls.TextMuted("Query: \"" .. searchDemoState:getQuery() .. "\"")
+    controls.TextMuted("Empty: " .. tostring(searchDemoState:isEmpty()))
+    controls.TextMuted("Window match: " .. tostring(searchDemoState:categoryHasMatch("window", searchDemoDefs)))
+    controls.TextMuted("Visual match: " .. tostring(searchDemoState:categoryHasMatch("visual", searchDemoDefs)))
+
+    ImGui.Dummy(0, 4)
+    if controls.Button("  Clear Search  ", "inactive") then
+        searchDemoState:clear()
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Tab 12: Modal Demo
+--------------------------------------------------------------------------------
+
+local function drawModalDemo()
+    local controls = wu.Controls
+    local modal = wu.Modal
+
+    controls.TextMuted("Modal module: centered popups with percent-based sizing.")
+    ImGui.Dummy(0, 4)
+
+    controls.SectionHeader("Basic Modals", 0, 4)
+
+    controls.ButtonRow({
+        { label = "Confirm", style = "active", weight = 1,
+          onClick = function()
+              modal.confirm("demo_confirm", {
+                  title = "Confirm Action",
+                  body = "Are you sure you want to proceed?",
+                  onConfirm = function()
+                      modalContentCounter = modalContentCounter + 1
+                      wu.Notify.success("Confirmed #" .. modalContentCounter)
+                  end,
+              })
+          end },
+        { label = "Alert", style = "warning", weight = 1,
+          onClick = function()
+              modal.alert("demo_alert", {
+                  title = "Alert",
+                  body = "Something important happened.",
+              })
+          end },
+        { label = "Info", style = "inactive", weight = 1,
+          onClick = function()
+              modal.info("demo_info", {
+                  title = "Information",
+                  body = "WindowUtils provides grid snapping, smooth animations, and a full controls library.",
+              })
+          end },
+    })
+
+    controls.SectionHeader("Hold to Confirm", 8, 4)
+
+    controls.ButtonRow({
+        { label = "Hold Confirm", style = "danger", weight = 1,
+          onClick = function()
+              modal.confirm("demo_hold_confirm", {
+                  title = "Destructive Action",
+                  body = "This will permanently delete all data. Hold to confirm.",
+                  holdToConfirm = true,
+                  holdDuration = 2.0,
+                  onConfirm = function()
+                      modalContentCounter = modalContentCounter + 1
+                      wu.Notify.success("Hold-confirmed #" .. modalContentCounter)
+                  end,
+              })
+          end },
+        { label = "Custom Hold Buttons", style = "active", weight = 1,
+          onClick = function()
+              modal.open("demo_custom_hold", {
+                  title = "Custom Buttons",
+                  body = "Hold the delete button or click cancel:",
+                  buttons = {
+                      { label = "  Hold to Delete  ", style = "danger",
+                        onHold = function()
+                            modalContentCounter = modalContentCounter + 1
+                            wu.Notify.success("Deleted #" .. modalContentCounter)
+                        end,
+                        holdDuration = 1.5, progressDisplay = "overlay" },
+                      { label = "Cancel", style = "inactive" },
+                  },
+              })
+          end },
+    })
+
+    controls.SectionHeader("Custom Content", 8, 4)
+
+    controls.ButtonRow({
+        { label = "Content Callback", style = "active", weight = 1,
+          onClick = function()
+              modal.open("demo_content", {
+                  title = "Custom Content",
+                  body = "Arbitrary ImGui content via callback:",
+                  content = function(innerWidth)
+                      ImGui.Dummy(0, 4)
+                      controls.ProgressBar(0.7, innerWidth, 0, "70%", "success")
+                      ImGui.Dummy(0, 2)
+                      controls.ProgressBar(0.3, innerWidth, 0, "30%", "danger")
+                      ImGui.Dummy(0, 4)
+                  end,
+                  buttons = {
+                      { label = "Nice", style = "active" },
+                      { label = "Close", style = "inactive" },
+                  },
+              })
+          end },
+        { label = "Padded (3%)", style = "inactive", weight = 1,
+          onClick = function()
+              modal.info("demo_padded", {
+                  title = "Padded Modal",
+                  body = "paddingPercent = 3 adds inner spacing around the content as a percentage of screen size.",
+                  widthPercent = 40,
+                  paddingPercent = 3,
+              })
+          end },
+    })
+
+    controls.SectionHeader("Sizing Options", 8, 4)
+    controls.TextMuted("Width, height, and max height as screen percentages:")
+    ImGui.Dummy(0, 2)
+
+    controls.ButtonRow({
+        { label = "Dynamic (default)", style = "inactive", weight = 3,
+          onClick = function()
+              modal.info("demo_dynamic", {
+                  title = "Dynamic Size",
+                  body = "Default: auto-height, 33% width, 50% max height. The popup grows to fit content.",
+              })
+          end },
+        { label = "Wide (50%)", style = "inactive", weight = 5,
+          onClick = function()
+              modal.info("demo_wide", {
+                  title = "Wide Modal",
+                  body = "widthPercent = 50",
+                  widthPercent = 50,
+              })
+          end },
+        { label = "Narrow (20%)", style = "inactive", weight = 2,
+          onClick = function()
+              modal.info("demo_narrow", {
+                  title = "Narrow Modal",
+                  body = "widthPercent = 20",
+                  widthPercent = 20,
+              })
+          end },
+    })
+
+    controls.ButtonRow({
+        { label = "Fixed Height (30%)", style = "inactive", weight = 1,
+          onClick = function()
+              modal.info("demo_fixed_h", {
+                  title = "Fixed Height",
+                  body = "heightPercent = 30 locks the popup to exactly 30% of screen height.",
+                  widthPercent = 33,
+                  heightPercent = 30,
+              })
+          end },
+        { label = "Large (50x35)", style = "inactive", weight = 1,
+          onClick = function()
+              modal.open("demo_large", {
+                  title = "Large Modal",
+                  body = "widthPercent = 50, heightPercent = 35",
+                  widthPercent = 50,
+                  heightPercent = 35,
+                  content = function()
+                      ImGui.Dummy(0, 4)
+                      for i = 1, 8 do
+                          controls.TextMuted("  Content line " .. i)
+                      end
+                  end,
+                  buttons = { { label = "Close", style = "inactive" } },
+              })
+          end },
+    })
+
+    controls.SectionHeader("Styled Variant", 8, 4)
+    controls.TextMuted("Centered title, no title bar, panel background behind body:")
+    ImGui.Dummy(0, 2)
+
+    controls.ButtonRow({
+        { label = "Styled Info", style = "active", weight = 1,
+          onClick = function()
+              modal.styled("demo_styled", {
+                  title = "About WindowUtils",
+                  body = "WindowUtils is a universal ImGui window management library for CET mods. It provides grid snapping, smooth animations, collapse-safe sizing, visual effects, and a master settings GUI.",
+                  widthPercent = 35,
+              })
+          end },
+        { label = "Styled + Content", style = "active", weight = 1,
+          onClick = function()
+              modal.styled("demo_styled_content", {
+                  title = "System Status",
+                  widthPercent = 35,
+                  content = function(innerWidth)
+                      ImGui.Dummy(0, 2)
+                      controls.TextMuted("Grid Snapping")
+                      controls.ProgressBar(0.9, innerWidth, 0, "90%", "success")
+                      ImGui.Dummy(0, 2)
+                      controls.TextMuted("Animation Load")
+                      controls.ProgressBar(0.45, innerWidth, 0, "45%", "default")
+                      ImGui.Dummy(0, 2)
+                      controls.TextMuted("Memory Usage")
+                      controls.ProgressBar(0.72, innerWidth, 0, "72%", "danger")
+                      ImGui.Dummy(0, 2)
+                  end,
+                  buttons = {
+                      { label = "Refresh", style = "active", closesModal = false,
+                        onClick = function() wu.Notify.info("Refreshed!") end },
+                      { label = "Close", style = "inactive" },
+                  },
+              })
+          end },
+    })
+
+    controls.ButtonRow({
+        { label = "Styled Hold Confirm", style = "danger", weight = 1,
+          onClick = function()
+              modal.confirm("demo_styled_hold", {
+                  title = "Delete Everything",
+                  body = "This action is irreversible. All saved presets and window configurations will be permanently removed.",
+                  styled = true,
+                  widthPercent = 35,
+                  holdToConfirm = true,
+                  holdDuration = 2.0,
+                  onConfirm = function()
+                      modalContentCounter = modalContentCounter + 1
+                      wu.Notify.success("Styled hold-confirmed #" .. modalContentCounter)
+                  end,
+              })
+          end },
+        { label = "Styled Hold Buttons", style = "danger", weight = 1,
+          onClick = function()
+              modal.styled("demo_styled_hold_btns", {
+                  title = "Confirm Reset",
+                  body = "Hold the reset button to restore all settings to their default values.",
+                  widthPercent = 35,
+                  buttons = {
+                      { label = "  Hold to Reset  ", style = "danger",
+                        onHold = function()
+                            modalContentCounter = modalContentCounter + 1
+                            wu.Notify.success("Reset via styled hold #" .. modalContentCounter)
+                        end,
+                        holdDuration = 1.5, progressDisplay = "overlay" },
+                      { label = "Cancel", style = "inactive" },
+                  },
+              })
+          end },
+    })
+
+    controls.ButtonRow({
+        { label = "Styled Alert", style = "warning", weight = 1,
+          onClick = function()
+              modal.alert("demo_styled_alert", {
+                  title = "Warning",
+                  body = "The configuration file could not be saved. Check file permissions and try again.",
+                  styled = true,
+                  widthPercent = 35,
+              })
+          end },
+        { label = "Styled Custom BG", style = "inactive", weight = 1,
+          onClick = function()
+              modal.styled("demo_styled_bg", {
+                  title = "Custom Panel Color",
+                  body = "This styled modal uses a custom panelBg color.",
+                  widthPercent = 35,
+                  panelBg = { 0.2, 0.8, 0.5, 0.06 },
+              })
+          end },
+    })
+
+    controls.SectionHeader("Changelog Preset", 8, 4)
+    controls.TextMuted("Version sidebar + scrollable changes panel:")
+    ImGui.Dummy(0, 2)
+
+    controls.ButtonRow({
+        { label = "Changelog", style = "active", weight = 1,
+          onClick = function()
+              modal.changelog("demo_changelog", {
+                  title = "WindowUtils Changelog",
+                  heightPercent = 65,
+                  buttons = {
+                      { label = "Dismiss", style = "inactive" },
+                      { label = "  Acknowledge  ", style = "active",
+                        onHold = function()
+                            wu.Notify.success("Changelog acknowledged!")
+                        end,
+                        holdDuration = 1.5, progressDisplay = "overlay" },
+                  },
+                  versions = {
+                      { version = "1.0.0-RC10", date = "2026-03-28", changes = {
+                          "Added modal popup module with percent-based sizing",
+                          "Added search/filter module with multi-word matching",
+                          "Added multi-source hold progress helpers",
+                          "Added styled modal variant with centered title",
+                          "Added changelog modal preset",
+                      }},
+                      { version = "1.0.0-RC9", date = "2026-03-15", changes = {
+                          "Fixed constraint animation edge case on collapse",
+                          "Improved grid feathering performance",
+                          "Added DynamicButton icon-only fallback mode",
+                          "Updated notification toast fade timing",
+                      }},
+                      { version = "1.0.0-Beta20", date = "2026-02-28", changes = {
+                          "Added expand module for window size management",
+                          "Added toggle panel animations",
+                          "Fixed splitter drag handle alignment",
+                          "Improved scrollbar styling consistency",
+                      }},
+                      { version = "1.0.0-Beta19", date = "2026-02-10", changes = {
+                          "Added drag and drop list reordering",
+                          "Added tab bar with badge support",
+                          "Fixed color picker alpha channel handling",
+                      }},
+                  },
+              })
+          end },
+    })
+end
+
+--------------------------------------------------------------------------------
+-- Tab 13: Multi-Source Hold Progress Demo
+--------------------------------------------------------------------------------
+
+local function drawHoldProgressDemo()
+    local controls = wu.Controls
+
+    controls.TextMuted("Multi-source hold progress: one display slot for several buttons.")
+    ImGui.Dummy(0, 4)
+
+    controls.SectionHeader("Shared Progress Target", 0, 4)
+    controls.TextMuted("Hold any button below. The shared bar shows whichever is active:")
+    ImGui.Dummy(0, 2)
+
+    -- Three hold buttons with external progress
+    local w4 = controls.ColWidth(4)
+    controls.HoldButton("hp_src_a", "  Action A  ", {
+        duration = 2.0, style = "active", width = w4,
+        progressDisplay = "external",
+        onHold = function() wu.Notify.success("Action A completed!") end,
+        onClick = function() wu.Notify.info("Hold to confirm A") end,
+    })
+    ImGui.SameLine()
+    controls.HoldButton("hp_src_b", "  Action B  ", {
+        duration = 1.5, style = "warning", width = w4,
+        progressDisplay = "external",
+        onHold = function() wu.Notify.success("Action B completed!") end,
+        onClick = function() wu.Notify.info("Hold to confirm B") end,
+    })
+    ImGui.SameLine()
+    controls.HoldButton("hp_src_c", "  Action C  ", {
+        duration = 1.0, style = "danger", width = w4,
+        progressDisplay = "external",
+        onHold = function() wu.Notify.success("Action C completed!") end,
+        onClick = function() wu.Notify.info("Hold to confirm C") end,
+    })
+
+    ImGui.Dummy(0, 4)
+
+    -- Shared progress target using getFirstActiveHoldProgress
+    local sourceIds = { "hp_src_a", "hp_src_b", "hp_src_c" }
+    if not controls.ShowFirstActiveHoldProgress(sourceIds, -1, "danger") then
+        controls.TextMuted("  ^ Hold any button above to see progress here")
+    end
+
+    ImGui.Dummy(0, 8)
+
+    controls.SectionHeader("ButtonRow with progressFrom", 0, 4)
+    controls.TextMuted("The first slot shows progress from the delete button:")
+    ImGui.Dummy(0, 2)
+
+    controls.ButtonRow({
+        { label = "My Preset", style = "active",
+          onClick = function() wu.Notify.info("Load preset") end,
+          progressFrom = "hp_row_del", progressStyle = "danger" },
+        { icon = "Undo", style = "inactive",
+          onClick = function() wu.Notify.info("Reset") end },
+        { icon = "Delete", style = "danger",
+          onHold = function() wu.Notify.success("Deleted!") end,
+          holdDuration = 1.5, id = "hp_row_del", progressDisplay = "external" },
+    })
+
+    ImGui.Dummy(0, 8)
+
+    controls.SectionHeader("Individual Progress Readout", 0, 4)
+    local progressA = controls.getHoldProgress("hp_src_a")
+    local progressB = controls.getHoldProgress("hp_src_b")
+    local progressC = controls.getHoldProgress("hp_src_c")
+    controls.TextMuted("A: " .. (progressA and string.format("%.1f%%", progressA * 100) or "idle"))
+    controls.TextMuted("B: " .. (progressB and string.format("%.1f%%", progressB * 100) or "idle"))
+    controls.TextMuted("C: " .. (progressC and string.format("%.1f%%", progressC * 100) or "idle"))
+
+    local firstProgress, firstId = controls.getFirstActiveHoldProgress(sourceIds)
+    if firstProgress then
+        controls.TextMuted("First active: " .. firstId .. " at " .. string.format("%.1f%%", firstProgress * 100))
+    else
+        controls.TextMuted("First active: none")
+    end
+end
+
+--------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     wu = GetMod("WindowUtils")
@@ -1664,6 +2131,9 @@ registerForEvent("onDraw", function()
             { label = "Expand (V)", content = drawExpandVertDemo },
             { label = "Telemetry",  content = drawTelemetryDemo },
             { label = "Tooltips",   content = drawTooltipsDemo },
+            { label = "Search",     content = drawSearchDemo },
+            { label = "Modal",      content = drawModalDemo },
+            { label = "Hold Multi", content = drawHoldProgressDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then
