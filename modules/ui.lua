@@ -242,7 +242,7 @@ local function drawExperimentalSection()
 
     if not settings.master.enabled then ImGui.BeginDisabled() end
 
-    ImGui.Text("Experimental")
+    c:Header("Experimental", "experimental")
     ImGui.Dummy(0, 0)
 
     local discoveryAvailable = core.isDiscoveryAvailable()
@@ -263,25 +263,18 @@ local function drawExperimentalSection()
 
     if settings.master.overrideAllWindows and discoveryAvailable then
         ImGui.SameLine()
-        local _, scrollStyleChanged = c:Checkbox("Scrollbar Style", "overrideStyling", {
-            tooltip = "Apply WindowUtils scrollbar styling to all managed windows"
-        })
+        local _, scrollStyleChanged = c:Checkbox("Scrollbar Style", "overrideStyling")
         if scrollStyleChanged and settings.master.overrideStyling then
             settings.master.disableScrollbar = false
             settings.markDirty()
         end
         ImGui.SameLine()
-        local _, noScrollChanged = c:Checkbox("No Scrollbar", "disableScrollbar", {
-            tooltip = "Hide scrollbars on all managed external windows"
-        })
+        local _, noScrollChanged = c:Checkbox("No Scrollbar", "disableScrollbar")
         if noScrollChanged and settings.master.disableScrollbar then
             settings.master.overrideStyling = false
             settings.markDirty()
         end
-        c:SliderFloat("TimerSand", "probeInterval", 0.1, 5.0, {
-            format = "%.1f s",
-            tooltip = "Re-Probe Interval\nHow often to scan for newly-drawn windows"
-        })
+        c:SliderFloat(nil, "probeInterval")
 
         c:Checkbox("Auto-Remove Empty Windows", "autoRemoveEmptyWindows", {
             tooltip = "Automatically stop managing windows that are no longer drawn by any mod.\n When disabled, empty shells instantly clear when clicked.\n\nMay cause windows to flicker (see Window Browser for fix).",
@@ -290,19 +283,11 @@ local function drawExperimentalSection()
 
         if settings.master.autoRemoveEmptyWindows then
             ImGui.SameLine()
-            c:Checkbox("Batch Auto-Remove", "batchAutoRemove", {
-                tooltip = "Check all windows simultaneously each interval\nWhen off, checks one window per interval (round-robin)"
-            })
-
-            c:SliderFloat("TimerSand", "autoRemoveInterval", 0.1, 5.0, {
-                format = "%.1f s",
-                tooltip = "Auto-Remove Interval\nHow often to check for empty window shells\nLower = faster cleanup, slightly more processing"
-            })
+            c:Checkbox("Batch Auto-Remove", "batchAutoRemove")
+            c:SliderFloat(nil, "autoRemoveInterval")
         end
 
-        c:Checkbox("Window Browser", "windowBrowserOpen", {
-            tooltip = "Browse all discovered CET windows\n\nUse the toggle to fix windows that flicker and\ncan't be closed or collapsed properly.\nHide windows you don't need to declutter the list."
-        })
+        c:Checkbox("Window Browser", "windowBrowserOpen")
     end
 
     if not settings.master.enabled then ImGui.EndDisabled() end
