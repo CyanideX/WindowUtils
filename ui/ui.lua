@@ -34,6 +34,27 @@ local DISCLAIMER_TEXT = "Experimental window overrides may cause some windows to
     .. "It is recommended to delete CET's layout.ini file to prevent stale or non-existent windows from appearing in Window Browser."
 
 
+local function openExperimentalDisclaimer()
+    modal.open("experimental_disclaimer", {
+        title = "Experimental Settings",
+        body = DISCLAIMER_TEXT,
+        styled = true,
+        widthPercent = 20,
+        buttons = {
+            {
+                label = "I Understand",
+                style = "active",
+                holdDuration = 1.5,
+                progressDisplay = "overlay",
+                onHold = function()
+                    settings.master.experimentalDisclaimerShown = true
+                    settings.save()
+                end,
+            },
+        },
+    })
+end
+
 --- Build the iconGlyph opts for experimental headers.
 --- Warning icon with click-to-open modal if not acknowledged, info icon otherwise.
 local function experimentalIconGlyph()
@@ -41,26 +62,7 @@ local function experimentalIconGlyph()
         return {
             icon = "AlertBox",
             tooltip = "You have not acknowledged the experimental disclaimer.\n\nClick to review.",
-            onClick = function()
-                modal.open("experimental_disclaimer", {
-                    title = "Experimental Settings",
-                    body = DISCLAIMER_TEXT,
-                    styled = true,
-                    widthPercent = 20,
-                    buttons = {
-                        {
-                            label = "I Understand",
-                            style = "active",
-                            holdDuration = 1.5,
-                            progressDisplay = "overlay",
-                            onHold = function()
-                                settings.master.experimentalDisclaimerShown = true
-                                settings.save()
-                            end,
-                        },
-                    },
-                })
-            end,
+            onClick = openExperimentalDisclaimer,
         }
     else
         return {
@@ -108,24 +110,7 @@ local function drawGeneralSection()
     end
 
     if changed and settings.master.showExperimental and not settings.master.experimentalDisclaimerShown then
-        modal.open("experimental_disclaimer", {
-            title = "Experimental Settings",
-            body = DISCLAIMER_TEXT,
-            styled = true,
-            widthPercent = 20,
-            buttons = {
-                {
-                    label = "I Understand",
-                    style = "active",
-                    holdDuration = 1.5,
-                    progressDisplay = "overlay",
-                    onHold = function()
-                        settings.master.experimentalDisclaimerShown = true
-                        settings.save()
-                    end,
-                },
-            },
-        })
+        openExperimentalDisclaimer()
     end
 end
 
