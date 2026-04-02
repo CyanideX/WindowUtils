@@ -27,6 +27,28 @@ local function tooltipMaxWidth(pct)
     return math.floor(sw * (pct or DEFAULT_TOOLTIP_WIDTH_PCT) / 100)
 end
 
+--- Render a tooltip with optional text wrapping.
+---@param text string Tooltip text
+---@param widthPct? number Max width as screen-width percentage, 0 to disable wrapping
+local function renderTooltip(text, widthPct)
+    ImGui.BeginTooltip()
+    local maxW = tooltipMaxWidth(widthPct)
+    if maxW > 0 then ImGui.PushTextWrapPos(maxW) end
+    ImGui.TextWrapped(text)
+    if maxW > 0 then ImGui.PopTextWrapPos() end
+    ImGui.EndTooltip()
+end
+
+--- Guard: run renderFn inside a tooltip only when the previous item is hovered.
+---@param renderFn function Content rendering callback
+local function ifHovered(renderFn)
+    if ImGui.IsItemHovered() then
+        ImGui.BeginTooltip()
+        renderFn()
+        ImGui.EndTooltip()
+    end
+end
+
 --------------------------------------------------------------------------------
 -- Basic Tooltips
 --------------------------------------------------------------------------------
@@ -36,12 +58,7 @@ end
 ---@param widthPct? number Max width as screen-width percentage (default 15), 0 to disable wrapping
 function tooltips.ShowAlways(text, widthPct)
     if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
-        local maxW = tooltipMaxWidth(widthPct)
-        if maxW > 0 then ImGui.PushTextWrapPos(maxW) end
-        ImGui.TextWrapped(text)
-        if maxW > 0 then ImGui.PopTextWrapPos() end
-        ImGui.EndTooltip()
+        renderTooltip(text, widthPct)
     end
 end
 
@@ -53,12 +70,7 @@ function tooltips.Show(text, widthPct)
     if not settings.master.tooltipsEnabled then return end
 
     if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
-        local maxW = tooltipMaxWidth(widthPct)
-        if maxW > 0 then ImGui.PushTextWrapPos(maxW) end
-        ImGui.TextWrapped(text)
-        if maxW > 0 then ImGui.PopTextWrapPos() end
-        ImGui.EndTooltip()
+        renderTooltip(text, widthPct)
     end
 end
 
@@ -85,8 +97,7 @@ end
 ---@param title string Title line
 ---@param description? string Description shown below a separator
 function tooltips.ShowTitled(title, description)
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         ImGui.Text(title)
         if description then
             ImGui.Separator()
@@ -94,8 +105,7 @@ function tooltips.ShowTitled(title, description)
             ImGui.TextWrapped(description)
             ImGui.PopStyleColor()
         end
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 --- Show a tooltip with custom text color.
@@ -107,13 +117,11 @@ end
 function tooltips.ShowColored(text, r, g, b, a)
     a = a or 1.0
 
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(r, g, b, a))
         ImGui.Text(text)
         ImGui.PopStyleColor()
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 --- Show a muted (grey) tooltip.
@@ -164,8 +172,7 @@ end
 --- Show a help tooltip with blue [?] prefix and wrapped text.
 ---@param text string Help text
 function tooltips.ShowHelp(text)
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(0.5, 0.7, 1.0, 1.0))
         ImGui.Text("[?]")
         ImGui.PopStyleColor()
@@ -173,31 +180,27 @@ function tooltips.ShowHelp(text)
         ImGui.PushTextWrapPos(300)
         ImGui.TextWrapped(text)
         ImGui.PopTextWrapPos()
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 --- Show a tooltip with action label and grey keybind hint.
 ---@param action string Action description
 ---@param keybind string Keybind string (displayed in brackets)
 function tooltips.ShowKeybind(action, keybind)
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         ImGui.Text(action)
         ImGui.SameLine()
         ImGui.PushStyleColor(ImGuiCol.Text, styles.ToColor(styles.colors.greyText))
         ImGui.Text("[" .. keybind .. "]")
         ImGui.PopStyleColor()
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 --- Show a tooltip with main text and grey hint below a separator.
 ---@param text string Main tooltip text
 ---@param hint? string Hint text shown below separator
 function tooltips.ShowWithHint(text, hint)
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         ImGui.Text(text)
         if hint then
             ImGui.Separator()
@@ -205,8 +208,7 @@ function tooltips.ShowWithHint(text, hint)
             ImGui.Text(hint)
             ImGui.PopStyleColor()
         end
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 --------------------------------------------------------------------------------
@@ -216,21 +218,18 @@ end
 --- Show a tooltip with multiple text lines.
 ---@param lines string[] Array of text lines
 function tooltips.ShowLines(lines)
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         for _, line in ipairs(lines) do
             ImGui.Text(line)
         end
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 --- Show a tooltip with optional title and bullet points.
 ---@param title? string Title line (nil = no title)
 ---@param bullets string[] Array of bullet point strings
 function tooltips.ShowBullets(title, bullets)
-    if ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
+    ifHovered(function()
         if title then
             ImGui.Text(title)
             ImGui.Separator()
@@ -238,8 +237,7 @@ function tooltips.ShowBullets(title, bullets)
         for _, bullet in ipairs(bullets) do
             ImGui.BulletText(bullet)
         end
-        ImGui.EndTooltip()
-    end
+    end)
 end
 
 return tooltips
