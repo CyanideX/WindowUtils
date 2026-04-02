@@ -14,6 +14,48 @@ local modal = {}
 local activeModals = {}
 
 --------------------------------------------------------------------------------
+-- Helpers
+--------------------------------------------------------------------------------
+
+--- Wrap button callbacks to auto-close the modal.
+local function buildButtonDefs(entry)
+    local buttons = entry.buttons or {
+        { label = "OK", style = "active" }
+    }
+    local defs = {}
+    for i, btn in ipairs(buttons) do
+        local def = {
+            label = btn.label, icon = btn.icon, style = btn.style,
+            weight = btn.weight, disabled = btn.disabled, tooltip = btn.tooltip,
+            id = btn.id or (entry.id .. "_btn_" .. i),
+            holdDuration = btn.holdDuration,
+            progressDisplay = btn.progressDisplay,
+            warningMessage = btn.warningMessage,
+        }
+        local shouldClose = btn.closesModal ~= false
+
+        if btn.onHold then
+            local orig = btn.onHold
+            def.onHold = shouldClose
+                and function() orig(); modal.close(entry.id) end
+                or orig
+        end
+
+        if btn.onClick then
+            local orig = btn.onClick
+            def.onClick = shouldClose
+                and function() orig(); modal.close(entry.id) end
+                or orig
+        elseif not btn.onHold and shouldClose then
+            def.onClick = function() modal.close(entry.id) end
+        end
+
+        defs[i] = def
+    end
+    return defs
+end
+
+--------------------------------------------------------------------------------
 -- Lifecycle
 --------------------------------------------------------------------------------
 
@@ -64,44 +106,6 @@ end
 --------------------------------------------------------------------------------
 -- Drawing
 --------------------------------------------------------------------------------
-
---- Wrap button callbacks to auto-close the modal.
-local function buildButtonDefs(entry)
-    local buttons = entry.buttons or {
-        { label = "OK", style = "active" }
-    }
-    local defs = {}
-    for i, btn in ipairs(buttons) do
-        local def = {
-            label = btn.label, icon = btn.icon, style = btn.style,
-            weight = btn.weight, disabled = btn.disabled, tooltip = btn.tooltip,
-            id = btn.id or (entry.id .. "_btn_" .. i),
-            holdDuration = btn.holdDuration,
-            progressDisplay = btn.progressDisplay,
-            warningMessage = btn.warningMessage,
-        }
-        local shouldClose = btn.closesModal ~= false
-
-        if btn.onHold then
-            local orig = btn.onHold
-            def.onHold = shouldClose
-                and function() orig(); modal.close(entry.id) end
-                or orig
-        end
-
-        if btn.onClick then
-            local orig = btn.onClick
-            def.onClick = shouldClose
-                and function() orig(); modal.close(entry.id) end
-                or orig
-        elseif not btn.onHold and shouldClose then
-            def.onClick = function() modal.close(entry.id) end
-        end
-
-        defs[i] = def
-    end
-    return defs
-end
 
 --- Render the styled variant: centered title + draw-list panel background.
 local function drawStyledContent(entry, contentWidth)
