@@ -19,6 +19,16 @@ All tooltip functions check `ImGui.IsItemHovered()` internally  - call them imme
 
 > **`tooltipsEnabled` setting:** Only `Show()` and `ShowIf()` respect the global `tooltipsEnabled` setting. All other functions (`ShowAlways`, `ShowWrapped`, `ShowTitled`, `ShowColored`, `ShowMuted`, `ShowSuccess`, `ShowDanger`, `ShowWarning`, `ShowHelp`, `ShowKeybind`, `ShowWithHint`, `ShowLines`, `ShowBullets`) always display when hovered.
 
+## Configuration
+
+### `setDefaultWidthPct(pct)`
+
+Set the default tooltip max width as a percentage of screen width. All `Show` and `ShowAlways` calls use this unless overridden per-call. Default is 15%.
+
+```lua
+tips.setDefaultWidthPct(20)  -- 20% of screen width
+```
+
 ## API Reference
 
 ### Basic Tooltips

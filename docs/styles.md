@@ -75,6 +75,7 @@ Each style has a matched `Push`/`Pop` pair. Push sets 4 colors + centered text a
 | `PushButtonDisabled()` | `PopButtonDisabled()` | Grey bg, grey text |
 | `PushButtonStatusbar()` | `PopButtonStatusbar()` | Subtle blue bg, yellow text |
 | `PushButtonTransparent()` | `PopButtonTransparent()` | Transparent bg, no inner spacing |
+| `PushButtonFrameless()` | `PopButtonFrameless()` | Transparent bg, zero frame padding (renders like text but clickable) |
 
 Padded variants add `FramePadding` and `ItemSpacing` from `styles.spacing`:
 

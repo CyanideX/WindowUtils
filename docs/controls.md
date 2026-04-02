@@ -524,18 +524,19 @@ ctx:ToggleButtonRow({
 
 These methods integrate with the search system to dim non-matching sections. Requires `search` and `defs` in `bindOpts`. See [search.md](search.md) for full search integration details.
 
-#### `ctx:Header(text, category)`
+#### `ctx:Header(text, category, iconGlyph?)`
 
-Render a text header that auto-dims when no controls in the category match the search query.
+Render a text header that auto-dims when no controls in the category match the search query. Optionally renders a right-justified icon glyph.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | text | string | Header text |
 | category | string | Category key to check against defs |
+| iconGlyph | table\|nil | HeaderIconGlyph opts table |
 
-#### `ctx:SectionHeader(text, category, spacingBefore?, spacingAfter?)`
+#### `ctx:SectionHeader(text, category, spacingBefore?, spacingAfter?, iconGlyph?)`
 
-Render a separator + label that auto-dims based on category match.
+Render a separator + label that auto-dims based on category match. Optionally renders a right-justified icon glyph.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -543,6 +544,7 @@ Render a separator + label that auto-dims based on category match.
 | category | string | Category key to check against defs |
 | spacingBefore | number\|nil | Vertical spacing before separator |
 | spacingAfter | number\|nil | Vertical spacing after label |
+| iconGlyph | table\|nil | HeaderIconGlyph opts table |
 
 #### `ctx:BeginDim(key)` / `ctx:EndDim(dimmed)`
 
@@ -660,9 +662,57 @@ end, { borderOnHover = true })
 
 Horizontal separator with optional spacing.
 
-### `SectionHeader(label, spacingBefore?, spacingAfter?)`
+### `SectionHeader(label, spacingBefore?, spacingAfter?, iconGlyph?)`
 
-Separator + label text with optional spacing.
+Separator + label text with optional spacing and right-justified icon glyph.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| label | string |  - | Section title text |
+| spacingBefore | number\|nil | nil | Vertical spacing before separator |
+| spacingAfter | number\|nil | nil | Vertical spacing after label |
+| iconGlyph | table\|nil | nil | HeaderIconGlyph opts table (see below) |
+
+### `HeaderIconGlyph(opts)`
+
+Renders a right-justified icon glyph on the current ImGui line. Intended for use after header or section header text to show contextual icons, warnings, or info indicators.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| icon | string |  - | IconGlyphs key name (e.g. `"AlertBox"`) or raw glyph string |
+| tooltip | string\|nil | nil | Tooltip text shown on hover |
+| color | table\|nil | nil | RGBA color `{r, g, b, a}` applied to the icon text |
+| visible | boolean\|nil | true | If `false`, skips rendering entirely |
+| onClick | function\|nil | nil | Click callback (renders as a frameless button instead of text) |
+| alwaysShowTooltip | boolean\|nil | false | Show tooltip even when `tooltipsEnabled` is off |
+
+When `onClick` is provided, the icon renders as a frameless button (via `styles.PushButtonFrameless`) so clicks register in CET. When `onClick` is nil, it renders as plain `ImGui.Text`.
+
+If `IconGlyphs` is nil (CET not fully loaded), the function returns immediately without error.
+
+```lua
+-- Info icon with tooltip
+controls.SectionHeader("Settings", 10, 0, {
+    icon = "InformationBox",
+    tooltip = "Hover for details about this section",
+    alwaysShowTooltip = true,
+})
+
+-- Warning icon with click handler
+controls.SectionHeader("Experimental", 10, 0, {
+    icon = "AlertBox",
+    tooltip = "Click to review disclaimer",
+    onClick = function() openDisclaimer() end,
+})
+
+-- Conditional visibility
+controls.SectionHeader("Constraints", 10, 0, {
+    icon = "AlertCircleOutline",
+    tooltip = "Active constraints detected",
+    color = { 1, 0.8, 0, 1 },
+    visible = hasConstraints,
+})
+```
 
 ## Row Layout
 
