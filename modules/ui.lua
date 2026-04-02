@@ -10,7 +10,6 @@ local styles    = require("modules/styles")
 local splitter  = require("modules/splitter")
 local expand    = require("modules/expand")
 local effects   = require("modules/effects")
-local discovery = require("modules/discovery")
 local utils     = require("modules/utils")
 local tooltips  = require("modules/tooltips")
 local search    = require("modules/search")
@@ -288,223 +287,7 @@ end
 -- Window Browser (separate ImGui window)
 --------------------------------------------------------------------------------
 
-local wbSearchState = nil
-
-local function drawWindowBrowserEntry(name, category)
-    local ic = IconGlyphs or {}
-    local override = settings.windows.overrides[name]
-    local btnW = utils.minIconButtonWidth()
-    local isHidden = (category == "hidden")
-    local isIgnored = (category == "ignored")
-
-    local pOpenIcon = override and (ic.ToggleSwitch or "On") or (ic.ToggleSwitchOffOutline or "Off")
-    if isHidden or isIgnored then
-        ImGui.BeginDisabled()
-        controls.Button(pOpenIcon .. "##popen_" .. name, "disabled", btnW)
-        ImGui.EndDisabled()
-        if isIgnored then
-            tooltips.Show("Unignore this window to change Close Button setting")
-        else
-            tooltips.Show("Unhide this window to change Close Button setting")
-        end
-    else
-        if controls.ToggleButton(pOpenIcon .. "##popen_" .. name, override, btnW) then
-            if override then
-                settings.setWindowOverride(name, nil)
-            else
-                settings.setWindowOverride(name, true)
-            end
-        end
-        tooltips.Show(override
-            and "Close Button enabled\nClick to disable"
-            or "Enable Close Button\nAdds an X button to this window's title bar")
-    end
-
-    ImGui.SameLine()
-
-    local ignoreIcon = isIgnored and (ic.Cancel or "X") or (ic.CircleOffOutline or "-")
-    local ignoreStyle = isIgnored and "danger" or "inactive"
-    if controls.Button(ignoreIcon .. "##ign_" .. name, ignoreStyle, btnW) then
-        settings.setWindowIgnored(name, not isIgnored)
-    end
-    tooltips.Show(isIgnored
-        and "Stop ignoring this window\nWindowUtils will manage it again"
-        or "Ignore this window completely\nWindowUtils will not apply any overrides")
-
-    ImGui.SameLine()
-
-    local eyeIcon = isHidden and (ic.EyeOff or "H") or (ic.EyeOutline or "V")
-    local eyeStyle = "inactive"
-    if isIgnored then
-        ImGui.BeginDisabled()
-        controls.Button(eyeIcon .. "##vis_" .. name, "disabled", btnW)
-        ImGui.EndDisabled()
-        tooltips.Show("Unignore this window to change visibility")
-    else
-        if controls.Button(eyeIcon .. "##vis_" .. name, eyeStyle, btnW) then
-            if not isHidden then
-                settings.setWindowOverride(name, nil)
-            end
-            settings.setWindowHidden(name, not isHidden)
-        end
-        tooltips.Show(isHidden
-            and "Show this window in the browser"
-            or "Hide this window from the browser\nMoves it to the Hidden section")
-    end
-
-    ImGui.SameLine()
-
-    local availWidth = ImGui.GetContentRegionAvail()
-    local displayName, wasTruncated = utils.truncateText(name, availWidth)
-
-    if isHidden or isIgnored then
-        styles.PushTextMuted()
-        ImGui.Text(displayName)
-        styles.PopTextMuted()
-    else
-        ImGui.Text(displayName)
-    end
-
-    if wasTruncated and ImGui.IsItemHovered() then
-        ImGui.BeginTooltip()
-        ImGui.Text(name)
-        ImGui.EndTooltip()
-    end
-end
-
-local WB_WINDOW_NAME = "Window Browser##WindowUtils"
-
-local function drawWindowOverridePanel()
-    if not settings.master.enabled then return end
-    if not settings.master.showExperimental then return end
-    if not settings.master.windowBrowserOpen then return end
-    if not settings.master.overrideAllWindows then return end
-
-    local dw, dh = GetDisplayResolution()
-    ImGui.SetNextWindowSize(dw * 0.15, dh * 0.35, ImGuiCond.FirstUseEver)
-    core.setNextWindowSizeConstraintsPercent(12, 15, 50, 90, WB_WINDOW_NAME)
-
-    if not ImGui.Begin(WB_WINDOW_NAME) then
-        ImGui.End()
-        return
-    end
-
-    if not wbSearchState then
-        wbSearchState = search.new("wb_search")
-    end
-    search.SearchBar(wbSearchState, { cols = 12 })
-
-    local ic = IconGlyphs or {}
-    local filter = wbSearchState:getQuery():lower()
-    local windows = discovery.getActiveWindows()
-    local visibleWindows = {}
-    local hiddenWindows = {}
-    local ignoredWindows = {}
-
-    for _, windowInfo in ipairs(windows) do
-        local name = windowInfo.name
-        if name:sub(1, 3) == "###" then goto skipWindow end
-        if filter == "" or name:lower():find(filter, 1, true) then
-            if settings.isWindowIgnored(name) then
-                ignoredWindows[#ignoredWindows + 1] = name
-            elseif settings.isWindowHidden(name) then
-                hiddenWindows[#hiddenWindows + 1] = name
-            else
-                visibleWindows[#visibleWindows + 1] = name
-            end
-        end
-        ::skipWindow::
-    end
-
-    local lowerCache = {}
-    for _, name in ipairs(visibleWindows) do lowerCache[name] = name:lower() end
-    for _, name in ipairs(hiddenWindows) do lowerCache[name] = name:lower() end
-    for _, name in ipairs(ignoredWindows) do lowerCache[name] = name:lower() end
-    local function cmpAlpha(a, b) return lowerCache[a] < lowerCache[b] end
-    table.sort(visibleWindows, cmpAlpha)
-    table.sort(hiddenWindows, cmpAlpha)
-    table.sort(ignoredWindows, cmpAlpha)
-
-    controls.Separator(4, 4)
-    local btnW = utils.minIconButtonWidth()
-    local headerIndent = ImGui.GetStyle().WindowPadding.x
-    ImGui.SetCursorPosX(ImGui.GetCursorPosX() + headerIndent)
-    local allVisible = {}
-    for _, name in ipairs(visibleWindows) do allVisible[#allVisible + 1] = name end
-    for _, name in ipairs(hiddenWindows) do allVisible[#allVisible + 1] = name end
-    for _, name in ipairs(ignoredWindows) do allVisible[#allVisible + 1] = name end
-
-    local toggleAllIcon = ic.ToggleSwitchOffOutline or "Off"
-    if controls.Button(toggleAllIcon .. "##wb_toggle_all", "inactive", btnW) then
-        for _, name in ipairs(allVisible) do
-            local override = settings.windows.overrides[name]
-            if not override and not settings.isWindowIgnored(name) and not settings.isWindowHidden(name) then
-                settings.setWindowOverride(name, true)
-            end
-        end
-    end
-    tooltips.Show("Toggle All\nEnable Close Button on all visible windows")
-
-    ImGui.SameLine()
-
-    local ignoreAllIcon = ic.CircleOffOutline or "-"
-    if controls.Button(ignoreAllIcon .. "##wb_ignore_all", "inactive", btnW) then
-        for _, name in ipairs(allVisible) do
-            if not settings.isWindowIgnored(name) then
-                settings.setWindowIgnored(name, true)
-            end
-        end
-    end
-    tooltips.Show("Ignore All\nIgnore all listed windows")
-
-    ImGui.SameLine()
-
-    local hideAllIcon = ic.EyeOff or "H"
-    if controls.Button(hideAllIcon .. "##wb_hide_all", "inactive", btnW) then
-        for _, name in ipairs(allVisible) do
-            if not settings.isWindowIgnored(name) and not settings.isWindowHidden(name) then
-                settings.setWindowOverride(name, nil)
-                settings.setWindowHidden(name, true)
-            end
-        end
-    end
-    tooltips.Show("Hide All\nHide all listed windows")
-
-    ImGui.SameLine()
-
-    styles.PushTextMuted()
-    ImGui.Text("Window Name")
-    styles.PopTextMuted()
-
-    ImGui.Dummy(0, 2)
-
-    if controls.BeginFillChild("wb_list") then
-        for _, name in ipairs(visibleWindows) do
-            drawWindowBrowserEntry(name, "visible")
-        end
-
-        if #hiddenWindows > 0 then
-            ImGui.Separator()
-            if ImGui.CollapsingHeader("Hidden") then
-                for _, name in ipairs(hiddenWindows) do
-                    drawWindowBrowserEntry(name, "hidden")
-                end
-            end
-        end
-
-        if #ignoredWindows > 0 then
-            ImGui.Separator()
-            if ImGui.CollapsingHeader("Ignored") then
-                for _, name in ipairs(ignoredWindows) do
-                    drawWindowBrowserEntry(name, "ignored")
-                end
-            end
-        end
-    end
-    controls.EndFillChild("wb_list")
-
-    ImGui.End()
-end
+local windowBrowser = require("modules/windowBrowser")
 
 --------------------------------------------------------------------------------
 -- Sidebar Navigation
@@ -655,7 +438,7 @@ function ui.drawWindow()
 
     ImGui.End()
 
-    drawWindowOverridePanel()
+    windowBrowser.draw()
 end
 
 function ui.show()
@@ -684,7 +467,7 @@ end
 --- Clear search states on overlay close.
 function ui.onOverlayClose()
     if ui.searchState then ui.searchState:clear() end
-    if wbSearchState then wbSearchState:clear() end
+    windowBrowser.clearSearch()
 end
 
 return ui
