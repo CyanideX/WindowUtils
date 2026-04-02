@@ -95,6 +95,7 @@ registerForEvent("onInit", function()
     settings.load()
     settings.loadWindows()
     core.loadWindowCache()
+    tooltips.setDefaultWidthPct(settings.master.tooltipMaxWidthPct)
     ui.init()
     effects.setRuntimeData(WindowUtils.runtimeData)
 

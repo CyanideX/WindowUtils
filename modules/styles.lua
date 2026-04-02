@@ -143,6 +143,19 @@ function styles.PopButtonTransparent()
     ImGui.PopStyleVar(2)
 end
 
+--- Frameless transparent button (renders like plain text but is clickable)
+function styles.PushButtonFrameless()
+    ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, 0, 0)
+    pushColor(ImGuiCol.Button, styles.colors.transparent)
+    pushColor(ImGuiCol.ButtonHovered, styles.colors.transparent)
+    pushColor(ImGuiCol.ButtonActive, styles.colors.transparent)
+end
+
+function styles.PopButtonFrameless()
+    ImGui.PopStyleColor(3)
+    ImGui.PopStyleVar()
+end
+
 --------------------------------------------------------------------------------
 -- Button with Padding (includes frame and item spacing)
 --------------------------------------------------------------------------------

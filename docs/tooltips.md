@@ -23,17 +23,23 @@ All tooltip functions check `ImGui.IsItemHovered()` internally  - call them imme
 
 ### Basic Tooltips
 
-### `Show(text)`
+### `Show(text, widthPct?)`
 
-Shows a tooltip on hover. Respects the global `tooltipsEnabled` setting.
+Shows a tooltip on hover. Respects the global `tooltipsEnabled` setting. Text auto-wraps at the configured max width (default from `tooltipMaxWidthPct` setting, typically 15% of screen width).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | text | string\|nil | Tooltip text (nil = no-op) |
+| widthPct | number | Optional override for max width as screen-width percentage. Pass `0` to disable wrapping. |
 
-### `ShowAlways(text)`
+### `ShowAlways(text, widthPct?)`
 
-Shows a tooltip on hover regardless of the `tooltipsEnabled` setting. Used for icon labels that always need explanation.
+Shows a tooltip on hover regardless of the `tooltipsEnabled` setting. Text auto-wraps at the configured max width. Used for icon labels that always need explanation.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| text | string | Tooltip text |
+| widthPct | number | Optional override for max width as screen-width percentage. Pass `0` to disable wrapping. |
 
 ### `ShowWrapped(text, maxWidth?)`
 

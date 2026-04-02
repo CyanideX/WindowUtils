@@ -8,29 +8,56 @@ local styles = require("modules/styles")
 
 local tooltips = {}
 
+local DEFAULT_TOOLTIP_WIDTH_PCT = 15
+
+--- Set the default tooltip max width percentage.
+--- WindowUtils UI calls this to sync with the user's setting.
+---@param pct number Screen-width percentage (e.g. 15 for 15%)
+function tooltips.setDefaultWidthPct(pct)
+    DEFAULT_TOOLTIP_WIDTH_PCT = pct
+end
+
+--- Resolve tooltip max width from a screen-width percentage.
+--- Pass 0 to disable wrapping.
+---@param pct? number Screen-width percentage override, 0 to disable wrapping
+---@return number pixels
+local function tooltipMaxWidth(pct)
+    if pct == 0 then return 0 end
+    local sw = GetDisplayResolution()
+    return math.floor(sw * (pct or DEFAULT_TOOLTIP_WIDTH_PCT) / 100)
+end
+
 --------------------------------------------------------------------------------
 -- Basic Tooltips
 --------------------------------------------------------------------------------
 
 --- Show a simple tooltip if the previous item is hovered (always shows, ignores settings).
 ---@param text string Tooltip text
-function tooltips.ShowAlways(text)
+---@param widthPct? number Max width as screen-width percentage (default 15), 0 to disable wrapping
+function tooltips.ShowAlways(text, widthPct)
     if ImGui.IsItemHovered() then
         ImGui.BeginTooltip()
-        ImGui.Text(text)
+        local maxW = tooltipMaxWidth(widthPct)
+        if maxW > 0 then ImGui.PushTextWrapPos(maxW) end
+        ImGui.TextWrapped(text)
+        if maxW > 0 then ImGui.PopTextWrapPos() end
         ImGui.EndTooltip()
     end
 end
 
 --- Show a simple tooltip if the previous item is hovered (respects tooltipsEnabled setting).
 ---@param text string|nil Tooltip text (nil = no-op)
-function tooltips.Show(text)
+---@param widthPct? number Max width as screen-width percentage (default 15), 0 to disable wrapping
+function tooltips.Show(text, widthPct)
     if not text then return end
     if not settings.master.tooltipsEnabled then return end
 
     if ImGui.IsItemHovered() then
         ImGui.BeginTooltip()
-        ImGui.Text(text)
+        local maxW = tooltipMaxWidth(widthPct)
+        if maxW > 0 then ImGui.PushTextWrapPos(maxW) end
+        ImGui.TextWrapped(text)
+        if maxW > 0 then ImGui.PopTextWrapPos() end
         ImGui.EndTooltip()
     end
 end

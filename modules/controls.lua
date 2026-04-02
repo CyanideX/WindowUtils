@@ -633,15 +633,63 @@ end
 ---@param label string Section title text
 ---@param spacingBefore? number Vertical spacing in pixels before the separator
 ---@param spacingAfter? number Vertical spacing in pixels after the label
+---@param iconGlyph? table HeaderIconGlyph opts table
 ---@return nil
-function controls.SectionHeader(label, spacingBefore, spacingAfter)
+function controls.SectionHeader(label, spacingBefore, spacingAfter, iconGlyph)
     if spacingBefore then
         ImGui.Dummy(0, spacingBefore)
     end
     ImGui.Separator()
     ImGui.Text(label)
+    if type(iconGlyph) == "table" then
+        controls.HeaderIconGlyph(iconGlyph)
+    end
     if spacingAfter then
         ImGui.Dummy(0, spacingAfter)
+    end
+end
+
+--- Render a right-justified icon glyph on the current ImGui line.
+--- Intended for use after header/section header text to show contextual icons.
+--- Uses a frameless button when onClick is provided so clicks register in CET.
+---@param opts table {icon: string, tooltip?: string, color?: table, visible?: boolean, onClick?: function}
+function controls.HeaderIconGlyph(opts)
+    if not IconGlyphs then return end
+    if opts.visible == false then return end
+
+    local icon = utils.resolveIcon(opts.icon)
+    if not icon then return end
+
+    local iconWidth = ImGui.CalcTextSize(icon)
+    ImGui.SameLine(ImGui.GetWindowWidth() - iconWidth - frameCache.itemSpacingX)
+
+    if opts.color then
+        ImGui.PushStyleColor(ImGuiCol.Text, opts.color[1], opts.color[2], opts.color[3], opts.color[4])
+    end
+
+    local clicked = false
+    if opts.onClick then
+        styles.PushButtonFrameless()
+        clicked = ImGui.Button(icon)
+        styles.PopButtonFrameless()
+    else
+        ImGui.Text(icon)
+    end
+
+    if opts.color then
+        ImGui.PopStyleColor()
+    end
+
+    if clicked then
+        opts.onClick()
+    end
+
+    if opts.tooltip then
+        if opts.alwaysShowTooltip then
+            tooltips.ShowAlways(opts.tooltip)
+        else
+            tooltips.Show(opts.tooltip)
+        end
     end
 end
 
@@ -1519,7 +1567,8 @@ end
 --- No-op dimming when search or defs are not configured.
 ---@param text string Header text
 ---@param category string Category key to check against defs
-function bindMethods:Header(text, category)
+---@param iconGlyph? table HeaderIconGlyph opts table
+function bindMethods:Header(text, category, iconGlyph)
     local dimmed = false
     if self.search and self.defs and category and not self.search:isEmpty() then
         if not self.search:categoryHasMatch(category, self.defs, self.searchTooltips) then
@@ -1528,6 +1577,9 @@ function bindMethods:Header(text, category)
         end
     end
     ImGui.Text(text)
+    if type(iconGlyph) == "table" then
+        controls.HeaderIconGlyph(iconGlyph)
+    end
     if dimmed then ImGui.PopStyleVar() end
 end
 
@@ -1564,7 +1616,8 @@ end
 ---@param category string Category key to check against defs
 ---@param spacingBefore? number Vertical spacing before separator
 ---@param spacingAfter? number Vertical spacing after label
-function bindMethods:SectionHeader(text, category, spacingBefore, spacingAfter)
+---@param iconGlyph? table HeaderIconGlyph opts table
+function bindMethods:SectionHeader(text, category, spacingBefore, spacingAfter, iconGlyph)
     local dimmed = false
     if self.search and self.defs and category and not self.search:isEmpty() then
         if not self.search:categoryHasMatch(category, self.defs, self.searchTooltips) then
@@ -1572,7 +1625,7 @@ function bindMethods:SectionHeader(text, category, spacingBefore, spacingAfter)
             dimmed = true
         end
     end
-    controls.SectionHeader(text, spacingBefore, spacingAfter)
+    controls.SectionHeader(text, spacingBefore, spacingAfter, iconGlyph)
     if dimmed then ImGui.PopStyleVar() end
 end
 

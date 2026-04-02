@@ -5,6 +5,7 @@
 ------------------------------------------------------
 
 local settings = require("core/settings")
+local tooltips = require("modules/tooltips")
 
 local uidefs = {}
 
@@ -27,6 +28,11 @@ function uidefs.init()
         tooltipsEnabled  = { label = "Show Tooltips", category = "general.settings",
                              searchTerms = "hover help",
                              tooltip = "Show Tooltips on Hover", alwaysShowTooltip = true },
+        tooltipMaxWidthPct = { label = "Tooltip Max Width", category = "general.settings",
+                               searchTerms = "tooltip wrap width percent",
+                               icon = "ArrowExpandHorizontal", min = 5, max = 50, format = "%.0f%%",
+                               tooltip = "Maximum tooltip width as a percentage of screen width",
+                               onChange = function(val) tooltips.setDefaultWidthPct(val) end },
         debugOutput      = { label = "Debug Output", category = "general.settings",
                              searchTerms = "console print messages",
                              tooltip = "Print Debug Messages to Console", alwaysShowTooltip = true },

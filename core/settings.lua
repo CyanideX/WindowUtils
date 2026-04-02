@@ -36,6 +36,7 @@ local function createDefaultSettings()
         animationDuration = 0.2,
         easeFunction = "easeOut",
         tooltipsEnabled = true,
+        tooltipMaxWidthPct = 15,
         debugOutput = false,
         overrideAllWindows = false,
         gridFeatherEnabled = true,
@@ -62,7 +63,8 @@ local function createDefaultSettings()
         windowBrowserOpen = false,
         overrideStyling = false,
         disableScrollbar = false,
-        showExperimental = false
+        showExperimental = false,
+        experimentalDisclaimerShown = false
     }
 end
 

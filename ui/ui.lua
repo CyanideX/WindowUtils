@@ -13,6 +13,7 @@ local effects   = require("core/effects")
 local utils     = require("modules/utils")
 local tooltips  = require("modules/tooltips")
 local search    = require("modules/search")
+local modal     = require("modules/modal")
 local uidefs    = require("ui/uidefs")
 
 local ui = {}
@@ -25,6 +26,50 @@ ui.selectedSection = 1
 ui.sections = {}
 
 local CONTENT_BG = { 0.65, 0.7, 1.0, 0.0225 }
+
+local DISCLAIMER_TEXT = "Experimental window overrides may cause some windows to flicker. "
+    .. "Open the Window Browser using the toggle in the experimental panel, search for the problematic windows, and enable the first toggle to resolve the flickering.\n\n"
+    .. "You can also ignore windows so that they are excluded from Window Manager overrides or hide windows so they no longer appear in the Window Browser list.\n\n"
+    .. "Removing a mod that has an override enabled may leave an empty window shell; these can be cleared via the Window Browser.\n\n"
+    .. "It is recommended to delete CET's layout.ini file to prevent stale or non-existent windows from appearing in Window Browser."
+
+
+--- Build the iconGlyph opts for experimental headers.
+--- Warning icon with click-to-open modal if not acknowledged, info icon otherwise.
+local function experimentalIconGlyph()
+    if not settings.master.experimentalDisclaimerShown then
+        return {
+            icon = "AlertBox",
+            tooltip = "You have not acknowledged the experimental disclaimer.\n\nClick to review.",
+            onClick = function()
+                modal.open("experimental_disclaimer", {
+                    title = "Experimental Settings",
+                    body = DISCLAIMER_TEXT,
+                    styled = true,
+                    widthPercent = 20,
+                    buttons = {
+                        {
+                            label = "I Understand",
+                            style = "active",
+                            holdDuration = 1.5,
+                            progressDisplay = "overlay",
+                            onHold = function()
+                                settings.master.experimentalDisclaimerShown = true
+                                settings.save()
+                            end,
+                        },
+                    },
+                })
+            end,
+        }
+    else
+        return {
+            icon = "Information",
+            tooltip = DISCLAIMER_TEXT,
+            alwaysShowTooltip = true,
+        }
+    end
+end
 
 -- Shared bind context for all settings sections (created in ui.init)
 local c
@@ -47,6 +92,10 @@ local function drawGeneralSection()
     _, changed = c:Checkbox("Debug Output", "debugOutput")
     if changed then settings.debugPrint("Debug Output Enabled") end
 
+    if settings.master.tooltipsEnabled then
+        c:SliderFloat(nil, "tooltipMaxWidthPct")
+    end
+
     c:SectionHeader("Experimental", "general.experimental", 10, 0)
     -- showExperimental drives the splitter toggle, not a simple settings key
     local toggleId = "gui_experimental"
@@ -56,6 +105,27 @@ local function drawGeneralSection()
     -- showExperimental is stored in settings.master but also drives the splitter
     if changed then
         splitter.setToggle(toggleId, settings.master.showExperimental)
+    end
+
+    if changed and settings.master.showExperimental and not settings.master.experimentalDisclaimerShown then
+        modal.open("experimental_disclaimer", {
+            title = "Experimental Settings",
+            body = DISCLAIMER_TEXT,
+            styled = true,
+            widthPercent = 20,
+            buttons = {
+                {
+                    label = "I Understand",
+                    style = "active",
+                    holdDuration = 1.5,
+                    progressDisplay = "overlay",
+                    onHold = function()
+                        settings.master.experimentalDisclaimerShown = true
+                        settings.save()
+                    end,
+                },
+            },
+        })
     end
 end
 
@@ -241,7 +311,7 @@ local function drawExperimentalSection()
 
     if not settings.master.enabled then ImGui.BeginDisabled() end
 
-    c:Header("Experimental", "experimental")
+    c:Header("Experimental", "experimental", experimentalIconGlyph())
     ImGui.Dummy(0, 0)
 
     local discoveryAvailable = core.isDiscoveryAvailable()
@@ -252,11 +322,13 @@ local function drawExperimentalSection()
     end
 
     if discoveryAvailable then
+        if not settings.master.experimentalDisclaimerShown then ImGui.BeginDisabled() end
         local _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", {
-            tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.",
+            tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager)\n\nRespects Window Manager hidden/locked states.",
             alwaysShowTooltip = true
         })
         if changed then core.invalidateGridCache() end
+        if not settings.master.experimentalDisclaimerShown then ImGui.EndDisabled() end
     end
 
     if settings.master.overrideAllWindows and discoveryAvailable then
