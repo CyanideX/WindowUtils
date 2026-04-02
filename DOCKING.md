@@ -68,7 +68,7 @@ docking.save() / docking.load()         -- Persistence
    - `snapToEdge(windowName, zone)` - position window at edge
    - State: `dockedWindows = {windowName -> edge}`
 
-3. **Hook into `core.lua`**:
+3. **Hook into `core/core.lua`**:
    - In drag detection, call `docking.update(windowName, bounds)`
    - On drag end, call `docking.onDragEnd(windowName, bounds)`
    - Docked windows skip normal grid snapping
@@ -170,9 +170,9 @@ docking.save() / docking.load()         -- Persistence
 | File | Changes |
 |------|---------|
 | `modules/docking.lua` | **CREATE** - Core docking logic (~350 lines) |
-| `modules/settings.lua` | Add: `dockingEnabled`, `dockZoneSize`, `dockMargin`, `dockShowIndicators`, `dockLockAdjacent`, `dockLockThreshold` |
-| `modules/core.lua` | Call `docking.update()` during drag, `docking.onDragEnd()` on release, check Ctrl modifier |
-| `modules/ui.lua` | Add "Docking" settings section, call `docking.renderOverlays()` and `docking.renderTabBars()` |
+| `core/settings.lua` | Add: `dockingEnabled`, `dockZoneSize`, `dockMargin`, `dockShowIndicators`, `dockLockAdjacent`, `dockLockThreshold` |
+| `core/core.lua` | Call `docking.update()` during drag, `docking.onDragEnd()` on release, check Ctrl modifier |
+| `ui/ui.lua` | Add "Docking" settings section, call `docking.renderOverlays()` and `docking.renderTabBars()` |
 | `modules/api.lua` | Expose edge docking, window locking, and tab group APIs |
 | `init.lua` | Require and initialize docking module |
 
