@@ -248,18 +248,17 @@ local function drawExperimentalSection()
     local discoveryAvailable = core.isDiscoveryAvailable()
 
     if not discoveryAvailable then
-        controls.StatusBar("RedCetWM Plugin Not Installed")
+        controls.StatusBar("Window Manager Not Installed")
+        tooltips.Show("RedCetWM plugin is required to enable experimental settings.")
     end
 
-    if not discoveryAvailable then ImGui.BeginDisabled() end
-
-    local _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", {
-        tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.",
-        alwaysShowTooltip = true
-    })
-    if changed then core.invalidateGridCache() end
-
-    if not discoveryAvailable then ImGui.EndDisabled() end
+    if discoveryAvailable then
+        local _, changed = c:Checkbox("Override All Windows", "overrideAllWindows", {
+            tooltip = "Apply Grid Snapping to All CET Windows\n(Requires Window Manager's RedCetWM plugin)\n\nRespects Window Manager hidden/locked states.\nMay conflict with windows using older versions of WindowUtils.",
+            alwaysShowTooltip = true
+        })
+        if changed then core.invalidateGridCache() end
+    end
 
     if settings.master.overrideAllWindows and discoveryAvailable then
         ImGui.SameLine()
