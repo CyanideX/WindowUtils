@@ -33,9 +33,13 @@ end
 local function renderTooltip(text, widthPct)
     ImGui.BeginTooltip()
     local maxW = tooltipMaxWidth(widthPct)
-    if maxW > 0 then ImGui.PushTextWrapPos(maxW) end
-    ImGui.TextWrapped(text)
-    if maxW > 0 then ImGui.PopTextWrapPos() end
+    if maxW > 0 then
+        ImGui.PushTextWrapPos(maxW)
+        ImGui.TextWrapped(text)
+        ImGui.PopTextWrapPos()
+    else
+        ImGui.Text(text)
+    end
     ImGui.EndTooltip()
 end
 
@@ -102,7 +106,9 @@ function tooltips.ShowTitled(title, description)
         if description then
             ImGui.Separator()
             ImGui.PushStyleColor(ImGuiCol.Text, styles.ToColor(styles.colors.greyLight))
+            ImGui.PushTextWrapPos(300)
             ImGui.TextWrapped(description)
+            ImGui.PopTextWrapPos()
             ImGui.PopStyleColor()
         end
     end)
