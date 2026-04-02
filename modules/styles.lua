@@ -106,28 +106,61 @@ styles.buttonDefaults = {
 -- Button Styles (delegate to PushButton/PopButton with defaults)
 --------------------------------------------------------------------------------
 
-local function pushBtnDef(name)
-    return function() styles.PushButton(styles.buttonDefaults[name]) end
+function styles.PushButtonActive()
+    styles.PushButton(styles.buttonDefaults.active)
 end
--- Pop: 4 colors + 1 var (ButtonTextAlign)
-local function popBtnDef()
-    return function() ImGui.PopStyleColor(4); ImGui.PopStyleVar() end
+function styles.PopButtonActive()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
 end
 
-styles.PushButtonActive   = pushBtnDef("active")
-styles.PopButtonActive    = popBtnDef()
-styles.PushButtonInactive = pushBtnDef("inactive")
-styles.PopButtonInactive  = popBtnDef()
-styles.PushButtonDanger   = pushBtnDef("danger")
-styles.PopButtonDanger    = popBtnDef()
-styles.PushButtonWarning  = pushBtnDef("warning")
-styles.PopButtonWarning   = popBtnDef()
-styles.PushButtonUpdate   = pushBtnDef("update")
-styles.PopButtonUpdate    = popBtnDef()
-styles.PushButtonDisabled  = pushBtnDef("disabled")
-styles.PopButtonDisabled   = popBtnDef()
-styles.PushButtonStatusbar = pushBtnDef("statusbar")
-styles.PopButtonStatusbar  = popBtnDef()
+function styles.PushButtonInactive()
+    styles.PushButton(styles.buttonDefaults.inactive)
+end
+function styles.PopButtonInactive()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
+end
+
+function styles.PushButtonDanger()
+    styles.PushButton(styles.buttonDefaults.danger)
+end
+function styles.PopButtonDanger()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
+end
+
+function styles.PushButtonWarning()
+    styles.PushButton(styles.buttonDefaults.warning)
+end
+function styles.PopButtonWarning()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
+end
+
+function styles.PushButtonUpdate()
+    styles.PushButton(styles.buttonDefaults.update)
+end
+function styles.PopButtonUpdate()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
+end
+
+function styles.PushButtonDisabled()
+    styles.PushButton(styles.buttonDefaults.disabled)
+end
+function styles.PopButtonDisabled()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
+end
+
+function styles.PushButtonStatusbar()
+    styles.PushButton(styles.buttonDefaults.statusbar)
+end
+function styles.PopButtonStatusbar()
+    ImGui.PopStyleColor(4)
+    ImGui.PopStyleVar()
+end
 
 --- Transparent button (invisible background)
 function styles.PushButtonTransparent()
@@ -229,28 +262,28 @@ function styles.PushTextMuted()
     pushColor(ImGuiCol.Text, styles.colors.greyLight)
 end
 
-function styles.PopTextMuted()
-    ImGui.PopStyleColor(1)
-end
-
 function styles.PushTextSuccess()
     pushColor(ImGuiCol.Text, styles.colors.green)
-end
-
-function styles.PopTextSuccess()
-    ImGui.PopStyleColor(1)
 end
 
 function styles.PushTextDanger()
     pushColor(ImGuiCol.Text, styles.colors.red)
 end
 
-function styles.PopTextDanger()
+function styles.PushTextWarning()
+    pushColor(ImGuiCol.Text, styles.colors.yellow)
+end
+
+function styles.PopTextMuted()
     ImGui.PopStyleColor(1)
 end
 
-function styles.PushTextWarning()
-    pushColor(ImGuiCol.Text, styles.colors.yellow)
+function styles.PopTextSuccess()
+    ImGui.PopStyleColor(1)
+end
+
+function styles.PopTextDanger()
+    ImGui.PopStyleColor(1)
 end
 
 function styles.PopTextWarning()
