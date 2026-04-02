@@ -1292,6 +1292,84 @@ local function endDim(dimmed)
     if dimmed then ImGui.PopStyleVar() end
 end
 
+--------------------------------------------------------------------------------
+-- Bind Dispatcher (shared logic for SliderFloat, SliderInt, Combo, InputText,
+-- InputFloat, InputInt)
+--------------------------------------------------------------------------------
+
+local bindDispatch = {
+    SliderFloat = { fn = controls.SliderFloat, hasMinMax = true,  hasItems = false, hasTransform = true,  hasPercent = true  },
+    SliderInt   = { fn = controls.SliderInt,   hasMinMax = true,  hasItems = false, hasTransform = true,  hasPercent = true  },
+    Combo       = { fn = controls.Combo,       hasMinMax = false, hasItems = true,  hasTransform = true,  hasPercent = false },
+    InputText   = { fn = controls.InputText,   hasMinMax = false, hasItems = false, hasTransform = false, hasPercent = false },
+    InputFloat  = { fn = controls.InputFloat,  hasMinMax = false, hasItems = false, hasTransform = false, hasPercent = false },
+    InputInt    = { fn = controls.InputInt,     hasMinMax = false, hasItems = false, hasTransform = false, hasPercent = false },
+}
+
+--- Generic bind dispatcher. Handles def resolution, search dimming, transform,
+--- percent format, default resolution, control call, onChange/onSave, and endDim.
+---@param self table Bind context
+---@param controlType string Key into bindDispatch
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param arg3 any min (sliders), items (combo), or nil (inputs)
+---@param arg4 any max (sliders) or nil
+---@param opts table|nil Control options
+local function bindControl(self, controlType, icon, key, arg3, arg4, opts)
+    opts = opts or {}
+    local entry = bindDispatch[controlType]
+    local def = self.defs and self.defs[key]
+
+    -- Resolve def fields when call arguments are nil
+    if def then
+        if not icon and def.icon then icon = def.icon end
+        if entry.hasMinMax then
+            if not arg3 and def.min then arg3 = def.min end
+            if not arg4 and def.max then arg4 = def.max end
+        end
+        if entry.hasItems then
+            if not arg3 and def.items then arg3 = def.items end
+        end
+    end
+
+    local opts2, dimmed = applyDefAndSearch(self, key, opts)
+    local t = entry.hasTransform and opts2.transform or nil
+
+    -- Percent format (sliders only)
+    if entry.hasPercent and opts2.percent then
+        local pct = (self.data[key] - arg3) / (arg4 - arg3) * 100
+        opts2.format = string.format("%.0f%%%%", pct)
+    end
+
+    -- Default resolution with optional transform read
+    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
+        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
+    end
+
+    -- Display value and control call
+    local newValue, changed
+    if entry.hasMinMax then
+        local displayValue = t and t.read(self.data[key]) or self.data[key]
+        newValue, changed = entry.fn(icon, self.idPrefix .. key, displayValue, arg3, arg4, opts2)
+    elseif entry.hasItems then
+        local displayValue = t and t.read(self.data[key]) or self.data[key]
+        newValue, changed = entry.fn(icon, self.idPrefix .. key, displayValue, arg3, opts2)
+    else
+        newValue, changed = entry.fn(icon, self.idPrefix .. key, self.data[key], opts2)
+    end
+
+    -- Write back and fire callbacks
+    if changed then
+        self.data[key] = t and t.write(newValue) or newValue
+        if self.onSave then self.onSave() end
+        local onChange = opts2.onChange or (def and def.onChange)
+        if onChange then onChange(self.data[key], key) end
+    end
+
+    endDim(dimmed)
+    return newValue, changed
+end
+
 --- Bound float slider. Reads/writes data[key], resets to defaults[key] on right-click.
 ---@param icon string|nil Icon glyph or IconGlyphs key
 ---@param key string Data table key
@@ -1301,32 +1379,7 @@ end
 ---@return number newValue
 ---@return boolean changed
 function bindMethods:SliderFloat(icon, key, min, max, opts)
-    opts = opts or {}
-    local def = self.defs and self.defs[key]
-    if def then
-        if not icon and def.icon then icon = def.icon end
-        if not min and def.min then min = def.min end
-        if not max and def.max then max = def.max end
-    end
-    local opts2, dimmed = applyDefAndSearch(self, key, opts)
-    local t = opts2.transform
-    if opts2.percent then
-        local pct = (self.data[key] - min) / (max - min) * 100
-        opts2.format = string.format("%.0f%%%%", pct)
-    end
-    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
-        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
-    end
-    local displayValue = t and t.read(self.data[key]) or self.data[key]
-    local newValue, changed = controls.SliderFloat(icon, self.idPrefix .. key, displayValue, min, max, opts2)
-    if changed then
-        self.data[key] = t and t.write(newValue) or newValue
-        if self.onSave then self.onSave() end
-        local onChange = opts2.onChange or (def and def.onChange)
-        if onChange then onChange(self.data[key], key) end
-    end
-    endDim(dimmed)
-    return newValue, changed
+    return bindControl(self, "SliderFloat", icon, key, min, max, opts)
 end
 
 --- Bound integer slider. Reads/writes data[key], resets to defaults[key] on right-click.
@@ -1338,32 +1391,7 @@ end
 ---@return integer newValue
 ---@return boolean changed
 function bindMethods:SliderInt(icon, key, min, max, opts)
-    opts = opts or {}
-    local def = self.defs and self.defs[key]
-    if def then
-        if not icon and def.icon then icon = def.icon end
-        if not min and def.min then min = def.min end
-        if not max and def.max then max = def.max end
-    end
-    local opts2, dimmed = applyDefAndSearch(self, key, opts)
-    local t = opts2.transform
-    if opts2.percent then
-        local pct = (self.data[key] - min) / (max - min) * 100
-        opts2.format = string.format("%.0f%%%%", pct)
-    end
-    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
-        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
-    end
-    local displayValue = t and t.read(self.data[key]) or self.data[key]
-    local newValue, changed = controls.SliderInt(icon, self.idPrefix .. key, displayValue, min, max, opts2)
-    if changed then
-        self.data[key] = t and t.write(newValue) or newValue
-        if self.onSave then self.onSave() end
-        local onChange = opts2.onChange or (def and def.onChange)
-        if onChange then onChange(self.data[key], key) end
-    end
-    endDim(dimmed)
-    return newValue, changed
+    return bindControl(self, "SliderInt", icon, key, min, max, opts)
 end
 
 --- Bound checkbox. Reads/writes data[key], resets to defaults[key] on right-click.
@@ -1423,27 +1451,7 @@ end
 ---@return integer newIndex
 ---@return boolean changed
 function bindMethods:Combo(icon, key, items, opts)
-    opts = opts or {}
-    local def = self.defs and self.defs[key]
-    if def then
-        if not icon and def.icon then icon = def.icon end
-        if not items and def.items then items = def.items end
-    end
-    local opts2, dimmed = applyDefAndSearch(self, key, opts)
-    local t = opts2.transform
-    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
-        opts2.default = t and t.read(self.defaults[key]) or self.defaults[key]
-    end
-    local displayValue = t and t.read(self.data[key]) or self.data[key]
-    local newValue, changed = controls.Combo(icon, self.idPrefix .. key, displayValue, items, opts2)
-    if changed then
-        self.data[key] = t and t.write(newValue) or newValue
-        if self.onSave then self.onSave() end
-        local onChange = opts2.onChange or (def and def.onChange)
-        if onChange then onChange(self.data[key], key) end
-    end
-    endDim(dimmed)
-    return newValue, changed
+    return bindControl(self, "Combo", icon, key, items, nil, opts)
 end
 
 --- Bound text input. Reads/writes data[key], resets to defaults[key] on right-click.
@@ -1453,22 +1461,7 @@ end
 ---@return string newText
 ---@return boolean changed
 function bindMethods:InputText(icon, key, opts)
-    opts = opts or {}
-    local def = self.defs and self.defs[key]
-    if def and not icon and def.icon then icon = def.icon end
-    local opts2, dimmed = applyDefAndSearch(self, key, opts)
-    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
-        opts2.default = self.defaults[key]
-    end
-    local newValue, changed = controls.InputText(icon, self.idPrefix .. key, self.data[key], opts2)
-    if changed then
-        self.data[key] = newValue
-        if self.onSave then self.onSave() end
-        local onChange = opts2.onChange or (def and def.onChange)
-        if onChange then onChange(newValue, key) end
-    end
-    endDim(dimmed)
-    return newValue, changed
+    return bindControl(self, "InputText", icon, key, nil, nil, opts)
 end
 
 --- Bound float input. Reads/writes data[key], resets to defaults[key] on right-click.
@@ -1478,22 +1471,7 @@ end
 ---@return number newValue
 ---@return boolean changed
 function bindMethods:InputFloat(icon, key, opts)
-    opts = opts or {}
-    local def = self.defs and self.defs[key]
-    if def and not icon and def.icon then icon = def.icon end
-    local opts2, dimmed = applyDefAndSearch(self, key, opts)
-    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
-        opts2.default = self.defaults[key]
-    end
-    local newValue, changed = controls.InputFloat(icon, self.idPrefix .. key, self.data[key], opts2)
-    if changed then
-        self.data[key] = newValue
-        if self.onSave then self.onSave() end
-        local onChange = opts2.onChange or (def and def.onChange)
-        if onChange then onChange(newValue, key) end
-    end
-    endDim(dimmed)
-    return newValue, changed
+    return bindControl(self, "InputFloat", icon, key, nil, nil, opts)
 end
 
 --- Bound integer input. Reads/writes data[key], resets to defaults[key] on right-click.
@@ -1503,22 +1481,7 @@ end
 ---@return integer newValue
 ---@return boolean changed
 function bindMethods:InputInt(icon, key, opts)
-    opts = opts or {}
-    local def = self.defs and self.defs[key]
-    if def and not icon and def.icon then icon = def.icon end
-    local opts2, dimmed = applyDefAndSearch(self, key, opts)
-    if self.defaults and self.defaults[key] ~= nil and opts2.default == nil then
-        opts2.default = self.defaults[key]
-    end
-    local newValue, changed = controls.InputInt(icon, self.idPrefix .. key, self.data[key], opts2)
-    if changed then
-        self.data[key] = newValue
-        if self.onSave then self.onSave() end
-        local onChange = opts2.onChange or (def and def.onChange)
-        if onChange then onChange(newValue, key) end
-    end
-    endDim(dimmed)
-    return newValue, changed
+    return bindControl(self, "InputInt", icon, key, nil, nil, opts)
 end
 
 --- Bound toggle button row. Each def toggles data[def.key] on click, resets on right-click.
