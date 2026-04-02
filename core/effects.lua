@@ -45,11 +45,9 @@ effects.blur = {
 -- Shares fade durations with blur
 local dimFade = {
     opacity = 0,
-    startTime = 0,
     wasDragging = false,
-    wasActive = false,    -- for computeFadeOpacity() transition tracking
-    isClosing = false,    -- true while fade-out runs after overlay close
-    closingOpacity = 0    -- opacity snapshot when fade-out started
+    lastFrameTime = nil,
+    overlayCloseFadeOut = false  -- true when fading out due to overlay close
 }
 
 local function getBlurService()
@@ -71,6 +69,43 @@ local function getBlurService()
 end
 
 local easeInOut = core.easeInOut
+
+--- Compute eased fade progress from a start time and duration.
+--- Returns a raw 0-1 progress and its eased value. Shared by blur and
+--- any other animation that needs timing + easing without state tracking.
+---@param startTime number os.clock() timestamp when the animation began
+---@param duration number seconds for the full transition
+---@return number progress raw linear progress clamped to [0, 1]
+---@return number easedProgress easeInOut-transformed progress
+local function computeFadeProgress(startTime, duration)
+    local elapsed = os.clock() - startTime
+    local progress = math.min(elapsed / duration, 1.0)
+    return progress, easeInOut(progress)
+end
+
+--- Compute fade opacity for a boolean active/inactive transition.
+--- Tracks transition edges via fadeState and returns opacity in [0, 1].
+---@param isActive boolean current active state
+---@param fadeState table must have `wasActive` (boolean) and `startTime` (number) fields
+---@param fadeInDuration number seconds for 0->1 fade
+---@param fadeOutDuration number seconds for 1->0 fade
+---@return number opacity in [0, 1]
+local function computeFadeOpacity(isActive, fadeState, fadeInDuration, fadeOutDuration)
+    local now = os.clock()
+    if isActive and not fadeState.wasActive then
+        fadeState.startTime = now
+    elseif not isActive and fadeState.wasActive then
+        fadeState.startTime = now
+    end
+    fadeState.wasActive = isActive
+
+    local elapsed = now - fadeState.startTime
+    if isActive then
+        return math.min(1, elapsed / fadeInDuration)
+    else
+        return math.max(0, 1 - (elapsed / fadeOutDuration))
+    end
+end
 
 --------------------------------------------------------------------------------
 -- Blur Control
@@ -107,6 +142,15 @@ end
 function effects.disableBlur(isOverlayClose)
     if not effects.blur.isActive then return end
 
+    -- If already fading out, just update the overlay-close flag (for quickExit timing)
+    -- without restarting the animation from the beginning
+    if effects.blur.isAnimating and effects.blur.animationType == "fade_out" then
+        if isOverlayClose then
+            effects.blur.isOverlayClose = true
+        end
+        return
+    end
+
     effects.blur.isAnimating = true
     effects.blur.animationType = "fade_out"
     effects.blur.isOverlayClose = isOverlayClose or false
@@ -129,9 +173,7 @@ function effects.updateBlurAnimation()
         duration = settings.master.fadeOutDuration
     end
 
-    local elapsed = os.clock() - effects.blur.startTime
-    local progress = math.min(elapsed / duration, 1.0)
-    local easedProgress = easeInOut(progress)
+    local progress, easedProgress = computeFadeProgress(effects.blur.startTime, duration)
 
     if effects.blur.animationType == "fade_in" then
         effects.blur.currentRadius = easedProgress * effects.blur.targetRadius
@@ -198,41 +240,43 @@ end
 -- Dim Control
 --------------------------------------------------------------------------------
 
---- Begin a fade-out of the dim background (called on overlay close).
+--- Signal that the overlay has closed. If quickExit is enabled, the fade-out
+--- switches to the 0.05s hardcoded duration, overriding any in-progress drain.
 function effects.disableDim()
-    if dimFade.opacity > 0.001 then
-        dimFade.isClosing = true
-        dimFade.closingOpacity = dimFade.opacity
-        dimFade.startTime = os.clock()
-    else
-        dimFade.opacity = 0
-        dimFade.isClosing = false
-    end
+    dimFade.overlayCloseFadeOut = true
     dimFade.wasDragging = false
 end
 
---- Advance the dim fade-out animation after overlay closes. Call every frame.
+--- Advance the dim fade-out after overlay closes. Call every frame.
+--- Continues draining from the current opacity (no restart).
 function effects.updateDimAnimation()
-    if not dimFade.isClosing then return end
+    if isOverlayOpen() then return end
+    if dimFade.opacity <= 0 then return end
 
-    local fc = controls.getFrameCache()
-    local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
+    local now = os.clock()
+    local dt = dimFade.lastFrameTime and (now - dimFade.lastFrameTime) or 0
+    dimFade.lastFrameTime = now
+    if dt <= 0 then return end
 
-    local fadeOut = settings.master.quickExit and 0.05 or settings.master.fadeOutDuration
-    local elapsed = os.clock() - dimFade.startTime
-    local t = math.min(1, elapsed / fadeOut)
-    dimFade.opacity = (1 - t) * dimFade.closingOpacity
+    local fadeOutDuration = (dimFade.overlayCloseFadeOut and settings.master.quickExit)
+        and 0.05 or settings.master.fadeOutDuration
+    local maxOpacity = settings.master.gridDimBackgroundOpacity
+    if fadeOutDuration <= 0 or maxOpacity <= 0 then
+        dimFade.opacity = 0
+        return
+    end
+
+    local step = maxOpacity * (dt / fadeOutDuration)
+    dimFade.opacity = math.max(0, dimFade.opacity - step)
 
     if dimFade.opacity > 0.001 then
+        local fc = controls.getFrameCache()
+        local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
         local drawList = ImGui.GetBackgroundDrawList()
         local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
         ImGui.ImDrawListAddRectFilled(drawList, 0, 0, displayWidth, displayHeight, bgColor)
-    end
-
-    if t >= 1 then
+    else
         dimFade.opacity = 0
-        dimFade.isClosing = false
-        dimFade.closingOpacity = 0
     end
 end
 
@@ -255,30 +299,6 @@ local gridFade = {
 -- Hardcoded fade durations
 local GRID_FADE_IN_DURATION = 0.15
 local GRID_FADE_OUT_DURATION = 0.25
-
---- Compute fade opacity for a boolean active/inactive transition.
---- Tracks transition edges via fadeState and returns opacity in [0, 1].
----@param isActive boolean current active state
----@param fadeState table must have `wasActive` (boolean) and `startTime` (number) fields
----@param fadeInDuration number seconds for 0->1 fade
----@param fadeOutDuration number seconds for 1->0 fade
----@return number opacity in [0, 1]
-local function computeFadeOpacity(isActive, fadeState, fadeInDuration, fadeOutDuration)
-    local now = os.clock()
-    if isActive and not fadeState.wasActive then
-        fadeState.startTime = now
-    elseif not isActive and fadeState.wasActive then
-        fadeState.startTime = now
-    end
-    fadeState.wasActive = isActive
-
-    local elapsed = now - fadeState.startTime
-    if isActive then
-        return math.min(1, elapsed / fadeInDuration)
-    else
-        return math.max(0, 1 - (elapsed / fadeOutDuration))
-    end
-end
 
 -- Distance from point to rectangle (0 if inside/within padding).
 local function distanceToRect(px, py, rx, ry, rw, rh, padding)
@@ -371,18 +391,45 @@ local function updateDimOverlay(displayWidth, displayHeight, anyDragging)
     if not settings.master.gridDimBackground then
         dimFade.opacity = 0
         dimFade.wasDragging = false
-        dimFade.wasActive = false
         return
     end
 
     local shouldDim = not settings.master.gridDimBackgroundOnDragOnly or anyDragging
-    local rawOpacity = computeFadeOpacity(
-        shouldDim, dimFade,
-        settings.master.fadeInDuration, settings.master.fadeOutDuration
-    )
-    -- Keep wasDragging in sync for existing disableDim() compatibility
+    local maxOpacity = settings.master.gridDimBackgroundOpacity
+
+    -- Overlay is open, so clear the overlay-close flag and seed timing
+    dimFade.overlayCloseFadeOut = false
+    if not dimFade.lastFrameTime then
+        dimFade.lastFrameTime = os.clock()
+    end
+
+    local now = os.clock()
+    local dt = now - dimFade.lastFrameTime
+    dimFade.lastFrameTime = now
+
+    if dt > 0 and maxOpacity > 0 then
+        if shouldDim then
+            local fadeInDuration = settings.master.fadeInDuration
+            if fadeInDuration <= 0 then
+                dimFade.opacity = maxOpacity
+            else
+                local step = maxOpacity * (dt / fadeInDuration)
+                dimFade.opacity = math.min(maxOpacity, dimFade.opacity + step)
+            end
+        else
+            if dimFade.opacity > 0 then
+                local fadeOutDuration = settings.master.fadeOutDuration
+                if fadeOutDuration <= 0 then
+                    dimFade.opacity = 0
+                else
+                    local step = maxOpacity * (dt / fadeOutDuration)
+                    dimFade.opacity = math.max(0, dimFade.opacity - step)
+                end
+            end
+        end
+    end
+
     dimFade.wasDragging = shouldDim
-    dimFade.opacity = rawOpacity * settings.master.gridDimBackgroundOpacity
 
     if dimFade.opacity > 0.001 then
         local drawList = ImGui.GetBackgroundDrawList()
@@ -543,7 +590,7 @@ function effects.drawGridOverlay()
     if not settings.master.gridDimBackground and not settings.master.gridVisualizationEnabled then
         dimFade.opacity = 0
         dimFade.wasDragging = false
-        dimFade.wasActive = false
+        dimFade.overlayCloseFadeOut = false
         gridFade.opacity = 0
         gridFade.wasDragging = false
         gridFade.wasActive = false
