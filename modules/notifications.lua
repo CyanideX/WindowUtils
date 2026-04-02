@@ -59,10 +59,8 @@ end
 --------------------------------------------------------------------------------
 
 local function getScreenSize()
-    local ok, w, h = pcall(GetDisplayResolution)
-    if not ok or not w or w <= 0 then
-        return 1920, 1080
-    end
+    local w, h = GetDisplayResolution()
+    if not w or w <= 0 then return 1920, 1080 end
     return w, h
 end
 
