@@ -787,10 +787,7 @@ local function renderTogglePanel(id, suffix, panel, side, isVertical, totalAvail
 end
 
 --------------------------------------------------------------------------------
--- Divider Drag Update Helper
--- Processes drag deltas for all dividers after rendering is complete.
--- Handles animation ticks (context menu reset), shift-proportional mode,
--- ctrl-snap mode, and min/max clamping.
+-- Divider Drag Update
 --------------------------------------------------------------------------------
 
 --- Apply drag deltas to breakpoints after all panels have rendered.

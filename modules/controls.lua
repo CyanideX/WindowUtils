@@ -1618,9 +1618,7 @@ function controls.unbind(ctx)
 end
 
 --------------------------------------------------------------------------------
--- PanelGroup: visual panel using BeginGroup/EndGroup + DrawList.
--- No BeginChild, no explicit height - content flows in parent scroll region.
--- Background and border drawn via DrawList with proper padding and rounding.
+-- PanelGroup
 --------------------------------------------------------------------------------
 
 --- Visual panel wrapper for scrollable regions. Uses Group + DrawList instead

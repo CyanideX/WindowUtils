@@ -326,6 +326,18 @@ Renders a progress bar showing another button's hold state. Use with `progressDi
 
 **Returns:** `boolean`  - true if progress bar is showing
 
+### `getFirstActiveHoldProgress(ids)`
+
+Return the progress and source ID of the first actively-held button from a list.
+
+**Returns:** `number|nil, string|nil`  - progress 0-1 and source ID, or nil if none active
+
+### `ShowFirstActiveHoldProgress(ids, width?, progressStyle?)`
+
+Renders a progress bar for the first active hold source in a list of button IDs.
+
+**Returns:** `boolean`  - true if a progress bar was rendered
+
 ### `ActionButton(id, label, opts?)`
 
 Compound button: primary click + secondary hold-to-confirm with cross-element progress.
@@ -507,6 +519,44 @@ ctx:ToggleButtonRow({
     { key = "snapEnabled", icon = IconGlyphs.Magnet, tooltip = "Snap" },
 })
 ```
+
+#### Search-Aware Helpers
+
+These methods integrate with the search system to dim non-matching sections. Requires `search` and `defs` in `bindOpts`. See [search.md](search.md) for full search integration details.
+
+#### `ctx:Header(text, category)`
+
+Render a text header that auto-dims when no controls in the category match the search query.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| text | string | Header text |
+| category | string | Category key to check against defs |
+
+#### `ctx:SectionHeader(text, category, spacingBefore?, spacingAfter?)`
+
+Render a separator + label that auto-dims based on category match.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| text | string | Section title text |
+| category | string | Category key to check against defs |
+| spacingBefore | number\|nil | Vertical spacing before separator |
+| spacingAfter | number\|nil | Vertical spacing after label |
+
+#### `ctx:BeginDim(key)` / `ctx:EndDim(dimmed)`
+
+Manual dimming for non-bound controls. `BeginDim` pushes reduced alpha if the key doesn't match the search query. Returns `true` if dimming was pushed. Pass the return value to `EndDim`.
+
+```lua
+local dimmed = ctx:BeginDim("myKey")
+-- render custom controls
+ctx:EndDim(dimmed)
+```
+
+### `unbind(ctx)`
+
+Return a bind context to the internal pool for reuse. Optional - without this, contexts are garbage collected normally.
 
 ## Fill Child
 
