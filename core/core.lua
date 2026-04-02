@@ -3,10 +3,10 @@
 -- Window state management, grid snapping, and animations
 ------------------------------------------------------
 
-local settings = require("modules/settings")
-local discovery = require("modules/discovery")
+local settings = require("core/settings")
+local discovery = require("core/discovery")
 local utils = require("modules/utils")
-local registry = require("modules/registry")
+local registry = require("core/registry")
 local styles = require("modules/styles")
 
 ---@class WindowUtilsUpdateOptions

@@ -4,7 +4,7 @@
 -- and convenience functions
 ------------------------------------------------------
 
-local settings = require("modules/settings")
+local settings = require("core/settings")
 local controls = require("modules/controls")
 local splitter = require("modules/splitter")
 local styles   = require("modules/styles")

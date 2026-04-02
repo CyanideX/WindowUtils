@@ -3,17 +3,17 @@
 -- Settings window using library components
 ------------------------------------------------------
 
-local settings  = require("modules/settings")
-local core      = require("modules/core")
+local settings  = require("core/settings")
+local core      = require("core/core")
 local controls  = require("modules/controls")
 local styles    = require("modules/styles")
 local splitter  = require("modules/splitter")
 local expand    = require("modules/expand")
-local effects   = require("modules/effects")
+local effects   = require("core/effects")
 local utils     = require("modules/utils")
 local tooltips  = require("modules/tooltips")
 local search    = require("modules/search")
-local uidefs    = require("modules/uidefs")
+local uidefs    = require("ui/uidefs")
 
 local ui = {}
 
@@ -287,7 +287,7 @@ end
 -- Window Browser (separate ImGui window)
 --------------------------------------------------------------------------------
 
-local windowBrowser = require("modules/windowBrowser")
+local windowBrowser = require("ui/browser")
 
 --------------------------------------------------------------------------------
 -- Sidebar Navigation
@@ -365,7 +365,16 @@ function ui.drawWindow()
     ImGui.SetNextWindowSize(displayW * 0.30, displayH * 0.40, ImGuiCond.FirstUseEver)
 
     local maxHPct = splitter.getExpandConstraint("gui_experimental")
-    local maxH = maxHPct and (displayH * maxHPct / 100) or (displayH * 0.5)
+    local maxH
+    if maxHPct then
+        maxH = displayH * maxHPct / 100
+    elseif settings.master.showExperimental then
+        -- First-frame fallback: expand constraint not yet initialized, account for panel size
+        maxH = displayH * 0.5 + 200
+    else
+        maxH = displayH * 0.5
+    end
+
     core.setNextWindowSizeConstraints(minW, minH, displayW * 0.45, maxH, GUI_WINDOW_NAME)
 
     if not ImGui.Begin(GUI_WINDOW_NAME, ImGuiWindowFlags.NoScrollbar) then

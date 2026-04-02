@@ -1,7 +1,7 @@
 -- expand.lua - Window Expansion Manager
 -- Manages window resizing for expand-mode toggle panels. See docs/expand.md for architecture.
 
-local core = require("modules/core")
+local core = require("core/core")
 local controls = require("modules/controls")
 
 local expand = {}
@@ -71,6 +71,19 @@ function expand.init(id, opts)
         local wn = opts.windowName
         if not windowPanels[wn] then windowPanels[wn] = {} end
         windowPanels[wn][#windowPanels[wn] + 1] = id
+
+        -- Pre-set constraint to expanded value when panel starts open (no animation)
+        local s = expandStates[id]
+        if opts.isOpen and s.normalPct then
+            local dim = s.cachedDisplayDim
+            local effectiveSize = s.panelSizePx
+            if dim and dim > 0 and effectiveSize then
+                local deltaPct = (effectiveSize / dim) * 100
+                core.startConstraintAnimation(opts.windowName, s.constraintProp, s.normalPct + deltaPct, {
+                    duration = 0,
+                })
+            end
+        end
     else
         -- Update per-frame values that may change (e.g. resolved size, display dim)
         local s = expandStates[id]

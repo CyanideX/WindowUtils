@@ -3,10 +3,10 @@
 -- Interface for other mods to control WindowUtils
 --------------------------------------------------------
 
-local settings = require("modules/settings")
-local core = require("modules/core")
-local ui = require("modules/ui")
-local registry = require("modules/registry")
+local settings = require("core/settings")
+local core = require("core/core")
+local ui = require("ui/ui")
+local registry = require("core/registry")
 local search = require("modules/search")
 local modal = require("modules/modal")
 

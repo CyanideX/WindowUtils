@@ -3,7 +3,7 @@
 -- Universal tooltip utilities for CET mods
 ------------------------------------------------------
 
-local settings = require("modules/settings")
+local settings = require("core/settings")
 local styles = require("modules/styles")
 
 local tooltips = {}

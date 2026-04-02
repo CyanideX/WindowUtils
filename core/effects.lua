@@ -3,8 +3,8 @@
 -- Blur, dim background, and grid visualization
 ------------------------------------------------------
 
-local settings = require("modules/settings")
-local core = require("modules/core")
+local settings = require("core/settings")
+local core = require("core/core")
 local controls = require("modules/controls")
 
 local effects = {}

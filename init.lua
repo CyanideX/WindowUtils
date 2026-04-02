@@ -13,11 +13,11 @@
 -- https://next.nexusmods.com/profile/theCyanideX/mods
 --------------------------------------------------------------------------------
 
-local settings = require("modules/settings")
+local settings = require("core/settings")
 local utils = require("modules/utils")
-local core = require("modules/core")
-local ui = require("modules/ui")
-local effects = require("modules/effects")
+local core = require("core/core")
+local ui = require("ui/ui")
+local effects = require("core/effects")
 local api = require("modules/api")
 local styles = require("modules/styles")
 local controls = require("modules/controls")

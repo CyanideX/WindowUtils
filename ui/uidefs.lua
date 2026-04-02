@@ -4,7 +4,7 @@
 -- Initialized after IconGlyphs is available
 ------------------------------------------------------
 
-local settings = require("modules/settings")
+local settings = require("core/settings")
 
 local uidefs = {}
 

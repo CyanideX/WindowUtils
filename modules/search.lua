@@ -4,7 +4,7 @@
 -- matching, caching, and UI helpers
 ------------------------------------------------------
 
-local settings = require("modules/settings")
+local settings = require("core/settings")
 local controls = require("modules/controls")
 local tooltips = require("modules/tooltips")
 local styles   = require("modules/styles")

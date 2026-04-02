@@ -3,13 +3,13 @@
 -- Browse and manage discovered CET windows
 ------------------------------------------------------
 
-local settings  = require("modules/settings")
-local core      = require("modules/core")
+local settings  = require("core/settings")
+local core      = require("core/core")
 local controls  = require("modules/controls")
 local styles    = require("modules/styles")
 local utils     = require("modules/utils")
 local tooltips  = require("modules/tooltips")
-local discovery = require("modules/discovery")
+local discovery = require("core/discovery")
 local search    = require("modules/search")
 
 local browser = {}

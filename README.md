@@ -28,22 +28,27 @@ WindowUtils/
 ├── data/
 │   └── settings.json     # Persisted master settings
 ├── docs/                 # Per-module API documentation
-└── modules/
-    ├── api.lua           # External mod API
-    ├── controls.lua      # ImGui control helpers (sliders, buttons, inputs)
-    ├── core.lua          # Window management logic
-    ├── discovery.lua     # Window enumeration via RedCetWM
-    ├── dragdrop.lua      # Drag and drop utilities
-    ├── effects.lua       # Blur, dim, and grid visualization effects
-    ├── expand.lua        # Automatic window resizing for toggle panels
-    ├── notifications.lua # Toast notification system
-    ├── settings.lua      # Configuration and persistence
-    ├── splitter.lua      # Draggable panel dividers
-    ├── styles.lua        # ImGui style helpers
-    ├── tabs.lua          # Tab bar utilities
-    ├── tooltips.lua      # Tooltip helpers
-    ├── ui.lua            # Settings window GUI
-    └── utils.lua         # Shared utility functions
+├── core/
+│   ├── core.lua          # Window management logic
+│   ├── discovery.lua     # Window enumeration via RedCetWM
+│   ├── effects.lua       # Blur, dim, and grid visualization effects
+│   ├── registry.lua      # Window registry
+│   └── settings.lua      # Configuration and persistence
+├── modules/
+│   ├── api.lua           # External mod API
+│   ├── controls.lua      # ImGui control helpers (sliders, buttons, inputs)
+│   ├── dragdrop.lua      # Drag and drop utilities
+│   ├── expand.lua        # Automatic window resizing for toggle panels
+│   ├── modal.lua         # Modal dialog utilities
+│   ├── notifications.lua # Toast notification system
+│   ├── search.lua        # Search utilities
+│   ├── splitter.lua      # Draggable panel dividers
+│   ├── styles.lua        # ImGui style helpers
+│   ├── tabs.lua          # Tab bar utilities
+│   ├── tooltips.lua      # Tooltip helpers
+│   └── utils.lua         # Shared utility functions
+└── ui/
+    └── ui.lua            # Settings window GUI
 ```
 
 ## Quick Start

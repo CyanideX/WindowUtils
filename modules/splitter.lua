@@ -5,7 +5,7 @@
 
 local styles = require("modules/styles")
 local utils = require("modules/utils")
-local core = require("modules/core")
+local core = require("core/core")
 local controls = require("modules/controls")
 local expand = require("modules/expand")
 
@@ -1122,6 +1122,7 @@ function splitter.toggle(id, panels, opts)
             normalConstraintPct = opts.normalConstraintPct,
             expandDuration = opts.expandDuration,
             expandEasing = opts.expandEasing,
+            isOpen = state.isOpen,
         })
         local prevMode = state.sizeMode
         state.sizeMode = opts.sizeMode or "fixed"
