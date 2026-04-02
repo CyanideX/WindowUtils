@@ -68,7 +68,19 @@ local function createDefaultSettings()
     }
 end
 
-settings.defaults = createDefaultSettings()
+local function freezeTable(t, name)
+    return setmetatable({}, {
+        __index = t,
+        __newindex = function(_, k)
+            error(name .. " is read-only (attempted to set '" .. tostring(k) .. "')", 2)
+        end,
+        __len = function() return #t end,
+        __pairs = function() return pairs(t) end,
+    })
+end
+
+local rawDefaults = createDefaultSettings()
+settings.defaults = freezeTable(rawDefaults, "settings.defaults")
 
 settings.master = createDefaultSettings()
 settings.master.enabled = false
@@ -242,11 +254,12 @@ end
 --------------------------------------------------------------------------------
 
 --- Override global default values.
+--- Writes through to the underlying table behind the frozen proxy.
 ---@param config table Key-value pairs to merge into defaults
 function settings.setDefaults(config)
     for key, value in pairs(config) do
-        if settings.defaults[key] ~= nil then
-            settings.defaults[key] = value
+        if rawDefaults[key] ~= nil then
+            rawDefaults[key] = value
         end
     end
 end
