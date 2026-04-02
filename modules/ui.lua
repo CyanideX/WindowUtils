@@ -377,6 +377,7 @@ local WB_WINDOW_NAME = "Window Browser##WindowUtils"
 
 local function drawWindowOverridePanel()
     if not settings.master.enabled then return end
+    if not settings.master.showExperimental then return end
     if not settings.master.windowBrowserOpen then return end
     if not settings.master.overrideAllWindows then return end
 
@@ -402,6 +403,7 @@ local function drawWindowOverridePanel()
 
     for _, windowInfo in ipairs(windows) do
         local name = windowInfo.name
+        if name:sub(1, 3) == "###" then goto skipWindow end
         if filter == "" or name:lower():find(filter, 1, true) then
             if settings.isWindowIgnored(name) then
                 ignoredWindows[#ignoredWindows + 1] = name
@@ -411,6 +413,7 @@ local function drawWindowOverridePanel()
                 visibleWindows[#visibleWindows + 1] = name
             end
         end
+        ::skipWindow::
     end
 
     local lowerCache = {}
