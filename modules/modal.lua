@@ -54,6 +54,7 @@ function modal.close(id)
     activeModals[id] = nil
 end
 
+--- Check if a modal is currently open.
 ---@param id string
 ---@return boolean
 function modal.isOpen(id)

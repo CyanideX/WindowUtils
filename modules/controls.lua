@@ -1244,6 +1244,14 @@ local function endDim(dimmed)
     if dimmed then ImGui.PopStyleVar() end
 end
 
+--- Bound float slider. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param min number Minimum value
+---@param max number Maximum value
+---@param opts? table {format?, tooltip?, cols?, default?, transform?, percent?, onChange?}
+---@return number newValue
+---@return boolean changed
 function bindMethods:SliderFloat(icon, key, min, max, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1273,6 +1281,14 @@ function bindMethods:SliderFloat(icon, key, min, max, opts)
     return newValue, changed
 end
 
+--- Bound integer slider. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param min integer Minimum value
+---@param max integer Maximum value
+---@param opts? table {format?, tooltip?, cols?, default?, transform?, percent?, onChange?}
+---@return integer newValue
+---@return boolean changed
 function bindMethods:SliderInt(icon, key, min, max, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1302,6 +1318,12 @@ function bindMethods:SliderInt(icon, key, min, max, opts)
     return newValue, changed
 end
 
+--- Bound checkbox. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param label string Checkbox label text
+---@param key string Data table key
+---@param opts? table {icon?, default?, tooltip?, alwaysShowTooltip?, onChange?}
+---@return boolean newValue
+---@return boolean changed
 function bindMethods:Checkbox(label, key, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1320,6 +1342,12 @@ function bindMethods:Checkbox(label, key, opts)
     return newValue, changed
 end
 
+--- Bound color picker. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param opts? table {tooltip?, label?, default?, onChange?}
+---@return table newColor
+---@return boolean changed
 function bindMethods:ColorEdit4(icon, key, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1339,6 +1367,13 @@ function bindMethods:ColorEdit4(icon, key, opts)
     return newValue, changed
 end
 
+--- Bound combo dropdown. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param items table Array of string labels
+---@param opts? table {tooltip?, cols?, default?, transform?, onChange?}
+---@return integer newIndex
+---@return boolean changed
 function bindMethods:Combo(icon, key, items, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1363,6 +1398,12 @@ function bindMethods:Combo(icon, key, items, opts)
     return newValue, changed
 end
 
+--- Bound text input. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param opts? table {maxLength?, tooltip?, alwaysShowTooltip?, cols?, onChange?}
+---@return string newText
+---@return boolean changed
 function bindMethods:InputText(icon, key, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1382,6 +1423,12 @@ function bindMethods:InputText(icon, key, opts)
     return newValue, changed
 end
 
+--- Bound float input. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param opts? table {step?, stepFast?, format?, tooltip?, alwaysShowTooltip?, cols?, onChange?}
+---@return number newValue
+---@return boolean changed
 function bindMethods:InputFloat(icon, key, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1401,6 +1448,12 @@ function bindMethods:InputFloat(icon, key, opts)
     return newValue, changed
 end
 
+--- Bound integer input. Reads/writes data[key], resets to defaults[key] on right-click.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param opts? table {step?, stepFast?, tooltip?, alwaysShowTooltip?, cols?, onChange?}
+---@return integer newValue
+---@return boolean changed
 function bindMethods:InputInt(icon, key, opts)
     opts = opts or {}
     local def = self.defs and self.defs[key]
@@ -1420,6 +1473,9 @@ function bindMethods:InputInt(icon, key, opts)
     return newValue, changed
 end
 
+--- Bound toggle button row. Each def toggles data[def.key] on click, resets on right-click.
+---@param defs table Array of button defs: {key, icon?, label?, weight?, tooltip?, onChange?}
+---@param opts? table {gap?, id?}
 function bindMethods:ToggleButtonRow(defs, opts)
     if not defs or #defs == 0 then return end
     opts = opts or {}
@@ -1562,13 +1618,6 @@ function controls.unbind(ctx)
 end
 
 --------------------------------------------------------------------------------
--- Panel (child window with default styling)
---------------------------------------------------------------------------------
-
---- Render a child window panel with default styling (opts: bg, border, width, height, flags)
----@param id string Unique panel ID (## prefix added automatically if missing)
-
---------------------------------------------------------------------------------
 -- PanelGroup: visual panel using BeginGroup/EndGroup + DrawList.
 -- No BeginChild, no explicit height - content flows in parent scroll region.
 -- Background and border drawn via DrawList with proper padding and rounding.
@@ -1655,12 +1704,18 @@ function controls.PanelGroup(id, contentFn, opts)
     end
 end
 
----@param contentFn? function Callback that renders panel content
----@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?}
----@return nil
+--------------------------------------------------------------------------------
+-- Panel (child window with default styling)
+--------------------------------------------------------------------------------
+
 -- Cache for auto-height panels (measured on previous frame)
 local panelAutoHeight = {}
 
+--- Render a child window panel with default styling (opts: bg, border, width, height, flags)
+---@param id string Unique panel ID (## prefix added automatically if missing)
+---@param contentFn? function Callback that renders panel content
+---@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?}
+---@return nil
 function controls.Panel(id, contentFn, opts)
     opts = opts or {}
     local border = opts.border == true
