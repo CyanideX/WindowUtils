@@ -145,6 +145,7 @@ registerForEvent("onOverlayClose", function()
     core.saveWindowCache()
     effects.disableBlur(true)
     effects.disableDim()
+    ui.onOverlayClose()
 end)
 
 return WindowUtils

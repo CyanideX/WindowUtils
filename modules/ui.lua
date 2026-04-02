@@ -288,7 +288,7 @@ end
 -- Window Browser (separate ImGui window)
 --------------------------------------------------------------------------------
 
-local windowBrowserSearch = ""
+local wbSearchState = nil
 
 local function drawWindowBrowserEntry(name, category)
     local ic = IconGlyphs or {}
@@ -389,12 +389,13 @@ local function drawWindowOverridePanel()
         return
     end
 
-    local ic = IconGlyphs or {}
-    windowBrowserSearch = controls.InputText(
-        ic.Magnify or nil, "wb_search", windowBrowserSearch, { maxLength = 128 }
-    )
+    if not wbSearchState then
+        wbSearchState = search.new("wb_search")
+    end
+    search.SearchBar(wbSearchState, { cols = 12 })
 
-    local filter = windowBrowserSearch:lower()
+    local ic = IconGlyphs or {}
+    local filter = wbSearchState:getQuery():lower()
     local windows = discovery.getActiveWindows()
     local visibleWindows = {}
     local hiddenWindows = {}
@@ -678,6 +679,12 @@ end
 ---@return boolean
 function ui.isVisible()
     return ui.state.showWindow
+end
+
+--- Clear search states on overlay close.
+function ui.onOverlayClose()
+    if ui.searchState then ui.searchState:clear() end
+    if wbSearchState then wbSearchState:clear() end
 end
 
 return ui
