@@ -54,6 +54,40 @@ local dragState = {
     dragFloat = 0.5, preciseFloat = 0.5, dragInt = 50, noPrecFloat = 0.5,
 }
 
+-- Demo state for drag row controls
+local dragRowDefaults = {
+    x = 0, y = 0, z = 0,
+    r = 0.5, g = 0.7, b = 0.3, a = 1.0,
+    yaw = 0, tilt = 0, roll = 0, fov = 90,
+    quality = 50, priority = 5, count = 10,
+    rangeMin = 20, rangeMax = 80,
+}
+local dragRowState = {
+    x = 0, y = 0, z = 0,
+    r = 0.5, g = 0.7, b = 0.3, a = 1.0,
+    yaw = 0, tilt = 0, roll = 0, fov = 90,
+    quality = 50, priority = 5, count = 10,
+    rangeMin = 20, rangeMax = 80,
+}
+
+-- Separate state for mixed buttons demo (avoids sharing x/y/z with row 1)
+local mixedRowState = { x = 0, y = 0, z = 0 }
+local mixedRowDragState = {} -- Persistent state for unbound mixed row
+
+-- Separate state for label-to-value demo
+local ltvRowDefaults = { x = 0, y = 0, z = 0 }
+local ltvRowState = { x = 0, y = 0, z = 0 }
+
+-- Separate state for disabled style demos
+local disabledRowDefaults = { x = 0, y = 0, z = 0 }
+local disabledRowState = { x = 0, y = 0, z = 0 }
+local dimmedRowState = { x = 0, y = 0, z = 0 }
+local dimmedColorRowState = { x = 0, y = 0, z = 0 }
+
+-- Delta mode accumulated values
+local dragRowDeltaState = { dx = 0, dy = 0, dz = 0 }
+local dragRowDeltaRowState = {} -- Persistent state for unbound delta row (hover/delta accum)
+
 -- Expand demo state
 local expSizeMode = "fixed"
 local expVertSizeMode = "fixed"
@@ -201,6 +235,135 @@ local function drawControlsDemo()
                 dc:DragFloat("Cancel", "noPrecFloat", 0.0, 1.0, {
                     noPrecision = true,
                     tooltip = "Precision disabled (noPrecision = true)",
+                })
+
+                controls.Separator(8, 8)
+
+                -- DragFloatRow / DragIntRow
+                controls.TextMuted("DragFloatRow / DragIntRow: multiple drags on one line")
+                ImGui.Dummy(0, 2)
+
+                local drc = controls.bind(dragRowState, dragRowDefaults)
+
+                controls.TextMuted("XYZ with preset DragColors:")
+                drc:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+                    drags = {
+                        { color = controls.DragColors.x },
+                        { color = controls.DragColors.y },
+                        { color = controls.DragColors.z },
+                    },
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("RGBA color editor with custom colors:")
+                drc:DragFloatRow("Palette", {"r", "g", "b", "a"}, 0.0, 1.0, {
+                    speed = 0.005,
+                    drags = {
+                        { color = { 1, 0.3, 0.3, 1 }, label = "R" },
+                        { color = { 0.3, 1, 0.3, 1 }, label = "G" },
+                        { color = { 0.3, 0.3, 1, 1 }, label = "B" },
+                        { color = { 0.7, 0.7, 0.7, 1 }, label = "A" },
+                    },
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("DragIntRow with fit-to-label columns:")
+                drc:DragIntRow("TuneVariant", {"quality", "priority", "count"}, 0, 100, {
+                    drags = {
+                        { label = "Quality" },
+                        { label = "Priority", fitLabel = true },
+                        { label = "Count", fitLabel = true },
+                    },
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Width weighting (3 equal + 1 percent-width):")
+                drc:DragFloatRow(nil, {"yaw", "tilt", "roll", "fov"}, nil, nil, {
+                    speed = 0.5,
+                    drags = {
+                        { label = "Yaw", min = -180, max = 180 },
+                        { label = "Tilt", min = -90, max = 90 },
+                        { label = "Roll", min = -360, max = 360 },
+                        { label = "FOV", widthPercent = 5, min = 20, max = 130 },
+                    },
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Mixed buttons + drags:")
+                local mixedValues, mixedChanged = controls.DragFloatRow(nil, "posRow", {
+                    { type = "button", icon = "Upload", tooltip = "Load", onClick = function() end },
+                    { type = "button", icon = "Refresh", tooltip = "Update", holdDuration = 1.0, onClick = function() end },
+                    { value = mixedRowState.x, color = controls.DragColors.x, label = "X", min = -2000, max = 2000, default = 0 },
+                    { value = mixedRowState.y, color = controls.DragColors.y, label = "Y", min = -2000, max = 2000, default = 0 },
+                    { value = mixedRowState.z, color = controls.DragColors.z, label = "Z", min = -2000, max = 2000, default = 0 },
+                }, { speed = 0.1, state = mixedRowDragState })
+                if mixedChanged then
+                    mixedRowState.x = mixedValues[1]
+                    mixedRowState.y = mixedValues[2]
+                    mixedRowState.z = mixedValues[3]
+                end
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Delta mode (drags show delta while dragging, onChange accumulates):")
+                controls.DragFloatRow(nil, "delta", {
+                    { value = 0, color = controls.DragColors.x, label = "X", min = -100, max = 100, default = 0 },
+                    { value = 0, color = controls.DragColors.y, label = "Y", min = -100, max = 100, default = 0 },
+                    { value = 0, color = controls.DragColors.z, label = "Z", min = -100, max = 100, default = 0 },
+                }, {
+                    mode = "delta",
+                    speed = 0.1,
+                    state = dragRowDeltaRowState,
+                    onChange = function(index, delta)
+                        local keys = { "dx", "dy", "dz" }
+                        dragRowDeltaState[keys[index]] = dragRowDeltaState[keys[index]] + delta
+                    end,
+                    onReset = function(index)
+                        local keys = { "dx", "dy", "dz" }
+                        dragRowDeltaState[keys[index]] = 0
+                    end,
+                })
+                controls.TextMuted(string.format("  Accumulated: dx=%.2f  dy=%.2f  dz=%.2f",
+                    dragRowDeltaState.dx, dragRowDeltaState.dy, dragRowDeltaState.dz))
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Label-to-value (labels switch to values on hover):")
+                local drcLtv = controls.bind(ltvRowState, ltvRowDefaults)
+                drcLtv:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+                    speed = 0.1,
+                    drags = {
+                        { color = controls.DragColors.x, label = "X" },
+                        { color = controls.DragColors.y, label = "Y" },
+                        { color = controls.DragColors.z, label = "Z" },
+                    },
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Disabled style (fully faded, no hover change):")
+                local drcDis = controls.bind(disabledRowState, disabledRowDefaults)
+                drcDis:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+                    speed = 0.1,
+                    disabled = true,
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Dimmed style (faded, reveals outlined on hover):")
+                local drcDim = controls.bind(dimmedRowState, disabledRowDefaults)
+                drcDim:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+                    speed = 0.1,
+                    disabled = "dimmed",
+                })
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("Dimmed+color style (faded, reveals color border on hover):")
+                local drcDimC = controls.bind(dimmedColorRowState, disabledRowDefaults)
+                drcDimC:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+                    speed = 0.1,
+                    disabled = "dimmedColor",
+                    drags = {
+                        { color = controls.DragColors.x },
+                        { color = controls.DragColors.y },
+                        { color = controls.DragColors.z },
+                    },
                 })
 
             elseif controlsPage == 2 then

@@ -200,6 +200,152 @@ local val, changed = c.DragInt(
 )
 ```
 
+### `DragFloatRow(icon, id, drags, opts?)`
+
+Compound control that renders multiple float drag inputs (and optionally buttons) on a single horizontal line. Supports per-drag color theming, width weighting, label-to-value display, and delta mode.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| icon | string\|nil | IconGlyph prefix (nil = no icon) |
+| id | string | Base ImGui ID (each drag appends its index) |
+| drags | table | Array of Drag_Definitions and/or Button_Definitions |
+| opts | table\|nil | Row-level options |
+
+**opts fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| cols | number\|nil | nil | Grid columns for row width |
+| speed | number\|nil | (max-min)/200 | Default base drag speed |
+| min | number\|nil | nil | Default min for all drags |
+| max | number\|nil | nil | Default max for all drags |
+| precisionMultiplier | number\|nil | 0.1 | Shift precision factor |
+| noPrecision | boolean\|nil | false | Disable Shift precision |
+| tooltip | string\|nil | nil | Icon tooltip |
+| spacing | number\|nil | itemSpacingX | Gap between elements |
+| mode | string\|nil | "absolute" | `"absolute"` (value in/out) or `"delta"` (always 0 in, delta out) |
+| onChange | function\|nil | nil | `(index, newValue, key)` callback when a drag changes |
+| onReset | function\|nil | nil | `(index, key)` callback on right-click in delta mode |
+| disabled | boolean\|string\|nil | nil | `true` = fully faded, `"dimmed"` = faded with outlined on hover, `"dimmedColor"` = faded with color border on hover |
+| state | table\|nil | nil | Caller-owned state table for unbound rows (enables hover tracking and delta accumulation across frames) |
+| id | string\|nil | nil | Unique suffix for bound rows sharing the same first key on the same bind context |
+
+**Returns:** `table, boolean` - values array (one per drag, buttons excluded), whether any drag changed
+
+**Drag_Definition fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| value | number | required | Current value |
+| min | number\|nil | opts.min | Minimum |
+| max | number\|nil | opts.max | Maximum |
+| color | table\|nil | nil | Base `{r,g,b,a}` color theme |
+| format | string\|nil | "%.2f" | Display format |
+| label | string\|nil | nil | Idle display text, switches to value on hover |
+| tooltip | string\|nil | nil | Hover tooltip |
+| default | number\|nil | nil | Right-click reset value |
+| speed | number\|nil | opts.speed | Per-drag speed override |
+| width | number\|nil | nil | Fixed pixel width |
+| widthPercent | number\|nil | nil | Fixed width as percentage of display width (e.g., 5 = 5% of screen) |
+| fitLabel | boolean\|nil | nil | Auto-size width to fit the label text with padding |
+| weight | number\|nil | 1 | Flex weight for remaining space (ignored when width/widthPercent/fitLabel is set) |
+| disabled | boolean\|string\|nil | nil | Per-drag disabled style override (same values as opts.disabled) |
+| onChange | function\|nil | nil | Per-drag `(newValue, key)` callback |
+
+**Button_Definition fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| type | string | required | Must be `"button"` |
+| icon | string\|nil | nil | Icon name (resolved via `utils.resolveIcon`) |
+| label | string\|nil | nil | Button text |
+| style | string | "inactive" | Button style |
+| tooltip | string\|nil | nil | Hover tooltip |
+| onClick | function\|nil | nil | Click callback `(index)` |
+| holdDuration | number\|nil | nil | Hold-to-confirm duration |
+| width | number\|nil | auto | Fixed pixel width |
+
+Elements without `type` (or `type = "drag"`) are treated as drags. Elements with `type = "button"` render as buttons. All elements are laid out left-to-right with `SameLine()`. Fixed-width elements (`width`, `widthPercent`, `fitLabel`) and buttons are subtracted from available space first; remaining space is divided proportionally by `weight` among weighted drags.
+
+Color theming: a single `{r, g, b, a}` base color derives four ImGui style colors with a shared faded blue FrameBg background and axis-colored hover, active, and border. Drags without a color use the default outlined style.
+
+Disabled styles: `disabled = true` renders a fully faded blue style. `"dimmed"` shows faded at rest but reveals the normal outlined style on hover. `"dimmedColor"` shows faded at rest but reveals the full color border on hover (requires `color` on each drag). Can be set per-drag or at the row level via opts.
+
+Label-to-value: when a drag has a `label`, it displays the label text when idle and switches to the numeric value on hover or active drag. Requires a persistent state table (automatic for bound rows, pass `opts.state` for unbound rows).
+
+```lua
+-- Three colored float drags
+local values, changed = c.DragFloatRow(nil, "pos", {
+    { value = pos.x, color = c.DragColors.x, label = "X", min = -2000, max = 2000 },
+    { value = pos.y, color = c.DragColors.y, label = "Y", min = -2000, max = 2000 },
+    { value = pos.z, color = c.DragColors.z, label = "Z", min = -2000, max = 2000 },
+}, { speed = 0.1 })
+
+-- Mixed buttons + drags
+local values, changed = c.DragFloatRow(nil, "posRow", {
+    { type = "button", icon = "Upload", tooltip = "Load", onClick = function() loadPos() end },
+    { type = "button", icon = "Refresh", tooltip = "Update", holdDuration = 1.0, onClick = function() updatePos() end },
+    { value = pos.x, color = c.DragColors.x, label = "X", min = -2000, max = 2000 },
+    { value = pos.y, color = c.DragColors.y, label = "Y", min = -2000, max = 2000 },
+    { value = pos.z, color = c.DragColors.z, label = "Z", min = -2000, max = 2000 },
+}, { speed = 0.1 })
+
+-- Delta mode (drags always show 0, onChange receives deltas)
+c.DragFloatRow(nil, "posRelative", {
+    { value = 0, color = c.DragColors.x, label = "X", min = -10000, max = 10000 },
+    { value = 0, color = c.DragColors.y, label = "Y", min = -10000, max = 10000 },
+    { value = 0, color = c.DragColors.z, label = "Z", min = -10000, max = 10000 },
+}, {
+    mode = "delta",
+    speed = 0.1,
+    onChange = function(index, delta)
+        local axes = { right, forward, up }
+        local axis = axes[index]
+        pos.x = pos.x + delta * axis.x
+        pos.y = pos.y + delta * axis.y
+        pos.z = pos.z + delta * axis.z
+    end,
+})
+
+-- Width weighting (3 equal-weight + 1 fixed-width)
+c.DragFloatRow(nil, "camera", {
+    { value = cam.yaw,  label = "Yaw",  min = -180, max = 180 },
+    { value = cam.tilt, label = "Tilt", min = -90,  max = 90 },
+    { value = cam.roll, label = "Roll", min = -360, max = 360 },
+    { value = cam.fov,  label = "FOV",  width = 80, min = 20, max = 130 },
+}, { speed = 0.5 })
+```
+
+### `DragIntRow(icon, id, drags, opts?)`
+
+Identical to `DragFloatRow` but uses `ImGui.DragInt`. Default format: `"%d"`, default speed: `0.5`.
+
+```lua
+local values, changed = c.DragIntRow("TuneVariant", "stats", {
+    { value = stats.quality, label = "Quality" },
+    { value = stats.priority, label = "Priority", width = 60 },
+    { value = stats.count, label = "Count", width = 60 },
+}, { min = 0, max = 100 })
+```
+
+### Preset Colors: `controls.DragColors`
+
+Convenience color presets for common XYZ axis theming.
+
+```lua
+controls.DragColors = {
+    x = { 0.8, 0.3, 0.3, 1.0 },   -- red
+    y = { 0.3, 0.7, 0.3, 1.0 },   -- green
+    z = { 0.3, 0.5, 0.9, 1.0 },   -- blue
+}
+```
+
+Custom RGBA tables are also accepted anywhere a color is expected.
+
+### `controls.PushDragDisabled()` / `controls.PopDragDisabled()`
+
+Push/pop the faded blue disabled drag style for direct use outside of DragRow. Renders faded blue backgrounds, no colored border, and muted white text.
+
 ## Input Fields
 
 ### `InputText(icon, id, text, opts?)`
@@ -480,6 +626,8 @@ Create a bound context that auto-reads values from a data table, auto-resets on 
 | `ctx:SliderInt` | `(icon, key, min, max, opts?)` |
 | `ctx:DragFloat` | `(icon, key, min, max, opts?)` |
 | `ctx:DragInt` | `(icon, key, min, max, opts?)` |
+| `ctx:DragFloatRow` | `(icon, keys, min, max, opts?)` |
+| `ctx:DragIntRow` | `(icon, keys, min, max, opts?)` |
 | `ctx:Checkbox` | `(label, key, opts?)` |
 | `ctx:ColorEdit4` | `(icon, key, opts?)` |
 | `ctx:Combo` | `(icon, key, items, opts?)` |
@@ -540,6 +688,95 @@ Bound `SliderFloat` and `SliderInt` support a `percent` option that auto-formats
 ```lua
 ctx:SliderFloat(icon, "opacity", 0, 1, {
     percent = true,  -- displays "50%" when value is 0.5
+})
+```
+
+#### `ctx:DragFloatRow(icon, keys, min, max, opts?)`
+
+Bound version of `DragFloatRow`. Takes a `keys` array instead of a `drags` array. Values are read from `data[key]` for each key, defaults from `defaults[key]`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| icon | string\|nil | IconGlyph prefix |
+| keys | table | Array of data table keys (e.g. `{"x", "y", "z"}`) |
+| min | number\|nil | Default min for all drags |
+| max | number\|nil | Default max for all drags |
+| opts | table\|nil | Row-level options (same as standalone, plus `drags` for per-key overrides) |
+
+Use `opts.drags` to provide per-key customization (colors, labels, formats, weights). When omitted, all drags use row-level defaults. Use `opts.def` to look up row configuration from the bind system's `defs` table.
+
+In absolute mode, changed values are written back to `data[key]` and `onSave()` is called. In delta mode, `opts.onChange` is called instead of auto-writing.
+
+```lua
+-- Simple bound row (just keys and range)
+ctx:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000)
+
+-- With colors
+ctx:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+    drags = {
+        { color = c.DragColors.x },
+        { color = c.DragColors.y },
+        { color = c.DragColors.z },
+    },
+})
+
+-- With labels that show values on hover
+ctx:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
+    speed = 0.1,
+    drags = {
+        { color = c.DragColors.x, label = "X" },
+        { color = c.DragColors.y, label = "Y" },
+        { color = c.DragColors.z, label = "Z" },
+    },
+})
+
+-- RGBA color editor
+ctx:DragFloatRow("Palette", {"r", "g", "b", "a"}, 0.0, 1.0, {
+    speed = 0.005,
+    drags = {
+        { color = { 1, 0.3, 0.3, 1 }, label = "R" },
+        { color = { 0.3, 1, 0.3, 1 }, label = "G" },
+        { color = { 0.3, 0.3, 1, 1 }, label = "B" },
+        { color = { 0.7, 0.7, 0.7, 1 }, label = "A" },
+    },
+})
+
+-- Width weighting (3 equal-weight + 1 fixed-width)
+ctx:DragFloatRow(nil, {"yaw", "tilt", "roll", "fov"}, nil, nil, {
+    speed = 0.5,
+    drags = {
+        { label = "Yaw", min = -180, max = 180 },
+        { label = "Tilt", min = -90, max = 90 },
+        { label = "Roll", min = -360, max = 360 },
+        { label = "FOV", width = 80, min = 20, max = 130 },
+    },
+})
+
+-- Delta mode (camera-relative movement)
+ctx:DragFloatRow(nil, {"x", "y", "z"}, -10000, 10000, {
+    mode = "delta",
+    speed = 0.1,
+    onChange = function(index, delta)
+        local axes = { right, forward, up }
+        local axis = axes[index]
+        pos.x = pos.x + delta * axis.x
+        pos.y = pos.y + delta * axis.y
+        pos.z = pos.z + delta * axis.z
+    end,
+})
+```
+
+#### `ctx:DragIntRow(icon, keys, min, max, opts?)`
+
+Same as `ctx:DragFloatRow` but uses `DragIntRow` internally. Default format: `"%d"`, default speed: `0.5`.
+
+```lua
+ctx:DragIntRow("TuneVariant", {"quality", "priority", "count"}, 0, 100, {
+    drags = {
+        { label = "Quality" },
+        { label = "Priority", width = 60 },
+        { label = "Count", width = 60 },
+    },
 })
 ```
 
