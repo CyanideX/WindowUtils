@@ -155,6 +155,51 @@ Same as SliderFloat but for integers. Default format: `"%d"`.
 
 Greyed-out non-interactive slider placeholder.
 
+## Drag Controls
+
+Drag controls use `ImGui.DragFloat`/`ImGui.DragInt` instead of sliders. The value changes by dragging left/right with configurable speed. Hold Shift for precision mode (reduced drag speed).
+
+### `DragFloat(icon, id, value, min, max, opts?)`
+
+Float drag with optional icon prefix, column width, right-click reset, tooltip, and Shift precision.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| icon | string\|nil |  - | IconGlyph (nil = no icon) |
+| id | string |  - | Unique drag ID |
+| value | number |  - | Current value |
+| min | number |  - | Minimum |
+| max | number |  - | Maximum |
+| opts.speed | number | (max-min)/200 | Base drag speed |
+| opts.format | string | "%.2f" | Display format |
+| opts.cols | number\|nil | nil | Grid columns (nil = fill remaining) |
+| opts.default | number\|nil | nil | Right-click reset value |
+| opts.tooltip | string\|nil | nil | Always-visible icon tooltip |
+| opts.precisionMultiplier | number | 0.1 | Shift precision factor (lower = slower) |
+| opts.noPrecision | boolean | false | Disable Shift precision for this control |
+
+**Returns:** `number, boolean` - new value, whether changed
+
+Shift precision: ImGui natively multiplies drag speed by 10x when Shift is held. `DragFloat` counters that and applies `precisionMultiplier`, giving an effective speed of `baseSpeed * 0.1 * precisionMultiplier` when Shift is held.
+
+```lua
+local val, changed = c.DragFloat(
+    IconGlyphs.Speedometer, "myDrag", settings.speed,
+    0.0, 10.0, { speed = 0.05, default = 1.0, tooltip = "Drag speed" }
+)
+```
+
+### `DragInt(icon, id, value, min, max, opts?)`
+
+Same as DragFloat but for integers. Default format: `"%d"`, default speed: `0.5`.
+
+```lua
+local val, changed = c.DragInt(
+    IconGlyphs.Counter, "quality", settings.quality,
+    1, 100, { tooltip = "Quality level" }
+)
+```
+
 ## Input Fields
 
 ### `InputText(icon, id, text, opts?)`
@@ -433,6 +478,8 @@ Create a bound context that auto-reads values from a data table, auto-resets on 
 |--------|-----------|
 | `ctx:SliderFloat` | `(icon, key, min, max, opts?)` |
 | `ctx:SliderInt` | `(icon, key, min, max, opts?)` |
+| `ctx:DragFloat` | `(icon, key, min, max, opts?)` |
+| `ctx:DragInt` | `(icon, key, min, max, opts?)` |
 | `ctx:Checkbox` | `(label, key, opts?)` |
 | `ctx:ColorEdit4` | `(icon, key, opts?)` |
 | `ctx:Combo` | `(icon, key, items, opts?)` |

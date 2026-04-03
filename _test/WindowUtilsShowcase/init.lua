@@ -46,6 +46,14 @@ local ttState = {
     ttTogA = true, ttTogB = false,
 }
 
+-- Demo state for drag controls with Shift precision
+local dragDefaults = {
+    dragFloat = 0.5, preciseFloat = 0.5, dragInt = 50, noPrecFloat = 0.5,
+}
+local dragState = {
+    dragFloat = 0.5, preciseFloat = 0.5, dragInt = 50, noPrecFloat = 0.5,
+}
+
 -- Expand demo state
 local expSizeMode = "fixed"
 local expVertSizeMode = "fixed"
@@ -170,6 +178,29 @@ local function drawControlsDemo()
                         write = function(v) return easingKeys[v + 1] end,
                     },
                     tooltip = "Easing function for animations",
+                })
+
+                controls.Separator(8, 8)
+
+                -- Drag Controls with Shift Precision
+                controls.TextMuted("DragFloat / DragInt: hold Shift for precision mode")
+                ImGui.Dummy(0, 2)
+
+                local dc = controls.bind(dragState, dragDefaults)
+
+                dc:DragFloat("Speedometer", "dragFloat", 0.0, 1.0, {
+                    tooltip = "Default drag (hold Shift for precision)",
+                })
+                dc:DragFloat("TuneVariant", "preciseFloat", 0.0, 1.0, {
+                    precisionMultiplier = 0.01,
+                    tooltip = "Custom precision: Shift = 0.01x multiplier",
+                })
+                dc:DragInt("Counter", "dragInt", 0, 100, {
+                    tooltip = "Integer drag (hold Shift for precision)",
+                })
+                dc:DragFloat("Cancel", "noPrecFloat", 0.0, 1.0, {
+                    noPrecision = true,
+                    tooltip = "Precision disabled (noPrecision = true)",
                 })
 
             elseif controlsPage == 2 then

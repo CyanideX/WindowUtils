@@ -373,6 +373,77 @@ function controls.SliderDisabled(icon, label)
 end
 
 --------------------------------------------------------------------------------
+-- Drag Controls with Shift Precision
+-- DragFloat/DragInt: like sliders but with configurable drag speed.
+-- Hold Shift for precision mode (reduced speed).
+--------------------------------------------------------------------------------
+
+--- Compute drag speed accounting for Shift precision.
+--- ImGui natively multiplies drag speed by 10x when Shift is held,
+--- so we counter that and apply our own precision factor.
+---@param baseSpeed number Normal drag speed
+---@param opts table Control opts (may contain precisionMultiplier, noPrecision)
+---@return number speed Effective drag speed for this frame
+local function getDragSpeed(baseSpeed, opts)
+    if opts.noPrecision then return baseSpeed end
+    if utils.isShiftHeld() then
+        local precisionMult = opts.precisionMultiplier or 0.1
+        return baseSpeed * 0.1 * precisionMult
+    end
+    return baseSpeed
+end
+
+--- Create a float drag control with Shift precision (icon, id, value, min, max, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param value number Current value
+---@param min number Minimum value
+---@param max number Maximum value
+---@param opts? table {speed?, format?, tooltip?, cols?, default?, precisionMultiplier?, noPrecision?}
+---@return number newValue Updated value
+---@return boolean changed True if the value was modified
+function controls.DragFloat(icon, id, value, min, max, opts)
+    opts = opts or {}
+    local baseSpeed = opts.speed or ((max - min) / 200)
+    local format = opts.format or "%.2f"
+    local hasIcon = iconPrefix(icon, opts.tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
+    styles.PushOutlined()
+    local newValue, changed = ImGui.DragFloat("##" .. id, value, getDragSpeed(baseSpeed, opts), min, max, format)
+    styles.PopOutlined()
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newValue = opts.default
+        changed = true
+    end
+    return newValue, changed
+end
+
+--- Create an integer drag control with Shift precision (icon, id, value, min, max, opts)
+---@param icon string|nil Icon glyph or IconGlyphs key (nil to hide)
+---@param id string Unique ImGui ID suffix
+---@param value integer Current value
+---@param min integer Minimum value
+---@param max integer Maximum value
+---@param opts? table {speed?, format?, tooltip?, cols?, default?, precisionMultiplier?, noPrecision?}
+---@return integer newValue Updated value
+---@return boolean changed True if the value was modified
+function controls.DragInt(icon, id, value, min, max, opts)
+    opts = opts or {}
+    local baseSpeed = opts.speed or 0.5
+    local format = opts.format or "%d"
+    local hasIcon = iconPrefix(icon, opts.tooltip, true)
+    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
+    styles.PushOutlined()
+    local newValue, changed = ImGui.DragInt("##" .. id, value, getDragSpeed(baseSpeed, opts), min, max, format)
+    styles.PopOutlined()
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newValue = opts.default
+        changed = true
+    end
+    return newValue, changed
+end
+
+--------------------------------------------------------------------------------
 -- Checkboxes (standard ImGui styling - no custom colors)
 --------------------------------------------------------------------------------
 
@@ -1300,6 +1371,8 @@ end
 local bindDispatch = {
     SliderFloat = { fn = controls.SliderFloat, hasMinMax = true,  hasItems = false, hasTransform = true,  hasPercent = true  },
     SliderInt   = { fn = controls.SliderInt,   hasMinMax = true,  hasItems = false, hasTransform = true,  hasPercent = true  },
+    DragFloat   = { fn = controls.DragFloat,   hasMinMax = true,  hasItems = false, hasTransform = true,  hasPercent = true  },
+    DragInt     = { fn = controls.DragInt,      hasMinMax = true,  hasItems = false, hasTransform = true,  hasPercent = true  },
     Combo       = { fn = controls.Combo,       hasMinMax = false, hasItems = true,  hasTransform = true,  hasPercent = false },
     InputText   = { fn = controls.InputText,   hasMinMax = false, hasItems = false, hasTransform = false, hasPercent = false },
     InputFloat  = { fn = controls.InputFloat,  hasMinMax = false, hasItems = false, hasTransform = false, hasPercent = false },
@@ -1392,6 +1465,32 @@ end
 ---@return boolean changed
 function bindMethods:SliderInt(icon, key, min, max, opts)
     return bindControl(self, "SliderInt", icon, key, min, max, opts)
+end
+
+--- Bound float drag. Reads/writes data[key], resets to defaults[key] on right-click.
+--- Hold Shift for precision mode.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param min number Minimum value
+---@param max number Maximum value
+---@param opts? table {speed?, format?, tooltip?, cols?, default?, transform?, percent?, precisionMultiplier?, noPrecision?, onChange?}
+---@return number newValue
+---@return boolean changed
+function bindMethods:DragFloat(icon, key, min, max, opts)
+    return bindControl(self, "DragFloat", icon, key, min, max, opts)
+end
+
+--- Bound integer drag. Reads/writes data[key], resets to defaults[key] on right-click.
+--- Hold Shift for precision mode.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param key string Data table key
+---@param min integer Minimum value
+---@param max integer Maximum value
+---@param opts? table {speed?, format?, tooltip?, cols?, default?, transform?, percent?, precisionMultiplier?, noPrecision?, onChange?}
+---@return integer newValue
+---@return boolean changed
+function bindMethods:DragInt(icon, key, min, max, opts)
+    return bindControl(self, "DragInt", icon, key, min, max, opts)
 end
 
 --- Bound checkbox. Reads/writes data[key], resets to defaults[key] on right-click.
