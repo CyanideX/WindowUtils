@@ -1222,13 +1222,13 @@ local function drawTooltipsDemo()
     -- Section: Direct Controls (non-bound)
     ----------------------------------------------------------------------------
     controls.SectionHeader("Direct Controls", 8, 4)
-    controls.SliderDisabled("Lock", "Locked Slider")
+    controls.SliderDisabled("Lock", "##Locked Slider")
     tooltips.ShowBullets("controls.SliderDisabled(icon, label)", {
         "icon  - IconGlyphs key name",
         "label  - display label for the disabled slider",
     })
     ImGui.Dummy(0, 2)
-    controls.StatusBar("Status", "Online")
+    controls.StatusBar("Status")
     tooltips.ShowBullets("controls.StatusBar(label, value, opts)", {
         "label  - left-side label text",
         "value  - right-side value text",
@@ -1425,10 +1425,29 @@ local function drawTooltipsDemo()
 
     -- SectionHeader
     controls.SectionHeader("Example Header", 0, 2)
-    tooltips.ShowBullets("controls.SectionHeader(label, spacingBefore, spacingAfter)", {
+    tooltips.ShowBullets("controls.SectionHeader(label, spacingBefore, spacingAfter, iconGlyph?)", {
         "label  - section title text",
         "spacingBefore  - pixels above",
         "spacingAfter  - pixels below",
+        "iconGlyph  - optional HeaderIconGlyph opts table",
+    })
+
+    -- SectionHeader with icon glyph
+    controls.SectionHeader("Header with Glyph", 4, 2, {
+        icon = "Information",
+        tooltip = "controls.HeaderIconGlyph(opts) rendered via SectionHeader's iconGlyph parameter",
+    })
+    controls.SectionHeader("Clickable Glyph", 4, 2, {
+        icon = "AlertBox",
+        tooltip = "Click the icon to trigger a callback",
+        onClick = function() wu.Notify.info("Icon glyph clicked!") end,
+    })
+    tooltips.ShowBullets("controls.HeaderIconGlyph(opts)", {
+        "icon  - IconGlyphs key name or raw glyph string",
+        "tooltip  - hover tooltip text",
+        "color  - {r, g, b, a} text color (optional)",
+        "visible  - false to skip rendering (optional)",
+        "onClick  - click callback (optional, renders as frameless button)",
     })
 
     -- Text styles
@@ -1507,11 +1526,19 @@ local function drawTooltipsDemo()
     ImGui.Dummy(0, 2)
 
     controls.Button("  Show  ", "inactive")
-    tooltips.Show("tooltips.Show(text)  - respects tooltipsEnabled setting")
+    tooltips.Show("tooltips.Show(text, widthPct?)  - respects tooltipsEnabled, auto-wraps at configured max width")
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  Show (20%)  ", "inactive")
+    tooltips.Show("tooltips.Show(text, 20)  - override max width to 20% of screen width. This is a longer sentence to demonstrate the wrapping behavior at a wider percentage.", 20)
+    ImGui.Dummy(0, 2)
+
+    controls.Button("  Show (no wrap)  ", "inactive")
+    tooltips.Show("tooltips.Show(text, 0)  - pass 0 to disable wrapping entirely", 0)
     ImGui.Dummy(0, 2)
 
     controls.Button("  ShowAlways  ", "inactive")
-    tooltips.ShowAlways("tooltips.ShowAlways(text)  - always visible, ignores settings")
+    tooltips.ShowAlways("tooltips.ShowAlways(text, widthPct?)  - always visible, ignores settings, auto-wraps")
     ImGui.Dummy(0, 2)
 
     controls.Button("  ShowWrapped  ", "inactive")
