@@ -255,6 +255,59 @@ function styles.PopOutlinedSuccess()
 end
 
 --------------------------------------------------------------------------------
+-- Drag Color Theming (for DragFloatRow / DragIntRow)
+--------------------------------------------------------------------------------
+
+-- Faded blue base shared by all drag FrameBg backgrounds
+styles.dragBgBase = { 0.12, 0.26, 0.50 }
+
+-- Preset axis colors for DragFloatRow / DragIntRow
+styles.dragColors = {
+    x = { 0.8, 0.3, 0.3, 1.0 },   -- red
+    y = { 0.3, 0.7, 0.3, 1.0 },   -- green
+    z = { 0.3, 0.5, 0.9, 1.0 },   -- blue
+}
+
+--- Push colored drag style: faded blue FrameBg with axis-colored hover, active, and border.
+--- Returns false if color is nil or invalid (caller should fall back to PushOutlined).
+---@param color table|nil Base color {r, g, b, a}
+---@return boolean pushed True if colors were pushed (caller must call PopDragColor)
+function styles.PushDragColor(color)
+    if not color or type(color) ~= "table" or #color ~= 4 then return false end
+    local r, g, b, a = color[1], color[2], color[3], color[4]
+    local bg = styles.dragBgBase
+    ImGui.PushStyleColor(ImGuiCol.FrameBg,        bg[1], bg[2], bg[3], 0.1)
+    ImGui.PushStyleColor(ImGuiCol.FrameBgHovered,  r*0.4,  g*0.4,  b*0.4,  0.4)
+    ImGui.PushStyleColor(ImGuiCol.FrameBgActive,   r*0.5,  g*0.5,  b*0.5,  0.6)
+    ImGui.PushStyleColor(ImGuiCol.Border,          r,      g,      b,      a*0.6)
+    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
+    return true
+end
+
+--- Pop style colors/vars pushed by PushDragColor.
+function styles.PopDragColor()
+    ImGui.PopStyleVar(1)
+    ImGui.PopStyleColor(4)
+end
+
+--- Push disabled/dimmed drag style: faded blue background, no colored border, muted text.
+function styles.PushDragDisabled()
+    local bg = styles.dragBgBase
+    ImGui.PushStyleColor(ImGuiCol.FrameBg,        bg[1], bg[2], bg[3], 0.1)
+    ImGui.PushStyleColor(ImGuiCol.FrameBgHovered,  bg[1], bg[2], bg[3], 0.2)
+    ImGui.PushStyleColor(ImGuiCol.FrameBgActive,   bg[1], bg[2], bg[3], 0.3)
+    ImGui.PushStyleColor(ImGuiCol.Border,          bg[1]*2, bg[2]*2, bg[3]*1.76, 0.15)
+    ImGui.PushStyleColor(ImGuiCol.Text,            0.7, 0.7, 0.7, 1.0)
+    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
+end
+
+--- Pop style colors/vars pushed by PushDragDisabled.
+function styles.PopDragDisabled()
+    ImGui.PopStyleVar(1)
+    ImGui.PopStyleColor(5)
+end
+
+--------------------------------------------------------------------------------
 -- Text Styles
 --------------------------------------------------------------------------------
 

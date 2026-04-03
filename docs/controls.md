@@ -328,12 +328,12 @@ local values, changed = c.DragIntRow("TuneVariant", "stats", {
 }, { min = 0, max = 100 })
 ```
 
-### Preset Colors: `controls.DragColors`
+### Preset Colors: `styles.dragColors`
 
-Convenience color presets for common XYZ axis theming.
+Convenience color presets for common XYZ axis theming. Located in `modules/styles.lua`.
 
 ```lua
-controls.DragColors = {
+styles.dragColors = {
     x = { 0.8, 0.3, 0.3, 1.0 },   -- red
     y = { 0.3, 0.7, 0.3, 1.0 },   -- green
     z = { 0.3, 0.5, 0.9, 1.0 },   -- blue
@@ -342,9 +342,13 @@ controls.DragColors = {
 
 Custom RGBA tables are also accepted anywhere a color is expected.
 
-### `controls.PushDragDisabled()` / `controls.PopDragDisabled()`
+### `styles.PushDragColor(color)` / `styles.PopDragColor()`
 
-Push/pop the faded blue disabled drag style for direct use outside of DragRow. Renders faded blue backgrounds, no colored border, and muted white text.
+Push/pop colored drag style with faded blue FrameBg and axis-colored hover, active, and border. Returns `false` if color is nil or invalid. Located in `modules/styles.lua`.
+
+### `styles.PushDragDisabled()` / `styles.PopDragDisabled()`
+
+Push/pop the faded blue disabled drag style. Renders faded blue backgrounds, no colored border, and muted white text. Located in `modules/styles.lua`.
 
 ## Input Fields
 

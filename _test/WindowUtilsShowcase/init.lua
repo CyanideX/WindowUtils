@@ -141,6 +141,7 @@ local dragItems = {
 
 local function drawControlsDemo()
     local controls = wu.Controls
+    local styles = wu.Styles
 
     wu.Splitter.multi("ctl_split", {
         { content = function()
@@ -248,9 +249,9 @@ local function drawControlsDemo()
                 controls.TextMuted("XYZ with preset DragColors:")
                 drc:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
                     drags = {
-                        { color = controls.DragColors.x },
-                        { color = controls.DragColors.y },
-                        { color = controls.DragColors.z },
+                        { color = styles.dragColors.x },
+                        { color = styles.dragColors.y },
+                        { color = styles.dragColors.z },
                     },
                 })
 
@@ -293,9 +294,9 @@ local function drawControlsDemo()
                 local mixedValues, mixedChanged = controls.DragFloatRow(nil, "posRow", {
                     { type = "button", icon = "Upload", tooltip = "Load", onClick = function() end },
                     { type = "button", icon = "Refresh", tooltip = "Update", holdDuration = 1.0, onClick = function() end },
-                    { value = mixedRowState.x, color = controls.DragColors.x, label = "X", min = -2000, max = 2000, default = 0 },
-                    { value = mixedRowState.y, color = controls.DragColors.y, label = "Y", min = -2000, max = 2000, default = 0 },
-                    { value = mixedRowState.z, color = controls.DragColors.z, label = "Z", min = -2000, max = 2000, default = 0 },
+                    { value = mixedRowState.x, color = styles.dragColors.x, label = "X", min = -2000, max = 2000, default = 0 },
+                    { value = mixedRowState.y, color = styles.dragColors.y, label = "Y", min = -2000, max = 2000, default = 0 },
+                    { value = mixedRowState.z, color = styles.dragColors.z, label = "Z", min = -2000, max = 2000, default = 0 },
                 }, { speed = 0.1, state = mixedRowDragState })
                 if mixedChanged then
                     mixedRowState.x = mixedValues[1]
@@ -306,9 +307,9 @@ local function drawControlsDemo()
                 ImGui.Dummy(0, 4)
                 controls.TextMuted("Delta mode (drags show delta while dragging, onChange accumulates):")
                 controls.DragFloatRow(nil, "delta", {
-                    { value = 0, color = controls.DragColors.x, label = "X", min = -100, max = 100, default = 0 },
-                    { value = 0, color = controls.DragColors.y, label = "Y", min = -100, max = 100, default = 0 },
-                    { value = 0, color = controls.DragColors.z, label = "Z", min = -100, max = 100, default = 0 },
+                    { value = 0, color = styles.dragColors.x, label = "X", min = -100, max = 100, default = 0 },
+                    { value = 0, color = styles.dragColors.y, label = "Y", min = -100, max = 100, default = 0 },
+                    { value = 0, color = styles.dragColors.z, label = "Z", min = -100, max = 100, default = 0 },
                 }, {
                     mode = "delta",
                     speed = 0.1,
@@ -331,9 +332,9 @@ local function drawControlsDemo()
                 drcLtv:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
                     speed = 0.1,
                     drags = {
-                        { color = controls.DragColors.x, label = "X" },
-                        { color = controls.DragColors.y, label = "Y" },
-                        { color = controls.DragColors.z, label = "Z" },
+                        { color = styles.dragColors.x, label = "X" },
+                        { color = styles.dragColors.y, label = "Y" },
+                        { color = styles.dragColors.z, label = "Z" },
                     },
                 })
 
@@ -360,9 +361,9 @@ local function drawControlsDemo()
                     speed = 0.1,
                     disabled = "dimmedColor",
                     drags = {
-                        { color = controls.DragColors.x },
-                        { color = controls.DragColors.y },
-                        { color = controls.DragColors.z },
+                        { color = styles.dragColors.x },
+                        { color = styles.dragColors.y },
+                        { color = styles.dragColors.z },
                     },
                 })
 

@@ -2,6 +2,43 @@
 -- WindowUtils - Controls Module
 -- Universal ImGui control helpers for CET mods
 ------------------------------------------------------
+--
+-- PUBLIC API (what mod authors should call):
+--   controls.ColWidth(cols, gap, hasIcon)
+--   controls.IconButton(icon, visible)
+--   controls.Button(label, style, width, height)
+--   controls.ToggleButton(label, isActive, width, height)
+--   controls.SliderFloat(icon, id, value, min, max, opts)
+--   controls.SliderInt(icon, id, value, min, max, opts)
+--   controls.DragFloat(icon, id, value, min, max, opts)
+--   controls.DragInt(icon, id, value, min, max, opts)
+--   controls.DragFloatRow(icon, id, drags, opts)
+--   controls.DragIntRow(icon, id, drags, opts)
+--   controls.Checkbox(label, value, opts)
+--   controls.ProgressBar(fraction, width, height, overlay, styleName)
+--   controls.ColorEdit4(icon, id, color, opts)
+--   controls.TextMuted(text, value) / TextSuccess / TextDanger / TextWarning
+--   controls.SectionHeader(text, spacingBefore, spacingAfter, iconGlyph)
+--   controls.Separator(before, after)
+--   controls.Combo(icon, id, currentIndex, items, opts)
+--   controls.InputText(icon, id, text, opts)
+--   controls.InputFloat(icon, id, value, opts)
+--   controls.InputInt(icon, id, value, opts)
+--   controls.HoldButton(id, label, opts)
+--   controls.ActionButton(label, opts)
+--   controls.BeginFillChild(id, opts) / EndFillChild(id)
+--   controls.Row(defs, opts)
+--   controls.Column(defs, opts)
+--   controls.ButtonRow(defs, opts)
+--   controls.bind(data, defaults, onSave, bindOpts) / unbind(ctx)
+--   controls.PanelGroup(id, opts)
+--
+-- INTERNAL (used by the above, not intended for direct use):
+--   cacheFrameState, iconPrefix, calcControlWidth, computeElementWidths,
+--   renderDragRow, getDragSpeed, measureButtonDefs, bindControl,
+--   bindDispatch, bindMethods
+--
+------------------------------------------------------
 
 local styles = require("modules/styles")
 local tooltips = require("modules/tooltips")
@@ -14,15 +51,6 @@ local controls = {}
 --------------------------------------------------------------------------------
 
 local PANEL_DEFAULT_BG = { 0.65, 0.7, 1.0, 0.045 }
-
-controls.DragColors = {
-    x = { 0.8, 0.3, 0.3, 1.0 },   -- red
-    y = { 0.3, 0.7, 0.3, 1.0 },   -- green
-    z = { 0.3, 0.5, 0.9, 1.0 },   -- blue
-}
-
--- Faded blue base used for all drag FrameBg backgrounds (matches Echo's style)
-local DRAG_BG_BASE = { 0.12, 0.26, 0.50 }
 
 --------------------------------------------------------------------------------
 -- Per-frame style cache (call controls.cacheFrameState() once per onDraw)
@@ -402,47 +430,6 @@ local function getDragSpeed(baseSpeed, opts)
     return baseSpeed
 end
 
---- Push ImGui style colors for a colored drag border and tinted backgrounds.
---- Uses a shared faded blue FrameBg with axis-colored hover, active, and border.
---- Returns false if color is nil or invalid, so the caller can fall back to PushOutlined.
----@param color table|nil Base color {r, g, b, a}
----@return boolean pushed True if colors were pushed (caller must call popDragColor)
-local function pushDragColor(color)
-    if not color or type(color) ~= "table" or #color ~= 4 then return false end
-    local r, g, b, a = color[1], color[2], color[3], color[4]
-    local bg = DRAG_BG_BASE
-    ImGui.PushStyleColor(ImGuiCol.FrameBg,        bg[1], bg[2], bg[3], 0.1)
-    ImGui.PushStyleColor(ImGuiCol.FrameBgHovered,  r*0.4,  g*0.4,  b*0.4,  0.4)
-    ImGui.PushStyleColor(ImGuiCol.FrameBgActive,   r*0.5,  g*0.5,  b*0.5,  0.6)
-    ImGui.PushStyleColor(ImGuiCol.Border,          r,      g,      b,      a*0.6)
-    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
-    return true
-end
-
---- Pop style colors/vars pushed by pushDragColor.
-local function popDragColor()
-    ImGui.PopStyleVar(1)
-    ImGui.PopStyleColor(4)
-end
-
---- Push disabled/dimmed drag style: faded blue background, no colored border, muted text.
---- Used for non-active drags when another position is being edited.
-local function pushDragDisabled()
-    local bg = DRAG_BG_BASE
-    ImGui.PushStyleColor(ImGuiCol.FrameBg,        bg[1], bg[2], bg[3], 0.1)
-    ImGui.PushStyleColor(ImGuiCol.FrameBgHovered,  bg[1], bg[2], bg[3], 0.2)
-    ImGui.PushStyleColor(ImGuiCol.FrameBgActive,   bg[1], bg[2], bg[3], 0.3)
-    ImGui.PushStyleColor(ImGuiCol.Border,          bg[1]*2, bg[2]*2, bg[3]*1.76, 0.15)
-    ImGui.PushStyleColor(ImGuiCol.Text,            0.7, 0.7, 0.7, 1.0)
-    ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
-end
-
---- Pop style colors/vars pushed by pushDragDisabled.
-local function popDragDisabled()
-    ImGui.PopStyleVar(1)
-    ImGui.PopStyleColor(5)
-end
-
 --------------------------------------------------------------------------------
 -- DragRow: shared width computation and rendering for DragFloatRow/DragIntRow
 --------------------------------------------------------------------------------
@@ -628,13 +615,13 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
                     styles.PushOutlined()
                     styleType = "outlined"
                 elseif wasHovered and dim == "dimmedColor" and el.color then
-                    pushDragColor(el.color)
+                    styles.PushDragColor(el.color)
                     styleType = "color"
                 else
-                    pushDragDisabled()
+                    styles.PushDragDisabled()
                     styleType = "disabled"
                 end
-            elseif pushDragColor(el.color) then
+            elseif styles.PushDragColor(el.color) then
                 styleType = "color"
             else
                 styles.PushOutlined()
@@ -658,8 +645,8 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
                 hovered[i] = ImGui.IsItemHovered() or isActive
             end
 
-            if styleType == "color" then popDragColor()
-            elseif styleType == "disabled" then popDragDisabled()
+            if styleType == "color" then styles.PopDragColor()
+            elseif styleType == "disabled" then styles.PopDragDisabled()
             else styles.PopOutlined() end
 
             -- Right-click reset
@@ -770,17 +757,6 @@ function controls.DragInt(icon, id, value, min, max, opts)
         changed = true
     end
     return newValue, changed
-end
-
---- Push disabled/dimmed drag style for external use.
---- Faded blue background, no colored border, muted text.
-function controls.PushDragDisabled()
-    pushDragDisabled()
-end
-
---- Pop disabled drag style pushed by PushDragDisabled.
-function controls.PopDragDisabled()
-    popDragDisabled()
 end
 
 --- Create a row of float drag inputs with color theming, width weighting, and Shift precision.
