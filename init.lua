@@ -29,6 +29,7 @@ local dragdrop = require("modules/dragdrop")
 local notifications = require("modules/notifications")
 local search = require("modules/search")
 local modal = require("modules/modal")
+local lists = require("modules/lists")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -86,6 +87,7 @@ WindowUtils.DragDrop = dragdrop
 WindowUtils.Notify = notifications
 WindowUtils.Search = search
 WindowUtils.Modal = modal
+WindowUtils.Lists = lists
 
 registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
     ui.toggle()

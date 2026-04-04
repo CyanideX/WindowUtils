@@ -291,12 +291,16 @@ function styles.PopDragColor()
 end
 
 --- Push disabled/dimmed drag style: faded blue background, no colored border, muted text.
+--- Also overrides button colors to match the faded drag look.
 function styles.PushDragDisabled()
     local bg = styles.dragBgBase
     ImGui.PushStyleColor(ImGuiCol.FrameBg,        bg[1], bg[2], bg[3], 0.1)
     ImGui.PushStyleColor(ImGuiCol.FrameBgHovered,  bg[1], bg[2], bg[3], 0.2)
     ImGui.PushStyleColor(ImGuiCol.FrameBgActive,   bg[1], bg[2], bg[3], 0.3)
     ImGui.PushStyleColor(ImGuiCol.Border,          bg[1]*2, bg[2]*2, bg[3]*1.76, 0.15)
+    ImGui.PushStyleColor(ImGuiCol.Button,          bg[1], bg[2], bg[3], 0.1)
+    ImGui.PushStyleColor(ImGuiCol.ButtonHovered,   bg[1], bg[2], bg[3], 0.2)
+    ImGui.PushStyleColor(ImGuiCol.ButtonActive,    bg[1], bg[2], bg[3], 0.3)
     ImGui.PushStyleColor(ImGuiCol.Text,            0.7, 0.7, 0.7, 1.0)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 0)
 end
@@ -304,7 +308,7 @@ end
 --- Pop style colors/vars pushed by PushDragDisabled.
 function styles.PopDragDisabled()
     ImGui.PopStyleVar(1)
-    ImGui.PopStyleColor(5)
+    ImGui.PopStyleColor(8)
 end
 
 --------------------------------------------------------------------------------

@@ -132,6 +132,24 @@ local dragItems = {
     { name = "Fifth Item",  icon = "5" },
 }
 
+-- Lists demo state
+local listDemoPositions = {
+    { label = "Start",    x = 100.5,  y = 200.3,  z = 50.0,  yaw = 45,  tilt = 0,   roll = 0,   fov = 70, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Bridge",   x = -340.2, y = 180.7,  z = 120.5, yaw = 90,  tilt = -5,  roll = 10,  fov = 80, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Tower",    x = 520.0,  y = -90.4,  z = 300.8, yaw = 180, tilt = 15,  roll = 0,   fov = 60, rollRotations = 1, tangentStrength = 1.5, tangentBias = 0.2, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Market",   x = -150.3, y = 410.1,  z = 75.2,  yaw = 270, tilt = -10, roll = -5,  fov = 90, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.3, boundaryAngle = 0.0 },
+    { label = "Rooftop",  x = 280.6,  y = -320.5, z = 450.0, yaw = 120, tilt = 20,  roll = 15,  fov = 55, rollRotations = -1, tangentStrength = 0.8, tangentBias = -0.1, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Alley",    x = -80.1,  y = 60.9,   z = 15.3,  yaw = 330, tilt = 0,   roll = 0,   fov = 70, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Highway",  x = 600.4,  y = 150.2,  z = 200.7, yaw = 60,  tilt = -15, roll = 5,   fov = 100, rollRotations = 2, tangentStrength = 2.0, tangentBias = 0.0, tangentAsymmetry = -0.2, boundaryAngle = 0.0 },
+    { label = "Tunnel",   x = -420.8, y = -110.6, z = 85.4,  yaw = 210, tilt = 5,   roll = -10, fov = 65, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+}
+local listDemoState = {}
+local listDemoScrollIdx = 5
+local listDemoDragStates = {} -- per-item DragFloatRow state tables
+local listDemoEditMode = false
+local listDemoCurveEditor = false
+local listDemoRelativeMode = false
+
 --------------------------------------------------------------------------------
 -- Tab 1: Controls Demo
 -- Merges: standard controls, hold buttons, action buttons, button rows,
@@ -2281,6 +2299,292 @@ local function drawHoldProgressDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 14: Lists Demo
+--------------------------------------------------------------------------------
+
+local function drawListsDemo()
+    local controls = wu.Controls
+    local styles = wu.Styles
+    local lists = wu.Lists
+
+    -- Mode toggles
+    controls.ButtonRow({
+        { label = listDemoEditMode and "  Edit: ON  " or "  Edit: OFF  ",
+          style = listDemoEditMode and "active" or "inactive",
+          onClick = function() listDemoEditMode = not listDemoEditMode end },
+        { label = listDemoCurveEditor and "  Tangents: ON  " or "  Tangents: OFF  ",
+          style = listDemoCurveEditor and "active" or "inactive",
+          onClick = function() listDemoCurveEditor = not listDemoCurveEditor end },
+        { label = listDemoRelativeMode and "  Delta XYZ  " or "  Global XYZ  ",
+          style = listDemoRelativeMode and "active" or "inactive",
+          onClick = function() listDemoRelativeMode = not listDemoRelativeMode end },
+    })
+
+    ImGui.Dummy(0, 2)
+
+    -- Toolbar: add, remove, scroll, clear
+    controls.ButtonRow({
+        { label = "  Add  ", style = "active",
+          onClick = function()
+              table.insert(listDemoPositions, {
+                  label = "Pos " .. (#listDemoPositions + 1),
+                  x = math.random() * 1000 - 500, y = math.random() * 1000 - 500, z = math.random() * 500,
+                  yaw = math.random() * 360, tilt = math.random() * 40 - 20, roll = 0, fov = 70,
+                  rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0,
+              })
+          end },
+        { label = "  Remove  ", style = "inactive",
+          onClick = function()
+              if listDemoState.focusIndex and listDemoPositions[listDemoState.focusIndex] then
+                  table.remove(listDemoPositions, listDemoState.focusIndex)
+                  listDemoDragStates[listDemoState.focusIndex] = nil
+                  if listDemoState.focusIndex > #listDemoPositions then
+                      listDemoState.focusIndex = #listDemoPositions > 0 and #listDemoPositions or nil
+                  end
+              end
+          end },
+        { label = "  Scroll #" .. listDemoScrollIdx .. "  ", style = "inactive",
+          onClick = function() listDemoState.scrollTarget = listDemoScrollIdx end },
+        { label = "  Clear  ", style = "danger",
+          onHold = function()
+              listDemoPositions = {}
+              listDemoState = {}
+              listDemoDragStates = {}
+          end,
+          holdDuration = 1.0 },
+    })
+
+    ImGui.Dummy(0, 4)
+
+    -- Render the list
+    lists.render(listDemoPositions, function(item, index, state)
+        local isActive = state.activeIndex == index
+        -- When another item is active, lists.lua pushes PushDragDisabled on this item.
+        -- We must skip per-drag color/outlined pushes so the disabled style shows through.
+        local useDisabledStyle = state.activeIndex ~= nil and state.activeIndex ~= index
+        local spacing = ImGui.GetStyle().ItemSpacing.x
+
+        -- Row 1: Load, Update(hold), Delete(hold) rendered manually to measure width
+        local buttonsStartX = ImGui.GetCursorPosX()
+
+        if useDisabledStyle then
+            -- Dimmed buttons: plain ImGui.Button so PushDragDisabled colors show through
+            ImGui.Button(IconGlyphs.Upload .. "##load_" .. index, 0, 0)
+            ImGui.SameLine()
+            ImGui.Button(IconGlyphs.Refresh .. "##upd_" .. index, 0, 0)
+            ImGui.SameLine()
+            ImGui.Button(IconGlyphs.TrashCanOutline .. "##del_" .. index, 0, 0)
+        else
+            if ImGui.Button(IconGlyphs.Upload .. "##load_" .. index, 0, 0) then
+                state.focusIndex = index
+                wu.Notify.info("Loaded: " .. item.label)
+            end
+
+            ImGui.SameLine()
+            controls.HoldButton("lst_upd_" .. index, IconGlyphs.Refresh, {
+                duration = 1.0, style = "inactive",
+                onHold = function()
+                    item.x = math.random() * 1000 - 500
+                    item.y = math.random() * 1000 - 500
+                    item.z = math.random() * 500
+                    wu.Notify.success("Updated: " .. item.label)
+                end,
+                onClick = function() wu.Notify.info("Hold to update") end,
+            })
+
+            ImGui.SameLine()
+            controls.HoldButton("lst_del_" .. index, IconGlyphs.TrashCanOutline, {
+                duration = 1.0, style = "danger",
+                onHold = function()
+                    table.remove(listDemoPositions, index)
+                    if state.focusIndex and state.focusIndex > #listDemoPositions then
+                        state.focusIndex = #listDemoPositions > 0 and #listDemoPositions or nil
+                    end
+                    wu.Notify.success("Deleted: " .. item.label)
+                end,
+                onClick = function() wu.Notify.info("Hold to delete") end,
+            })
+        end
+
+        ImGui.SameLine()
+        local buttonsEndX = ImGui.GetCursorPosX()
+        local buttonsWidth = buttonsEndX - buttonsStartX - spacing
+
+        -- Roll rotations (width 80, disabled on first item)
+        if index == 1 then
+            ImGui.BeginDisabled(true)
+            ImGui.SetNextItemWidth(80)
+            ImGui.DragInt("##rollRot_" .. index, 0, 0.1, 0, 0, "--")
+            ImGui.EndDisabled()
+        else
+            if not useDisabledStyle then styles.PushOutlined() end
+            ImGui.SetNextItemWidth(80)
+            local newRot, rotChanged = ImGui.DragInt("##rollRot_" .. index, item.rollRotations or 0, 0.1, -10, 10, item.rollRotations == 0 and "0" or "%+d")
+            if not useDisabledStyle then styles.PopOutlined() end
+            if rotChanged then item.rollRotations = newRot end
+            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.rollRotations = 0 end
+        end
+
+        ImGui.SameLine()
+
+        if listDemoEditMode then
+            -- EDIT MODE: remaining space is XYZ drags
+            local xyzAvail = ImGui.GetContentRegionAvail()
+            local dragW = math.floor((xyzAvail - spacing * 2) / 3)
+
+            local function renderXYZDrag(id, val, color, isLast)
+                if not useDisabledStyle then styles.PushDragColor(color) end
+                ImGui.SetNextItemWidth(isLast and ImGui.GetContentRegionAvail() or dragW)
+                local nv, ch
+                if listDemoRelativeMode then
+                    nv, ch = ImGui.DragFloat(id, 0, 0.1, -2000, 2000, string.sub(id, 3, 3))
+                else
+                    nv, ch = ImGui.DragFloat(id, val, 0.1, -2000, 2000, "%.2f")
+                end
+                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then nv = 0; ch = true end
+                if not useDisabledStyle then styles.PopDragColor() end
+                if not isLast then ImGui.SameLine() end
+                return nv, ch
+            end
+
+            local nx, xC = renderXYZDrag("##X_" .. index, item.x, styles.dragColors.x, false)
+            local ny, yC = renderXYZDrag("##Y_" .. index, item.y, styles.dragColors.y, false)
+            local nz, zC = renderXYZDrag("##Z_" .. index, item.z, styles.dragColors.z, true)
+
+            if listDemoRelativeMode then
+                if xC and nx ~= 0 then item.x = item.x + nx end
+                if yC and ny ~= 0 then item.y = item.y + ny end
+                if zC and nz ~= 0 then item.z = item.z + nz end
+            else
+                if xC then item.x = nx end
+                if yC then item.y = ny end
+                if zC then item.z = nz end
+            end
+
+            -- Row 2: ACTIVE/spacer (same width as 3 buttons), FOV (80), yaw, tilt, roll
+            if isActive then
+                styles.PushButton("active")
+                ImGui.Button("ACTIVE", buttonsWidth, 0)
+                styles.PopButton("active")
+            else
+                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
+                ImGui.Button("##spacer_" .. index, buttonsWidth, 0)
+                ImGui.PopStyleColor(3)
+            end
+
+            ImGui.SameLine()
+
+            -- FOV (width 80, vertically aligned with roll above)
+            if not useDisabledStyle then styles.PushOutlined() end
+            ImGui.SetNextItemWidth(80)
+            local newFov, fovC = ImGui.DragFloat("##fov_" .. index, item.fov or 70, 0.1, 20, 130, "%.1f")
+            if not useDisabledStyle then styles.PopOutlined() end
+            if fovC then item.fov = newFov end
+            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.fov = 70 end
+
+            ImGui.SameLine()
+
+            -- Yaw, Tilt, Roll (fill remaining, equal widths)
+            local rotAvail = ImGui.GetContentRegionAvail()
+            local rotW = math.floor((rotAvail - spacing * 2) / 3)
+
+            if not useDisabledStyle then styles.PushOutlined() end
+            ImGui.SetNextItemWidth(rotW)
+            local newYaw, yawC = ImGui.DragFloat("##yaw_" .. index, item.yaw or 0, 0.1, 0, 0, "%.1f")
+            if not useDisabledStyle then styles.PopOutlined() end
+            if yawC then item.yaw = newYaw end
+            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.yaw = 0 end
+
+            ImGui.SameLine()
+            if not useDisabledStyle then styles.PushOutlined() end
+            ImGui.SetNextItemWidth(rotW)
+            local newTilt, tiltC = ImGui.DragFloat("##tilt_" .. index, item.tilt or 0, 0.1, -90, 90, "%.1f")
+            if not useDisabledStyle then styles.PopOutlined() end
+            if tiltC then item.tilt = newTilt end
+            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tilt = 0 end
+
+            ImGui.SameLine()
+            if not useDisabledStyle then styles.PushOutlined() end
+            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
+            local newRoll, rollC = ImGui.DragFloat("##roll_" .. index, item.roll or 0, 0.1, -360, 360, "%.1f")
+            if not useDisabledStyle then styles.PopOutlined() end
+            if rollC then item.roll = newRoll end
+            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.roll = 0 end
+
+            -- Row 3: tangent controls (when curve editor mode is on)
+            if listDemoCurveEditor then
+                -- Spacer matching buttons width
+                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
+                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
+                ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
+                ImGui.Button("##tanspacer_" .. index, buttonsWidth, 0)
+                ImGui.PopStyleColor(3)
+
+                ImGui.SameLine()
+
+                -- Boundary angle (width 80, vertically aligned with roll/FOV)
+                local isBoundary = index == 1 or index == #listDemoPositions
+                if not isBoundary then ImGui.BeginDisabled(true) end
+                if not useDisabledStyle then styles.PushOutlined() end
+                ImGui.SetNextItemWidth(80)
+                local angle = isBoundary and (item.boundaryAngle or 0) or 0
+                local newAngle, angleC = ImGui.DragFloat("##angle_" .. index, angle, 1.0, -180, 180, isBoundary and "%.1f" or "--")
+                if not useDisabledStyle then styles.PopOutlined() end
+                if angleC and isBoundary then item.boundaryAngle = newAngle end
+                if isBoundary and ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.boundaryAngle = 0 end
+                if not isBoundary then ImGui.EndDisabled() end
+
+                ImGui.SameLine()
+
+                -- Strength, Bias, Asymmetry (fill remaining, equal widths)
+                local tanAvail = ImGui.GetContentRegionAvail()
+                local tanW = math.floor((tanAvail - spacing * 2) / 3)
+
+                if not useDisabledStyle then styles.PushOutlined() end
+                ImGui.SetNextItemWidth(tanW)
+                local newStr, strC = ImGui.DragFloat("##str_" .. index, item.tangentStrength or 1.0, 0.1, 0, 10, "%.2f")
+                if not useDisabledStyle then styles.PopOutlined() end
+                if strC then item.tangentStrength = newStr end
+                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tangentStrength = 1.0 end
+
+                ImGui.SameLine()
+                if not useDisabledStyle then styles.PushOutlined() end
+                ImGui.SetNextItemWidth(tanW)
+                local newBias, biasC = ImGui.DragFloat("##bias_" .. index, item.tangentBias or 0.0, 0.1, -1, 1, "%.2f")
+                if not useDisabledStyle then styles.PopOutlined() end
+                if biasC then item.tangentBias = newBias end
+                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tangentBias = 0.0 end
+
+                ImGui.SameLine()
+                if not useDisabledStyle then styles.PushOutlined() end
+                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
+                local newAsym, asymC = ImGui.DragFloat("##asym_" .. index, item.tangentAsymmetry or 0.0, 0.1, -1, 1, "%.2f")
+                if not useDisabledStyle then styles.PopOutlined() end
+                if asymC then item.tangentAsymmetry = newAsym end
+                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tangentAsymmetry = 0.0 end
+            end
+        else
+            -- DEFAULT MODE: position label filling remaining space
+            local posLabel = string.format("%d: x=%.1f, y=%.1f, z=%.1f", index, item.x, item.y, item.z)
+            if not useDisabledStyle then styles.PushOutlined() end
+            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
+            ImGui.DragFloat("##lbl_" .. index, 0, 0, 0, 0, posLabel)
+            if not useDisabledStyle then styles.PopOutlined() end
+        end
+    end, listDemoState, {
+        showCount = true,
+        reorderable = true,
+        placeholder = "No saved positions. Click 'Add' to create one.",
+        onReorder = function(from, to)
+            local moved = table.remove(listDemoDragStates, from)
+            table.insert(listDemoDragStates, to, moved or {})
+        end,
+    })
+end
+
+--------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     wu = GetMod("WindowUtils")
@@ -2356,6 +2660,7 @@ registerForEvent("onDraw", function()
             { label = "Search",     content = drawSearchDemo },
             { label = "Modal",      content = drawModalDemo },
             { label = "Hold Multi", content = drawHoldProgressDemo },
+            { label = "Lists",      content = drawListsDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then
