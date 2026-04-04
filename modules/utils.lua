@@ -143,4 +143,53 @@ function utils.getDragSpeed(baseSpeed, multiplier)
     return baseSpeed
 end
 
+--------------------------------------------------------------------------------
+-- Cached Text Measurement
+--------------------------------------------------------------------------------
+
+local textSizeCache = {}
+local textSizeCacheCharWidth = nil
+
+--- Cache ImGui.CalcTextSize results, invalidated when charWidth changes.
+---@param text string
+---@param charWidth number Current character width for cache invalidation
+---@return number width Pixel width of text
+function utils.cachedCalcTextSize(text, charWidth)
+    if charWidth ~= textSizeCacheCharWidth then
+        textSizeCache = {}
+        textSizeCacheCharWidth = charWidth
+    end
+    local cached = textSizeCache[text]
+    if cached then return cached end
+    local w = ImGui.CalcTextSize(text)
+    textSizeCache[text] = w
+    return w
+end
+
+--------------------------------------------------------------------------------
+-- Cached Text Truncation
+--------------------------------------------------------------------------------
+
+local truncateCache = {}
+local truncateCacheCharWidth = nil
+
+--- Cache truncated text results, invalidated when charWidth changes.
+---@param label string
+---@param innerWidth number Available pixel width
+---@param charWidth number Current character width for cache invalidation
+---@return string result Truncated text
+---@return boolean wasTruncated
+function utils.cachedTruncateText(label, innerWidth, charWidth)
+    if charWidth ~= truncateCacheCharWidth then
+        truncateCache = {}
+        truncateCacheCharWidth = charWidth
+    end
+    local key = label .. "|" .. math.floor(innerWidth)
+    local cached = truncateCache[key]
+    if cached then return cached[1], cached[2] end
+    local result, wasTruncated = utils.truncateText(label, innerWidth)
+    truncateCache[key] = { result, wasTruncated }
+    return result, wasTruncated
+end
+
 return utils

@@ -265,38 +265,12 @@ local function calcControlWidth(cols, hasIcon)
     return ImGui.GetContentRegionAvail()
 end
 
-local truncateText = utils.truncateText
-local truncateCache = {}
-local truncateCacheCharWidth = nil
-
-local textSizeCache = {}
-local textSizeCacheCharWidth = nil
-
 local function cachedCalcTextSize(text)
-    local cw = frameCache.charWidth
-    if cw ~= textSizeCacheCharWidth then
-        textSizeCache = {}
-        textSizeCacheCharWidth = cw
-    end
-    local cached = textSizeCache[text]
-    if cached then return cached end
-    local w = ImGui.CalcTextSize(text)
-    textSizeCache[text] = w
-    return w
+    return utils.cachedCalcTextSize(text, frameCache.charWidth)
 end
 
 local function cachedTruncateText(label, innerWidth)
-    local cw = frameCache.charWidth
-    if cw ~= truncateCacheCharWidth then
-        truncateCache = {}
-        truncateCacheCharWidth = cw
-    end
-    local key = label .. "|" .. math.floor(innerWidth)
-    local cached = truncateCache[key]
-    if cached then return cached[1], cached[2] end
-    local result, wasTruncated = truncateText(label, innerWidth)
-    truncateCache[key] = { result, wasTruncated }
-    return result, wasTruncated
+    return utils.cachedTruncateText(label, innerWidth, frameCache.charWidth)
 end
 
 --- Create a button that adapts content based on available width.
@@ -588,6 +562,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
     local anyChanged = false
     local dragIndex = 0
     local skipUntil = 0
+    local ctrlReveal = not opts.suppressCtrlReveal and utils.isCtrlHeld() and not ImGui.IsAnyItemActive()
 
     for i = 1, #drags do
         -- Skip elements merged into a previous progress bar
@@ -614,8 +589,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             local btnLabel
             if el.hoverLabel then
                 local wasHovered = hovered and hovered[i]
-                local keyReveal = utils.isCtrlHeld() and not ImGui.IsAnyItemActive()
-                if wasHovered or keyReveal then
+                if wasHovered or ctrlReveal then
                     btnLabel = el.hoverLabel
                 else
                     btnLabel = btnIcon or el.label or ""
@@ -677,11 +651,10 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             -- Label-to-value: show label when idle, value when hovered/active or Ctrl held (not while dragging)
             -- Skip for truly disabled elements (they always show their label)
             local wasHovered = hovered and hovered[i]
-            local keyReveal = utils.isCtrlHeld() and not ImGui.IsAnyItemActive()
             local dim = el.disabled or opts.disabled
             local trulyDisabled = dim == true
             local displayFormat = format
-            if el.label and (trulyDisabled or (not wasHovered and not keyReveal)) then
+            if el.label and (trulyDisabled or (not wasHovered and not ctrlReveal)) then
                 displayFormat = el.label
             end
 
@@ -714,29 +687,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             end
 
             -- Style selection: disabled variants use previous-frame hover for transitions
-            local styleType
-            if trulyDisabled then
-                -- Fully disabled: no interaction, no hover reveal
-                ImGui.BeginDisabled(true)
-                styles.PushDragDisabled()
-                styleType = "disabled"
-            elseif dim then
-                if wasHovered and dim == "dimmed" then
-                    styles.PushOutlined()
-                    styleType = "outlined"
-                elseif wasHovered and dim == "dimmedColor" and el.color then
-                    styles.PushDragColor(el.color)
-                    styleType = "color"
-                else
-                    styles.PushDragDisabled()
-                    styleType = "disabled"
-                end
-            elseif styles.PushDragColor(el.color) then
-                styleType = "color"
-            else
-                styles.PushOutlined()
-                styleType = "outlined"
-            end
+            local styleType = styles.PushDragStyle(el, dim, wasHovered)
 
             ImGui.SetNextItemWidth(widths[i])
             local dragId = imguiIds and imguiIds[i] or ("##" .. id .. "_" .. i)
@@ -756,11 +707,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
                 hovered[i] = ImGui.IsItemHovered() or isActive
             end
 
-            if styleType == "color" then styles.PopDragColor()
-            elseif styleType == "disabled" then
-                styles.PopDragDisabled()
-                if trulyDisabled then ImGui.EndDisabled() end
-            else styles.PopOutlined() end
+            styles.PopDragStyle(styleType, trulyDisabled)
 
             -- Right-click reset
             if el.default ~= nil and ImGui.IsItemClicked(1) then
@@ -1967,17 +1914,16 @@ function bindMethods:DragInt(icon, key, min, max, opts)
     return bindControl(self, "DragInt", icon, key, min, max, opts)
 end
 
---- Bound float drag row. Reads data[key] for each key, writes back on change.
---- In delta mode, calls opts.onChange(values, keys) instead of auto-writing.
----@param icon string|nil Icon glyph or IconGlyphs key
----@param keys table Array of data table keys (e.g. {"x", "y", "z"})
----@param min number Minimum value
----@param max number Maximum value
----@param opts? table {drags?, speed?, cols?, mode?, onChange?, def?, tooltip?, precisionMultiplier?, noPrecision?, spacing?}
----@return table values New values (one per drag)
----@return boolean anyChanged True if any drag value changed
-function bindMethods:DragFloatRow(icon, keys, min, max, opts)
-    opts = opts or {}
+--- Shared bind DragRow implementation.
+---@param self table Bind context
+---@param icon string|nil
+---@param keys table Array of data keys
+---@param min number
+---@param max number
+---@param opts table
+---@param controlFn function controls.DragFloatRow or controls.DragIntRow
+---@return table values, boolean anyChanged
+local function bindDragRow(self, icon, keys, min, max, opts, controlFn)
     local isDelta = opts.mode == "delta"
 
     -- Resolve def-driven row config
@@ -2061,7 +2007,7 @@ function bindMethods:DragFloatRow(icon, keys, min, max, opts)
     if not drs[rowId] then drs[rowId] = {} end
     opts._state = drs[rowId]
 
-    local values, anyChanged = controls.DragFloatRow(icon, rowId, drags, opts)
+    local values, anyChanged = controlFn(icon, rowId, drags, opts)
 
     if anyChanged then
         if isDelta then
@@ -2080,6 +2026,19 @@ function bindMethods:DragFloatRow(icon, keys, min, max, opts)
     return values, anyChanged
 end
 
+--- Bound float drag row. Reads data[key] for each key, writes back on change.
+--- In delta mode, calls opts.onChange(values, keys) instead of auto-writing.
+---@param icon string|nil Icon glyph or IconGlyphs key
+---@param keys table Array of data table keys (e.g. {"x", "y", "z"})
+---@param min number Minimum value
+---@param max number Maximum value
+---@param opts? table {drags?, speed?, cols?, mode?, onChange?, def?, tooltip?, precisionMultiplier?, noPrecision?, spacing?}
+---@return table values New values (one per drag)
+---@return boolean anyChanged True if any drag value changed
+function bindMethods:DragFloatRow(icon, keys, min, max, opts)
+    return bindDragRow(self, icon, keys, min, max, opts or {}, controls.DragFloatRow)
+end
+
 --- Bound integer drag row. Same as DragFloatRow but calls controls.DragIntRow.
 ---@param icon string|nil Icon glyph or IconGlyphs key
 ---@param keys table Array of data table keys
@@ -2089,104 +2048,7 @@ end
 ---@return table values New values (one per drag)
 ---@return boolean anyChanged True if any drag value changed
 function bindMethods:DragIntRow(icon, keys, min, max, opts)
-    opts = opts or {}
-    local isDelta = opts.mode == "delta"
-
-    -- Resolve def-driven row config
-    local defRow = opts.def and self.defs and self.defs[opts.def]
-    if defRow then
-        for k, v in pairs(defRow) do
-            if opts[k] == nil then opts[k] = v end
-        end
-    end
-
-    -- Search dimming on first key
-    local dimmed = false
-    if self.search and not self.search:isEmpty() then
-        local def = self.defs and self.defs[keys[1]]
-        local terms = ""
-        if def then
-            if def.label then terms = def.label end
-            if def.searchTerms then terms = terms .. " " .. def.searchTerms end
-            if def.tooltip and (self.searchTooltips or not def.label) then
-                terms = terms .. " " .. def.tooltip
-            end
-        end
-        if terms ~= "" and not self.search:matches(keys[1], terms) then
-            ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
-            dimmed = true
-        end
-    end
-
-    -- Build drags array from keys
-    local drags = {}
-    local optsDrags = opts.drags
-    for i, key in ipairs(keys) do
-        local drag = {
-            value = isDelta and 0 or (self.data[key] or 0),
-            min = min,
-            max = max,
-            key = key,
-        }
-        if self.defaults and self.defaults[key] ~= nil then
-            drag.default = self.defaults[key]
-        end
-        if optsDrags and optsDrags[i] then
-            for k, v in pairs(optsDrags[i]) do
-                drag[k] = v
-            end
-        end
-        drags[i] = drag
-    end
-
-    if isDelta and self.defaults then
-        if not self._dragRowOnReset then
-            local data = self.data
-            local defaults = self.defaults
-            local onSave = self.onSave
-            self._dragRowOnReset = function(index, key)
-                if key and defaults[key] ~= nil then
-                    data[key] = defaults[key]
-                    if onSave then onSave() end
-                end
-            end
-        end
-        opts.onReset = self._dragRowOnReset
-    end
-
-    opts.drags = nil
-
-    local dataPrefix = self.data._uid
-    if not dataPrefix then
-        dataPrefix = tostring(self.data):sub(8) .. "_"
-        self.data._uid = dataPrefix
-    end
-    local rowId = self.idPrefix .. dataPrefix .. (opts.id or keys[1]) .. "_row"
-    local drs = self.data._drs
-    if not drs then
-        drs = {}
-        self.data._drs = drs
-    end
-    if not drs[rowId] then drs[rowId] = {} end
-    opts._state = drs[rowId]
-
-    local values, anyChanged = controls.DragIntRow(icon, rowId, drags, opts)
-
-    if anyChanged then
-        if isDelta then
-            if opts.onChange then opts.onChange(values, keys) end
-        else
-            for i, key in ipairs(keys) do
-                if values[i] and values[i] ~= self.data[key] then
-                    self.data[key] = values[i]
-                end
-            end
-            if self.onSave then self.onSave() end
-        end
-    end
-
-    endDim(dimmed)
-    return values, anyChanged
+    return bindDragRow(self, icon, keys, min, max, opts or {}, controls.DragIntRow)
 end
 
 --- Bound checkbox. Reads/writes data[key], resets to defaults[key] on right-click.
