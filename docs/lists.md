@@ -97,6 +97,13 @@ end
 
 Hover detection uses bounding-rect math rather than `IsItemHovered()`, so it works reliably even when interactive children (DragFloat, Button, etc.) capture ImGui hover. The entire item area, including the drag handle column, is covered.
 
+### Label-to-Value Display
+
+When using `controls.DragFloatRow` or `controls.DragIntRow` with `label` fields on drag elements, labels show when idle and switch to numeric values on hover/active. Additionally:
+
+- Hold Ctrl to reveal all values at once (without hovering each drag individually)
+- Hold Shift for precision drag mode (slower drag speed)
+
 ## Examples
 
 ### Basic List

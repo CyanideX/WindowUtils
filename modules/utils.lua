@@ -91,6 +91,12 @@ function utils.isShiftHeld()
     return ImGui.IsKeyDown(ImGuiKey.LeftShift) or ImGui.IsKeyDown(ImGuiKey.RightShift)
 end
 
+--- Check if Alt key is currently held.
+--- @return boolean
+function utils.isAltHeld()
+    return ImGui.IsKeyDown(ImGuiKey.LeftAlt) or ImGui.IsKeyDown(ImGuiKey.RightAlt)
+end
+
 --------------------------------------------------------------------------------
 -- Snapping
 --------------------------------------------------------------------------------
@@ -117,6 +123,24 @@ function utils.minIconButtonWidth(framePaddingX)
     local glyphWidth = ImGui.CalcTextSize(sampleIcon)
     framePaddingX = framePaddingX or ImGui.GetStyle().FramePadding.x
     return glyphWidth + framePaddingX * 2
+end
+
+--------------------------------------------------------------------------------
+-- Drag Speed with Shift Precision
+--------------------------------------------------------------------------------
+
+--- Compute drag speed with shift-precision applied.
+--- ImGui natively multiplies drag speed by 10x when Shift is held,
+--- so this counters that and applies a configurable multiplier.
+--- @param baseSpeed number Normal drag speed
+--- @param multiplier number|nil Speed multiplier when Shift is held (default 0.1)
+--- @return number speed Effective drag speed for this frame
+function utils.getDragSpeed(baseSpeed, multiplier)
+    if utils.isShiftHeld() then
+        multiplier = multiplier or 0.1
+        return baseSpeed * 0.1 * multiplier
+    end
+    return baseSpeed
 end
 
 return utils

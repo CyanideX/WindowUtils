@@ -198,10 +198,14 @@ function lists.render(items, renderer, state, opts)
     state.hoveredIndex = nil
     local frameHovered = nil
     local frameDragActive = nil
+    local isDragging = false
 
     -- Drag-drop state
     if reorderable and not state._dragdrop then
         state._dragdrop = dragdrop.createState()
+    end
+    if reorderable and state._dragdrop.draggingIndex then
+        isDragging = true
     end
     local handleGlyph = reorderable and (utils.resolveIcon(dragHandle) or "") or nil
 
@@ -284,21 +288,23 @@ function lists.render(items, renderer, state, opts)
 
         ----------------------------------------------------------------
         -- Hover detection: rect-based, works with interactive children
+        -- Suppressed during drag-drop to prevent highlighting other items
         ----------------------------------------------------------------
-        local grpMinX = select(1, ImGui.GetItemRectMin())
-        local grpMaxX, grpMaxY = ImGui.GetItemRectMax()
-        -- Use window left edge to include the handle column
-        local rectMinX = reorderable and select(1, ImGui.GetWindowPos()) or grpMinX
+        if not isDragging then
+            local grpMinX = select(1, ImGui.GetItemRectMin())
+            local grpMaxX, grpMaxY = ImGui.GetItemRectMax()
+            local rectMinX = reorderable and select(1, ImGui.GetWindowPos()) or grpMinX
 
-        if isMouseInRect(rectMinX, startY, grpMaxX, grpMaxY)
-           and ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
-            state.hoveredIndex = i
-            frameHovered = i
-        end
+            if isMouseInRect(rectMinX, startY, grpMaxX, grpMaxY)
+               and ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem) then
+                state.hoveredIndex = i
+                frameHovered = i
+            end
 
-        -- Drag-active: mouse is held down inside this item's rect
-        if ImGui.IsMouseDown(0) and isMouseInRect(rectMinX, startY, grpMaxX, grpMaxY) then
-            frameDragActive = i
+            -- Drag-active: mouse is held down inside this item's rect
+            if ImGui.IsMouseDown(0) and isMouseInRect(rectMinX, startY, grpMaxX, grpMaxY) then
+                frameDragActive = i
+            end
         end
 
         ----------------------------------------------------------------

@@ -423,11 +423,7 @@ end
 ---@return number speed Effective drag speed for this frame
 local function getDragSpeed(baseSpeed, opts)
     if opts.noPrecision then return baseSpeed end
-    if utils.isShiftHeld() then
-        local precisionMult = opts.precisionMultiplier or 0.1
-        return baseSpeed * 0.1 * precisionMult
-    end
-    return baseSpeed
+    return utils.getDragSpeed(baseSpeed, opts.precisionMultiplier)
 end
 
 --------------------------------------------------------------------------------
@@ -600,10 +596,11 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
                 inputValue = el.value or 0
             end
 
-            -- Label-to-value: use previous frame's hover state to pick format
+            -- Label-to-value: show label when idle, value when hovered/active or Ctrl held (not while dragging)
             local wasHovered = hovered and hovered[i]
+            local keyReveal = utils.isCtrlHeld() and not ImGui.IsAnyItemActive()
             local displayFormat = format
-            if el.label and not wasHovered then
+            if el.label and not wasHovered and not keyReveal then
                 displayFormat = el.label
             end
 

@@ -149,6 +149,8 @@ local listDemoDragStates = {} -- per-item DragFloatRow state tables
 local listDemoEditMode = false
 local listDemoCurveEditor = false
 local listDemoRelativeMode = false
+local listDemoShowValues = false
+local listDemoPendingDelete = nil
 
 --------------------------------------------------------------------------------
 -- Tab 1: Controls Demo
@@ -2318,6 +2320,9 @@ local function drawListsDemo()
         { label = listDemoRelativeMode and "  Delta XYZ  " or "  Global XYZ  ",
           style = listDemoRelativeMode and "active" or "inactive",
           onClick = function() listDemoRelativeMode = not listDemoRelativeMode end },
+        { label = listDemoShowValues and "  Values  " or "  Labels  ",
+          style = listDemoShowValues and "active" or "inactive",
+          onClick = function() listDemoShowValues = not listDemoShowValues end },
     })
 
     ImGui.Dummy(0, 2)
@@ -2359,19 +2364,21 @@ local function drawListsDemo()
     -- Render the list
     lists.render(listDemoPositions, function(item, index, state)
         local isActive = state.activeIndex == index
-        local useDisabledStyle = state.activeIndex ~= nil and state.activeIndex ~= index
+        local useDisabled = state.activeIndex ~= nil and state.activeIndex ~= index
         local spacing = ImGui.GetStyle().ItemSpacing.x
 
-        -- Per-item persistent state
+        -- Per-item persistent state for DragFloatRow
         if not listDemoDragStates[index] then listDemoDragStates[index] = {} end
         local ds = listDemoDragStates[index]
-        if not ds.deltaAccum then ds.deltaAccum = {} end
-        if not ds.xyzHover then ds.xyzHover = {} end
+        if not ds.row1 then ds.row1 = {} end
+        if not ds.row2 then ds.row2 = {} end
+        if not ds.row3 then ds.row3 = {} end
+        if not ds.row4 then ds.row4 = {} end
 
         -- Row 1: Load, Update(hold, external), Delete(hold, external), then label or progress
         local buttonsStartX = ImGui.GetCursorPosX()
 
-        if useDisabledStyle then
+        if useDisabled then
             -- Dimmed buttons: plain ImGui.Button so PushDragDisabled colors show through
             ImGui.Button(IconGlyphs.Upload .. "##load_" .. index, 0, 0)
             ImGui.SameLine()
@@ -2414,9 +2421,9 @@ local function drawListsDemo()
         local buttonsEndX = ImGui.GetCursorPosX()
         local buttonsWidth = buttonsEndX - buttonsStartX - spacing
 
-        -- Remaining space: show hold progress if active, otherwise position label
+        -- Remaining space: hold progress or position label
         local showedProgress = false
-        if not useDisabledStyle then
+        if not useDisabled then
             showedProgress = controls.ShowFirstActiveHoldProgress(
                 { "lst_upd_" .. index, "lst_del_" .. index },
                 ImGui.GetContentRegionAvail(), "danger"
@@ -2424,15 +2431,20 @@ local function drawListsDemo()
         end
         if not showedProgress then
             local posLabel = string.format("%d: x=%.1f, y=%.1f, z=%.1f", index, item.x, item.y, item.z)
-            if not useDisabledStyle then styles.PushOutlined() end
+            if useDisabled then styles.PushDragDisabled() else styles.PushOutlined() end
             ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
             ImGui.DragFloat("##lbl_" .. index, 0, 0, 0, 0, posLabel)
-            if not useDisabledStyle then styles.PopOutlined() end
+            if useDisabled then styles.PopDragDisabled() else styles.PopOutlined() end
         end
 
-        -- Edit mode rows below the label
+        -- Edit mode rows
         if listDemoEditMode then
-            -- Row 2: ACTIVE/spacer, rolls(80), XYZ(fill)
+            local disabledMode = useDisabled and true or nil
+            -- Show values toggle or shift held: suppress labels so DragFloatRow shows numeric values
+            local showValues = listDemoShowValues
+            local function lbl(name) if showValues then return nil end return name end
+
+            -- Row 2: ACTIVE/spacer, Roll(DragInt), X, Y, Z(DragFloatRow)
             if isActive then
                 styles.PushButton("active")
                 ImGui.Button("ACTIVE", buttonsWidth, 0)
@@ -2444,172 +2456,111 @@ local function drawListsDemo()
                 ImGui.Button("##spacer_" .. index, buttonsWidth, 0)
                 ImGui.PopStyleColor(3)
             end
-
             ImGui.SameLine()
 
-            -- All 4 drags share remaining space equally: rolls, X, Y, Z
+            -- Roll rotations as DragInt (separate from XYZ floats)
             local row2Avail = ImGui.GetContentRegionAvail()
-            local dragW = math.floor((row2Avail - spacing * 3) / 4)
+            local row2W = math.floor((row2Avail - spacing * 3) / 4)
 
-            -- Roll rotations (disabled on first item)
             if index == 1 then
                 ImGui.BeginDisabled(true)
-                ImGui.SetNextItemWidth(dragW)
+                ImGui.SetNextItemWidth(row2W)
                 ImGui.DragInt("##rollRot_" .. index, 0, 0.1, 0, 0, "--")
                 ImGui.EndDisabled()
             else
-                if not useDisabledStyle then styles.PushOutlined() end
-                ImGui.SetNextItemWidth(dragW)
-                local newRot, rotChanged = ImGui.DragInt("##rollRot_" .. index, item.rollRotations or 0, 0.1, -10, 10, item.rollRotations == 0 and "0" or "%+d")
-                if not useDisabledStyle then styles.PopOutlined() end
-                if rotChanged then item.rollRotations = newRot end
-                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.rollRotations = 0 end
+                if not ds.row2roll then ds.row2roll = {} end
+                local _, rollChanged = controls.DragIntRow(nil, "ri_" .. index, {
+                    { value = item.rollRotations or 0, label = lbl("Roll"), default = 0, min = -10, max = 10, width = row2W },
+                }, { speed = 0.1, state = ds.row2roll, disabled = disabledMode })
+                if rollChanged then item.rollRotations = _[1] end
             end
-
             ImGui.SameLine()
 
-            local function renderXYZDrag(id, val, color, label, key, isLast)
-                if not useDisabledStyle then styles.PushDragColor(color) end
-                local w = isLast and ImGui.GetContentRegionAvail() or dragW
-                ImGui.SetNextItemWidth(w)
-
-                local nv, ch
-                if listDemoRelativeMode then
-                    local current = ds.deltaAccum[key] or 0
-                    local wasHovered = ds.xyzHover[key]
-                    local fmt = (not wasHovered) and label or "%.2f"
-                    nv, ch = ImGui.DragFloat(id, current, 0.1, -2000, 2000, fmt)
-                    local isItemActive = ImGui.IsItemActive()
-                    ds.xyzHover[key] = ImGui.IsItemHovered() or isItemActive
-                    if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then
-                        ds.deltaAccum[key] = nil; nv = 0; ch = false
-                    elseif ch then
-                        local delta = nv - current
-                        ds.deltaAccum[key] = nv
-                        nv = delta
-                    else
-                        if not isItemActive and ds.deltaAccum[key] then ds.deltaAccum[key] = nil end
-                        nv = 0
-                    end
-                else
-                    local wasHovered = ds.xyzHover[key]
-                    local fmt = (label and not wasHovered) and label or "%.2f"
-                    nv, ch = ImGui.DragFloat(id, val, 0.1, -2000, 2000, fmt)
-                    ds.xyzHover[key] = ImGui.IsItemHovered() or ImGui.IsItemActive()
-                    if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then nv = 0; ch = true end
-                end
-
-                if not useDisabledStyle then styles.PopDragColor() end
-                if not isLast then ImGui.SameLine() end
-                return nv, ch
-            end
-
-            local nx, xC = renderXYZDrag("##X_" .. index, item.x, styles.dragColors.x, "X", "x", false)
-            local ny, yC = renderXYZDrag("##Y_" .. index, item.y, styles.dragColors.y, "Y", "y", false)
-            local nz, zC = renderXYZDrag("##Z_" .. index, item.z, styles.dragColors.z, "Z", "z", true)
-
+            -- XYZ as DragFloatRow (3 elements filling remaining space)
+            local xyzDrags
             if listDemoRelativeMode then
-                if xC and nx ~= 0 then item.x = item.x + nx end
-                if yC and ny ~= 0 then item.y = item.y + ny end
-                if zC and nz ~= 0 then item.z = item.z + nz end
+                xyzDrags = {
+                    { value = 0, color = styles.dragColors.x, label = lbl("X"), min = -2000, max = 2000, default = 0,
+                      onChange = function(_, delta) item.x = item.x + delta end },
+                    { value = 0, color = styles.dragColors.y, label = lbl("Y"), min = -2000, max = 2000, default = 0,
+                      onChange = function(_, delta) item.y = item.y + delta end },
+                    { value = 0, color = styles.dragColors.z, label = lbl("Z"), min = -2000, max = 2000, default = 0,
+                      onChange = function(_, delta) item.z = item.z + delta end },
+                }
             else
-                if xC then item.x = nx end
-                if yC then item.y = ny end
-                if zC then item.z = nz end
+                xyzDrags = {
+                    { value = item.x, color = styles.dragColors.x, label = lbl("X"), min = -2000, max = 2000, default = 0 },
+                    { value = item.y, color = styles.dragColors.y, label = lbl("Y"), min = -2000, max = 2000, default = 0 },
+                    { value = item.z, color = styles.dragColors.z, label = lbl("Z"), min = -2000, max = 2000, default = 0 },
+                }
             end
 
-            -- Row 3: spacer, FOV, yaw, tilt, roll (all equal width)
+            local xyzVals, xyzChanged = controls.DragFloatRow(nil, "r2_" .. index, xyzDrags, {
+                speed = 0.1, state = ds.row2, disabled = disabledMode,
+                mode = listDemoRelativeMode and "delta" or nil,
+            })
+            if xyzChanged and not listDemoRelativeMode then
+                item.x = xyzVals[1]
+                item.y = xyzVals[2]
+                item.z = xyzVals[3]
+            end
+
+            -- Row 3: spacer, FOV, Yaw, Tilt, Roll
             ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
-            ImGui.Button("##rotspacer_" .. index, buttonsWidth, 0)
+            ImGui.Button("##sp3_" .. index, buttonsWidth, 0)
             ImGui.PopStyleColor(3)
-
             ImGui.SameLine()
 
-            local row3Avail = ImGui.GetContentRegionAvail()
-            local rotW = math.floor((row3Avail - spacing * 3) / 4)
-
-            if not useDisabledStyle then styles.PushOutlined() end
-            ImGui.SetNextItemWidth(rotW)
-            local newFov, fovC = ImGui.DragFloat("##fov_" .. index, item.fov or 70, 0.1, 20, 130, "%.1f")
-            if not useDisabledStyle then styles.PopOutlined() end
-            if fovC then item.fov = newFov end
-            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.fov = 70 end
-
-            ImGui.SameLine()
-
-            if not useDisabledStyle then styles.PushOutlined() end
-            ImGui.SetNextItemWidth(rotW)
-            local newYaw, yawC = ImGui.DragFloat("##yaw_" .. index, item.yaw or 0, 0.1, 0, 0, "%.1f")
-            if not useDisabledStyle then styles.PopOutlined() end
-            if yawC then item.yaw = newYaw end
-            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.yaw = 0 end
-
-            ImGui.SameLine()
-            if not useDisabledStyle then styles.PushOutlined() end
-            ImGui.SetNextItemWidth(rotW)
-            local newTilt, tiltC = ImGui.DragFloat("##tilt_" .. index, item.tilt or 0, 0.1, -90, 90, "%.1f")
-            if not useDisabledStyle then styles.PopOutlined() end
-            if tiltC then item.tilt = newTilt end
-            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tilt = 0 end
-
-            ImGui.SameLine()
-            if not useDisabledStyle then styles.PushOutlined() end
-            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
-            local newRoll, rollC = ImGui.DragFloat("##roll_" .. index, item.roll or 0, 0.1, -360, 360, "%.1f")
-            if not useDisabledStyle then styles.PopOutlined() end
-            if rollC then item.roll = newRoll end
-            if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.roll = 0 end
+            local row3Vals, row3Changed = controls.DragFloatRow(nil, "r3_" .. index, {
+                { value = item.fov or 70, label = lbl("FOV"), min = 20, max = 130, default = 70 },
+                { value = item.yaw or 0, label = lbl("Yaw"), default = 0 },
+                { value = item.tilt or 0, label = lbl("Tilt"), min = -90, max = 90, default = 0 },
+                { value = item.roll or 0, label = lbl("Roll"), min = -360, max = 360, default = 0 },
+            }, { speed = 0.1, state = ds.row3, disabled = disabledMode })
+            if row3Changed then
+                item.fov = row3Vals[1]
+                item.yaw = row3Vals[2]
+                item.tilt = row3Vals[3]
+                item.roll = row3Vals[4]
+            end
 
             -- Row 4: tangent controls
             if listDemoCurveEditor then
                 ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
                 ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
                 ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.Button("##tanspacer_" .. index, buttonsWidth, 0)
+                ImGui.Button("##sp4_" .. index, buttonsWidth, 0)
                 ImGui.PopStyleColor(3)
-
                 ImGui.SameLine()
-
-                local row4Avail = ImGui.GetContentRegionAvail()
-                local tanW = math.floor((row4Avail - spacing * 3) / 4)
 
                 local isBoundary = index == 1 or index == #listDemoPositions
-                if not isBoundary then ImGui.BeginDisabled(true) end
-                if not useDisabledStyle then styles.PushOutlined() end
-                ImGui.SetNextItemWidth(tanW)
-                local angle = isBoundary and (item.boundaryAngle or 0) or 0
-                local newAngle, angleC = ImGui.DragFloat("##angle_" .. index, angle, 1.0, -180, 180, isBoundary and "%.1f" or "--")
-                if not useDisabledStyle then styles.PopOutlined() end
-                if angleC and isBoundary then item.boundaryAngle = newAngle end
-                if isBoundary and ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.boundaryAngle = 0 end
-                if not isBoundary then ImGui.EndDisabled() end
+                local row4Drags = {}
+                if isBoundary then
+                    table.insert(row4Drags, { value = item.boundaryAngle or 0, label = lbl("Angle"), min = -180, max = 180, default = 0, speed = 1.0 })
+                else
+                    table.insert(row4Drags, { value = 0, disabled = true, label = "--" })
+                end
+                table.insert(row4Drags, { value = item.tangentStrength or 1.0, label = lbl("Str"), min = 0, max = 10, default = 1.0, format = "%.2f" })
+                table.insert(row4Drags, { value = item.tangentBias or 0.0, label = lbl("Bias"), min = -1, max = 1, default = 0.0, format = "%.2f" })
+                table.insert(row4Drags, { value = item.tangentAsymmetry or 0.0, label = lbl("Asym"), min = -1, max = 1, default = 0.0, format = "%.2f" })
 
-                ImGui.SameLine()
-
-                if not useDisabledStyle then styles.PushOutlined() end
-                ImGui.SetNextItemWidth(tanW)
-                local newStr, strC = ImGui.DragFloat("##str_" .. index, item.tangentStrength or 1.0, 0.1, 0, 10, "%.2f")
-                if not useDisabledStyle then styles.PopOutlined() end
-                if strC then item.tangentStrength = newStr end
-                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tangentStrength = 1.0 end
-
-                ImGui.SameLine()
-                if not useDisabledStyle then styles.PushOutlined() end
-                ImGui.SetNextItemWidth(tanW)
-                local newBias, biasC = ImGui.DragFloat("##bias_" .. index, item.tangentBias or 0.0, 0.1, -1, 1, "%.2f")
-                if not useDisabledStyle then styles.PopOutlined() end
-                if biasC then item.tangentBias = newBias end
-                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tangentBias = 0.0 end
-
-                ImGui.SameLine()
-                if not useDisabledStyle then styles.PushOutlined() end
-                ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
-                local newAsym, asymC = ImGui.DragFloat("##asym_" .. index, item.tangentAsymmetry or 0.0, 0.1, -1, 1, "%.2f")
-                if not useDisabledStyle then styles.PopOutlined() end
-                if asymC then item.tangentAsymmetry = newAsym end
-                if ImGui.IsItemHovered() and ImGui.IsMouseClicked(1) then item.tangentAsymmetry = 0.0 end
+                local row4Vals, row4Changed = controls.DragFloatRow(nil, "r4_" .. index, row4Drags, {
+                    speed = 0.1, state = ds.row4, disabled = disabledMode,
+                })
+                if row4Changed then
+                    if isBoundary then
+                        item.boundaryAngle = row4Vals[1]
+                        item.tangentStrength = row4Vals[2]
+                        item.tangentBias = row4Vals[3]
+                        item.tangentAsymmetry = row4Vals[4]
+                    else
+                        item.tangentStrength = row4Vals[1]
+                        item.tangentBias = row4Vals[2]
+                        item.tangentAsymmetry = row4Vals[3]
+                    end
+                end
             end
         end
     end, listDemoState, {
