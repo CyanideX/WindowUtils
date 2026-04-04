@@ -2422,6 +2422,8 @@ local function drawEchoDemo()
         local useDisabled = state.activeIndex ~= nil and state.activeIndex ~= index
         local isSelected = state.focusIndex == index
         local disabledMode = useDisabled and true or nil
+        -- When another item is hovered, suppress Ctrl-reveal on this item's rows
+        local suppressCtrl = useDisabled or nil
 
         if not echoDragStates[index] then echoDragStates[index] = {} end
         local ds = echoDragStates[index]
@@ -2455,7 +2457,7 @@ local function drawEchoDemo()
               label = string.format("Position %d", index),
               hoverLabel = string.format("x=%.1f y=%.1f z=%.1f", item.x, item.y, item.z),
               progressFrom = "echo_del_" .. index, progressStyle = "danger" },
-        }, { state = ds.row1, disabled = disabledMode })
+        }, { state = ds.row1, disabled = disabledMode, suppressCtrlReveal = suppressCtrl })
 
         if echoEditMode then
             -- Row 2: ACTIVE/spacer, Roll(int), X, Y, Z
@@ -2473,7 +2475,7 @@ local function drawEchoDemo()
                   onChange = function(v) item.y = v end },
                 { value = item.z, color = styles.dragColors.z, label = "Z", min = -2000, max = 2000, default = 0,
                   onChange = function(v) item.z = v end },
-            }, { speed = 0.1, state = ds.row2, disabled = disabledMode })
+            }, { speed = 0.1, state = ds.row2, disabled = disabledMode, suppressCtrlReveal = suppressCtrl })
 
             -- Row 3: spacer (widthFrom buttons), FOV, Yaw, Tilt, Roll
             controls.DragFloatRow(nil, "er3_" .. index, {
@@ -2486,7 +2488,7 @@ local function drawEchoDemo()
                   onChange = function(v) item.tilt = v end },
                 { value = item.roll or 0, label = "Roll", min = -360, max = 360, default = 0,
                   onChange = function(v) item.roll = v end },
-            }, { speed = 0.1, state = ds.row3, disabled = disabledMode })
+            }, { speed = 0.1, state = ds.row3, disabled = disabledMode, suppressCtrlReveal = suppressCtrl })
 
             -- Row 4: tangent controls
             if echoCurveEditor then
@@ -2503,7 +2505,7 @@ local function drawEchoDemo()
                       onChange = function(v) item.tangentBias = v end },
                     { value = item.tangentAsymmetry or 0.0, label = "Asym", min = -1, max = 1, default = 0.0, format = "%.2f",
                       onChange = function(v) item.tangentAsymmetry = v end },
-                }, { speed = 0.1, state = ds.row4, disabled = disabledMode })
+                }, { speed = 0.1, state = ds.row4, disabled = disabledMode, suppressCtrlReveal = suppressCtrl })
             end
         end
     end, echoState, {
