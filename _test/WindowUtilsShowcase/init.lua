@@ -144,6 +144,19 @@ local listDemoState = {}
 local listDemoDragStates = {}
 local listDemoPendingDelete = nil
 
+-- Echo sample state
+local echoPositions = {
+    { label = "Start",  x = 100.5,  y = 200.3,  z = 50.0,  yaw = 45,  tilt = 0,   roll = 0,   fov = 70, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Bridge", x = -340.2, y = 180.7,  z = 120.5, yaw = 90,  tilt = -5,  roll = 10,  fov = 80, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Tower",  x = 520.0,  y = -90.4,  z = 300.8, yaw = 180, tilt = 15,  roll = 0,   fov = 60, rollRotations = 1, tangentStrength = 1.5, tangentBias = 0.2, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+    { label = "Market", x = -150.3, y = 410.1,  z = 75.2,  yaw = 270, tilt = -10, roll = -5,  fov = 90, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.3, boundaryAngle = 0.0 },
+}
+local echoState = {}
+local echoDragStates = {}
+local echoEditMode = true
+local echoCurveEditor = false
+local echoPendingDelete = nil
+
 --------------------------------------------------------------------------------
 -- Tab 1: Controls Demo
 -- Merges: standard controls, hold buttons, action buttons, button rows,
@@ -2384,6 +2397,134 @@ local function drawListsDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 15: Echo Sample (temporary, for testing)
+--------------------------------------------------------------------------------
+
+local function drawEchoDemo()
+    local controls = wu.Controls
+    local styles = wu.Styles
+    local lists = wu.Lists
+
+    -- Mode toggles
+    controls.ButtonRow({
+        { label = echoEditMode and "  Edit: ON  " or "  Edit: OFF  ",
+          style = echoEditMode and "active" or "inactive",
+          onClick = function() echoEditMode = not echoEditMode end },
+        { label = echoCurveEditor and "  Tangents: ON  " or "  Tangents: OFF  ",
+          style = echoCurveEditor and "active" or "inactive",
+          onClick = function() echoCurveEditor = not echoCurveEditor end },
+    })
+
+    ImGui.Dummy(0, 4)
+
+    lists.render(echoPositions, function(item, index, state)
+        local isActive = state.activeIndex == index
+        local useDisabled = state.activeIndex ~= nil and state.activeIndex ~= index
+        local isSelected = state.focusIndex == index
+        local disabledMode = useDisabled and true or nil
+
+        if not echoDragStates[index] then echoDragStates[index] = {} end
+        local ds = echoDragStates[index]
+        if not ds.row1 then ds.row1 = {} end
+        if not ds.row2 then ds.row2 = {} end
+        if not ds.row3 then ds.row3 = {} end
+        if not ds.row4 then ds.row4 = {} end
+
+        -- Row 1: Load, Update(hold), Delete(hold, external progress), label/progress
+        controls.DragFloatRow(nil, "er1_" .. index, {
+            { type = "button",
+              icon = isSelected and "CheckCircle" or "Upload",
+              style = isSelected and "active" or "inactive",
+              groupId = "echo_btns",
+              onClick = function()
+                  if isSelected then state.focusIndex = nil
+                  else state.focusIndex = index end
+              end },
+            { type = "button", icon = "Refresh",
+              holdDuration = 1.0, style = "inactive", groupId = "echo_btns",
+              onClick = function()
+                  item.x = math.random() * 1000 - 500
+                  item.y = math.random() * 1000 - 500
+                  item.z = math.random() * 500
+              end },
+            { type = "button", icon = "TrashCanOutline",
+              holdDuration = 1.0, style = "danger", id = "echo_del_" .. index,
+              progressDisplay = "external", groupId = "echo_btns",
+              onClick = function() echoPendingDelete = index end },
+            { type = "button", weight = 1, style = "labelOutlined",
+              label = string.format("Position %d", index),
+              hoverLabel = string.format("x=%.1f y=%.1f z=%.1f", item.x, item.y, item.z),
+              progressFrom = "echo_del_" .. index, progressStyle = "danger" },
+        }, { state = ds.row1, disabled = disabledMode })
+
+        if echoEditMode then
+            -- Row 2: ACTIVE/spacer, Roll(int), X, Y, Z
+            controls.DragFloatRow(nil, "er2_" .. index, {
+                { type = "button",
+                  label = isActive and "ACTIVE" or "##spacer",
+                  style = isActive and "active" or "transparent",
+                  widthFrom = "echo_btns" },
+                { type = "int", value = item.rollRotations or 0, label = index == 1 and "--" or "Roll",
+                  speed = 0.1, min = -10, max = 10, default = 0, disabled = index == 1 and true or nil,
+                  onChange = function(v) if index ~= 1 then item.rollRotations = v end end },
+                { value = item.x, color = styles.dragColors.x, label = "X", min = -2000, max = 2000, default = 0,
+                  onChange = function(v) item.x = v end },
+                { value = item.y, color = styles.dragColors.y, label = "Y", min = -2000, max = 2000, default = 0,
+                  onChange = function(v) item.y = v end },
+                { value = item.z, color = styles.dragColors.z, label = "Z", min = -2000, max = 2000, default = 0,
+                  onChange = function(v) item.z = v end },
+            }, { speed = 0.1, state = ds.row2, disabled = disabledMode })
+
+            -- Row 3: spacer (widthFrom buttons), FOV, Yaw, Tilt, Roll
+            controls.DragFloatRow(nil, "er3_" .. index, {
+                { type = "button", label = "##sp3", style = "transparent", widthFrom = "echo_btns" },
+                { value = item.fov or 70, label = "FOV", min = 20, max = 130, default = 70,
+                  onChange = function(v) item.fov = v end },
+                { value = item.yaw or 0, label = "Yaw", default = 0,
+                  onChange = function(v) item.yaw = v end },
+                { value = item.tilt or 0, label = "Tilt", min = -90, max = 90, default = 0,
+                  onChange = function(v) item.tilt = v end },
+                { value = item.roll or 0, label = "Roll", min = -360, max = 360, default = 0,
+                  onChange = function(v) item.roll = v end },
+            }, { speed = 0.1, state = ds.row3, disabled = disabledMode })
+
+            -- Row 4: tangent controls
+            if echoCurveEditor then
+                local isBoundary = index == 1 or index == #echoPositions
+                controls.DragFloatRow(nil, "er4_" .. index, {
+                    { type = "button", label = "##sp4", style = "transparent", widthFrom = "echo_btns" },
+                    { value = isBoundary and (item.boundaryAngle or 0) or 0,
+                      label = isBoundary and "Angle" or "--", min = -180, max = 180, default = 0,
+                      speed = 1.0, disabled = not isBoundary and true or nil,
+                      onChange = function(v) if isBoundary then item.boundaryAngle = v end end },
+                    { value = item.tangentStrength or 1.0, label = "Str", min = 0, max = 10, default = 1.0, format = "%.2f",
+                      onChange = function(v) item.tangentStrength = v end },
+                    { value = item.tangentBias or 0.0, label = "Bias", min = -1, max = 1, default = 0.0, format = "%.2f",
+                      onChange = function(v) item.tangentBias = v end },
+                    { value = item.tangentAsymmetry or 0.0, label = "Asym", min = -1, max = 1, default = 0.0, format = "%.2f",
+                      onChange = function(v) item.tangentAsymmetry = v end },
+                }, { speed = 0.1, state = ds.row4, disabled = disabledMode })
+            end
+        end
+    end, echoState, {
+        showCount = true,
+        reorderable = true,
+        placeholder = "No positions. Add some.",
+        onReorder = function(from, to)
+            local moved = table.remove(echoDragStates, from)
+            table.insert(echoDragStates, to, moved or {})
+        end,
+    })
+
+    if echoPendingDelete then
+        table.remove(echoPositions, echoPendingDelete)
+        echoDragStates[echoPendingDelete] = nil
+        echoState.focusIndex = nil
+        echoPendingDelete = nil
+    end
+end
+
+--------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     wu = GetMod("WindowUtils")
@@ -2460,6 +2601,7 @@ registerForEvent("onDraw", function()
             { label = "Modal",      content = drawModalDemo },
             { label = "Hold Multi", content = drawHoldProgressDemo },
             { label = "Lists",      content = drawListsDemo },
+            { label = "Echo",       content = drawEchoDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then

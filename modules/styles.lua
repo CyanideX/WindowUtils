@@ -93,13 +93,17 @@ end
 --------------------------------------------------------------------------------
 
 styles.buttonDefaults = {
-    active   = { bg = { 0.0, 1.0, 0.70, 0.88 },  hover = { 0.26, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 1.0 },  text = { 0.0, 0.11, 0.08, 1.0 } },
-    inactive = { bg = { 0.26, 0.59, 0.98, 0.43 }, hover = { 0.26, 0.59, 0.98, 1.0 },  active = { 0.06, 0.53, 0.98, 1.0 }, text = { 1.0, 1.0, 1.0, 1.0 } },
-    danger   = { bg = { 1.0, 0.30, 0.30, 0.88 },  hover = { 1.0, 0.38, 0.38, 1.0 },  active = { 0.93, 0.27, 0.27, 1.0 }, text = { 0.17, 0.0, 0.0, 1.0 } },
-    warning  = { bg = { 1.0, 0.76, 0.24, 0.88 },  hover = { 1.0, 0.76, 0.24, 1.0 },  active = { 0.91, 0.63, 0.23, 1.0 }, text = { 0.16, 0.07, 0.0, 1.0 } },
-    update   = { bg = { 0.0, 1.0, 0.70, 0.88 },   hover = { 0.25, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 0.88 },  text = { 0.0, 0.11, 0.08, 1.0 } },
-    disabled  = { bg = { 0.30, 0.30, 0.30, 0.71 }, hover = { 0.30, 0.30, 0.30, 0.71 }, active = { 0.30, 0.30, 0.30, 0.71 }, text = { 0.5, 0.5, 0.5, 1.0 } },
-    statusbar = { bg = { 0.65, 0.7, 1.0, 0.045 }, hover = { 0.65, 0.7, 1.0, 0.045 }, active = { 0.65, 0.7, 1.0, 0.045 }, text = { 1.0, 0.8, 0.0, 0.8 } },
+    active    = { bg = { 0.0, 1.0, 0.70, 0.88 },  hover = { 0.26, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 1.0 },  text = { 0.0, 0.11, 0.08, 1.0 } },
+    inactive  = { bg = { 0.26, 0.59, 0.98, 0.43 }, hover = { 0.26, 0.59, 0.98, 1.0 },  active = { 0.06, 0.53, 0.98, 1.0 }, text = { 1.0, 1.0, 1.0, 1.0 } },
+    danger    = { bg = { 1.0, 0.30, 0.30, 0.88 },  hover = { 1.0, 0.38, 0.38, 1.0 },  active = { 0.93, 0.27, 0.27, 1.0 }, text = { 0.17, 0.0, 0.0, 1.0 } },
+    warning   = { bg = { 1.0, 0.76, 0.24, 0.88 },  hover = { 1.0, 0.76, 0.24, 1.0 },  active = { 0.91, 0.63, 0.23, 1.0 }, text = { 0.16, 0.07, 0.0, 1.0 } },
+    update    = { bg = { 0.0, 1.0, 0.70, 0.88 },   hover = { 0.25, 1.0, 0.78, 1.0 },  active = { 0.0, 1.0, 0.70, 0.88 },  text = { 0.0, 0.11, 0.08, 1.0 } },
+    disabled  = { bg = { 0.30, 0.30, 0.30, 0.71 },  hover = { 0.30, 0.30, 0.30, 0.71 }, active = { 0.30, 0.30, 0.30, 0.71 }, text = { 0.5, 0.5, 0.5, 1.0 } },
+    statusbar = { bg = { 0.65, 0.7, 1.0, 0.045 },  hover = { 0.65, 0.7, 1.0, 0.045 }, active = { 0.65, 0.7, 1.0, 0.045 }, text = { 1.0, 0.8, 0.0, 0.8 } },
+    -- Outlined label: matches drag slider outlined look, subtle hover, no click feedback
+    label     = { bg = { 0.12, 0.26, 0.42, 0.3 },  hover = { 0.12, 0.26, 0.42, 0.45 }, active = { 0.12, 0.26, 0.42, 0.45 }, text = { 1.0, 1.0, 1.0, 1.0 } },
+    -- Outlined label with border: same as label but with visible border
+    labelOutlined = { bg = { 0.12, 0.26, 0.42, 0.3 }, hover = { 0.12, 0.26, 0.42, 0.45 }, active = { 0.12, 0.26, 0.42, 0.45 }, text = { 1.0, 1.0, 1.0, 1.0 }, border = true },
 }
 
 --------------------------------------------------------------------------------
@@ -464,6 +468,17 @@ function styles.PushButton(styleNameOrTable)
         local style = styleMap[styleNameOrTable]
         if style then
             style.push()
+        elseif styles.buttonDefaults[styleNameOrTable] then
+            local c = styles.buttonDefaults[styleNameOrTable]
+            ImGui.PushStyleVar(ImGuiStyleVar.ButtonTextAlign, 0.5, 0.5)
+            if c.border then
+                ImGui.PushStyleColor(ImGuiCol.Border, 0.24, 0.59, 1.0, 0.35)
+                ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
+            end
+            pushColor(ImGuiCol.Button, c.bg or styles.colors.blue)
+            pushColor(ImGuiCol.ButtonHovered, c.hover or styles.colors.blueHover)
+            pushColor(ImGuiCol.ButtonActive, c.active or c.hover or styles.colors.blueActive)
+            pushColor(ImGuiCol.Text, c.text or styles.colors.textWhite)
         end
     end
 end
@@ -478,6 +493,14 @@ function styles.PopButton(styleNameOrTable)
         local style = styleMap[styleNameOrTable]
         if style then
             style.pop()
+        elseif styles.buttonDefaults[styleNameOrTable] then
+            local c = styles.buttonDefaults[styleNameOrTable]
+            ImGui.PopStyleColor(4)
+            ImGui.PopStyleVar()
+            if c.border then
+                ImGui.PopStyleVar()
+                ImGui.PopStyleColor()
+            end
         end
     end
 end

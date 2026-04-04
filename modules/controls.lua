@@ -70,6 +70,7 @@ local columnAutoCache = {}      -- Column auto-size cache: [columnId][childIndex
 local panelHoverState = {}      -- Panel hover state for borderOnHover
 local bindPool = {}             -- Reusable bind context pool
 local bindPoolSize = 0
+local buttonGroupWidths = {}    -- Cached combined widths for button groups (keyed by groupId)
 
 -- Reused tables for ActionButton (avoids per-frame allocation)
 local actionButtonHoldOpts = { duration = 0, style = "", progressDisplay = "external" }
@@ -79,6 +80,14 @@ local actionButtonResult = { primaryClicked = false, secondaryTriggered = false 
 ---@return number|nil minWidth Cached minimum width in pixels, or nil if unknown
 function controls.getButtonRowMinWidth(id)
     return buttonRowMinWidths[id]
+end
+
+--- Get the cached combined width of a button group from a previous DragFloatRow/DragIntRow.
+--- Buttons with the same groupId have their widths + spacing summed and cached.
+---@param groupId string The group ID assigned to buttons via the groupId field
+---@return number|nil width Combined pixel width, or nil if not yet measured
+function controls.getButtonGroupWidth(groupId)
+    return buttonGroupWidths[groupId]
 end
 
 ---@return nil
@@ -453,6 +462,11 @@ local function computeElementWidths(drags, availWidth, spacing)
         if el.width then
             widths[i] = el.width
             remaining = remaining - el.width
+        elseif el.widthFrom then
+            -- Use cached width from a button group
+            local w = buttonGroupWidths[el.widthFrom] or 0
+            widths[i] = w
+            remaining = remaining - w
         elseif el.widthPercent then
             -- Percentage of display width
             local w = math.floor(frameCache.displayWidth * el.widthPercent / 100)
@@ -464,11 +478,17 @@ local function computeElementWidths(drags, availWidth, spacing)
             widths[i] = w
             remaining = remaining - w
         elseif el.type == "button" then
-            local icon = el.icon and resolveIcon(el.icon)
-            local text = icon or el.label or ""
-            local w = cachedCalcTextSize(text) + padX2
-            widths[i] = w
-            remaining = remaining - w
+            if el.weight then
+                -- Weighted button: participates in remaining space distribution
+                totalWeight = totalWeight + el.weight
+                widths[i] = 0
+            else
+                local icon = el.icon and resolveIcon(el.icon)
+                local text = icon or el.label or ""
+                local w = cachedCalcTextSize(text) + padX2
+                widths[i] = w
+                remaining = remaining - w
+            end
         else
             totalWeight = totalWeight + (el.weight or 1)
             widths[i] = 0
@@ -576,11 +596,42 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
         local el = drags[i]
 
         if el.type == "button" then
-            local btnIcon = el.icon and resolveIcon(el.icon)
-            local btnLabel = btnIcon or el.label or ""
             local btnWidth = widths[i]
 
-            if el.holdDuration then
+            -- Cross-element progress: replace button with progress bar
+            if el.progressFrom then
+                local progress = controls.getHoldProgress(el.progressFrom)
+                if progress then
+                    controls.ProgressBar(progress, btnWidth, 0, "", el.progressStyle or "danger")
+                    if el.tooltip then tooltips.Show(el.tooltip) end
+                    if i < #drags then ImGui.SameLine() end
+                    goto continueDragLoop
+                end
+            end
+
+            -- Label-to-value: hoverLabel reveals on hover/Ctrl (same pattern as drag labels)
+            local btnIcon = el.icon and resolveIcon(el.icon)
+            local btnLabel
+            if el.hoverLabel then
+                local wasHovered = hovered and hovered[i]
+                local keyReveal = utils.isCtrlHeld() and not ImGui.IsAnyItemActive()
+                if wasHovered or keyReveal then
+                    btnLabel = el.hoverLabel
+                else
+                    btnLabel = btnIcon or el.label or ""
+                end
+            else
+                btnLabel = btnIcon or el.label or ""
+            end
+
+            -- Disabled styling for buttons (matches drag disabled look)
+            -- Skip for transparent buttons (invisible spacers should stay invisible)
+            local btnDisabled = el.style ~= "transparent" and (el.disabled or opts.disabled)
+            if btnDisabled then
+                styles.PushDragDisabled()
+                -- Disabled: render raw ImGui.Button so PushDragDisabled colors show through
+                ImGui.Button(btnLabel, btnWidth, 0)
+            elseif el.holdDuration then
                 local btnId = el.id or (imguiIds and imguiIds[i] or ("##" .. id .. "_" .. i))
                 local triggered = controls.HoldButton(btnId, btnLabel, {
                     duration = el.holdDuration,
@@ -594,12 +645,22 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
                 if clicked and el.onClick then el.onClick(i) end
             end
 
+            -- Track hover for hoverLabel next frame
+            if hovered and el.hoverLabel then
+                hovered[i] = ImGui.IsItemHovered() or ImGui.IsItemActive()
+            end
+
+            if btnDisabled then
+                styles.PopDragDisabled()
+            end
+
             if el.tooltip then tooltips.Show(el.tooltip) end
         else
             dragIndex = dragIndex + 1
             local elMin = el.min or opts.min or -math.huge
             local elMax = el.max or opts.max or math.huge
-            local format = el.format or defaultFormat
+            local isInt = el.type == "int"
+            local format = el.format or (isInt and "%d" or defaultFormat)
             local baseSpeed = el.speed or opts.speed or defaultSpeed or ((elMax - elMin) / 200)
 
             -- Delta mode: feed accumulated value while active, 0 when idle
@@ -611,12 +672,16 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             else
                 inputValue = el.value or 0
             end
+            if isInt then inputValue = math.floor(inputValue + 0.5) end
 
             -- Label-to-value: show label when idle, value when hovered/active or Ctrl held (not while dragging)
+            -- Skip for truly disabled elements (they always show their label)
             local wasHovered = hovered and hovered[i]
             local keyReveal = utils.isCtrlHeld() and not ImGui.IsAnyItemActive()
+            local dim = el.disabled or opts.disabled
+            local trulyDisabled = dim == true
             local displayFormat = format
-            if el.label and not wasHovered and not keyReveal then
+            if el.label and (trulyDisabled or (not wasHovered and not keyReveal)) then
                 displayFormat = el.label
             end
 
@@ -649,9 +714,13 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             end
 
             -- Style selection: disabled variants use previous-frame hover for transitions
-            local dim = el.disabled or opts.disabled
             local styleType
-            if dim then
+            if trulyDisabled then
+                -- Fully disabled: no interaction, no hover reveal
+                ImGui.BeginDisabled(true)
+                styles.PushDragDisabled()
+                styleType = "disabled"
+            elseif dim then
                 if wasHovered and dim == "dimmed" then
                     styles.PushOutlined()
                     styleType = "outlined"
@@ -671,7 +740,8 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
 
             ImGui.SetNextItemWidth(widths[i])
             local dragId = imguiIds and imguiIds[i] or ("##" .. id .. "_" .. i)
-            local newValue, changed = dragFn(
+            local elDragFn = isInt and ImGui.DragInt or dragFn
+            local newValue, changed = elDragFn(
                 dragId,
                 inputValue,
                 getDragSpeed(baseSpeed, opts),
@@ -687,7 +757,9 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             end
 
             if styleType == "color" then styles.PopDragColor()
-            elseif styleType == "disabled" then styles.PopDragDisabled()
+            elseif styleType == "disabled" then
+                styles.PopDragDisabled()
+                if trulyDisabled then ImGui.EndDisabled() end
             else styles.PopOutlined() end
 
             -- Right-click reset
@@ -742,6 +814,26 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             ImGui.SameLine()
         end
         ::continueDragLoop::
+    end
+
+    -- Cache button group widths for widthFrom references in other rows
+    local groupSeen = nil
+    for i = 1, #drags do
+        local gid = drags[i].groupId
+        if gid then
+            if not groupSeen then groupSeen = {} end
+            if not groupSeen[gid] then
+                groupSeen[gid] = { total = 0, count = 0 }
+            end
+            local g = groupSeen[gid]
+            g.total = g.total + widths[i]
+            g.count = g.count + 1
+        end
+    end
+    if groupSeen then
+        for gid, g in pairs(groupSeen) do
+            buttonGroupWidths[gid] = g.total + (g.count - 1) * spacing
+        end
     end
 
     if customSpacing then
