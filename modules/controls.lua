@@ -532,7 +532,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
 
     -- Resolve sub-tables from state (all nil-safe if state is nil)
     local hovered = state and state.hovered
-    local deltaAccum = state and isDelta and state.deltaAccum
+    local deltaAccum = state and state.deltaAccum
     local imguiIds = state and state.imguiIds
 
     -- Build/extend cached ImGui ID strings on the state table
@@ -549,6 +549,15 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             deltaAccum = {}
             state.deltaAccum = deltaAccum
         end
+        if not deltaAccum then
+            for _, el in ipairs(drags) do
+                if el.mode == "delta" then
+                    deltaAccum = {}
+                    state.deltaAccum = deltaAccum
+                    break
+                end
+            end
+        end
         -- Extend ID cache if drags array grew
         for j = #imguiIds + 1, #drags do
             imguiIds[j] = "##" .. id .. "_" .. j
@@ -558,8 +567,12 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
     local values = {}
     local anyChanged = false
     local dragIndex = 0
+    local skipUntil = 0
 
     for i = 1, #drags do
+        -- Skip elements merged into a previous progress bar
+        if i <= skipUntil then goto continueDragLoop end
+
         local el = drags[i]
 
         if el.type == "button" then
@@ -568,11 +581,12 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             local btnWidth = widths[i]
 
             if el.holdDuration then
-                local btnId = imguiIds and imguiIds[i] or ("##" .. id .. "_" .. i)
+                local btnId = el.id or (imguiIds and imguiIds[i] or ("##" .. id .. "_" .. i))
                 local triggered = controls.HoldButton(btnId, btnLabel, {
                     duration = el.holdDuration,
                     style = el.style or "inactive",
                     width = btnWidth,
+                    progressDisplay = el.progressDisplay,
                 })
                 if triggered and el.onClick then el.onClick(i) end
             else
@@ -589,8 +603,10 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             local baseSpeed = el.speed or opts.speed or defaultSpeed or ((elMax - elMin) / 200)
 
             -- Delta mode: feed accumulated value while active, 0 when idle
+            -- Supports per-element delta via el.mode or row-level via opts.mode
+            local elIsDelta = (el.mode == "delta") or isDelta
             local inputValue
-            if isDelta then
+            if elIsDelta then
                 inputValue = deltaAccum and deltaAccum[i] or 0
             else
                 inputValue = el.value or 0
@@ -602,6 +618,34 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
             local displayFormat = format
             if el.label and not wasHovered and not keyReveal then
                 displayFormat = el.label
+            end
+
+            -- Cross-element progress: replace consecutive drags sharing the same
+            -- progressFrom with a single progress bar spanning their combined width
+            if el.progressFrom then
+                local progress = controls.getHoldProgress(el.progressFrom)
+                if progress then
+                    local totalW = widths[i]
+                    local lastMerged = i
+                    for j = i + 1, #drags do
+                        local nextEl = drags[j]
+                        if nextEl.type == "button" or nextEl.progressFrom ~= el.progressFrom then break end
+                        totalW = totalW + spacing + widths[j]
+                        lastMerged = j
+                    end
+                    controls.ProgressBar(progress, totalW, 0, "", el.progressStyle or "danger")
+                    -- Fill return values for all merged elements
+                    for j = i, lastMerged do
+                        if drags[j].type ~= "button" then
+                            dragIndex = dragIndex + 1
+                            local jDelta = (drags[j].mode == "delta") or isDelta
+                            values[dragIndex] = jDelta and 0 or (drags[j].value or 0)
+                        end
+                    end
+                    skipUntil = lastMerged
+                    if lastMerged < #drags then ImGui.SameLine() end
+                    goto continueDragLoop
+                end
             end
 
             -- Style selection: disabled variants use previous-frame hover for transitions
@@ -648,7 +692,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
 
             -- Right-click reset
             if el.default ~= nil and ImGui.IsItemClicked(1) then
-                if isDelta then
+                if elIsDelta then
                     if el.onReset then
                         el.onReset(el.key)
                     elseif opts.onReset then
@@ -662,7 +706,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
 
             if el.tooltip then tooltips.Show(el.tooltip) end
 
-            if isDelta then
+            if elIsDelta then
                 if changed then
                     if deltaAccum then deltaAccum[i] = newValue end
                     anyChanged = true
@@ -697,6 +741,7 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
         if i < #drags then
             ImGui.SameLine()
         end
+        ::continueDragLoop::
     end
 
     if customSpacing then

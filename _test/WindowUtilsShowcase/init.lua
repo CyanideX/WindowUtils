@@ -133,23 +133,15 @@ local dragItems = {
 }
 
 -- Lists demo state
-local listDemoPositions = {
-    { label = "Start",    x = 100.5,  y = 200.3,  z = 50.0,  yaw = 45,  tilt = 0,   roll = 0,   fov = 70, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
-    { label = "Bridge",   x = -340.2, y = 180.7,  z = 120.5, yaw = 90,  tilt = -5,  roll = 10,  fov = 80, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
-    { label = "Tower",    x = 520.0,  y = -90.4,  z = 300.8, yaw = 180, tilt = 15,  roll = 0,   fov = 60, rollRotations = 1, tangentStrength = 1.5, tangentBias = 0.2, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
-    { label = "Market",   x = -150.3, y = 410.1,  z = 75.2,  yaw = 270, tilt = -10, roll = -5,  fov = 90, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.3, boundaryAngle = 0.0 },
-    { label = "Rooftop",  x = 280.6,  y = -320.5, z = 450.0, yaw = 120, tilt = 20,  roll = 15,  fov = 55, rollRotations = -1, tangentStrength = 0.8, tangentBias = -0.1, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
-    { label = "Alley",    x = -80.1,  y = 60.9,   z = 15.3,  yaw = 330, tilt = 0,   roll = 0,   fov = 70, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
-    { label = "Highway",  x = 600.4,  y = 150.2,  z = 200.7, yaw = 60,  tilt = -15, roll = 5,   fov = 100, rollRotations = 2, tangentStrength = 2.0, tangentBias = 0.0, tangentAsymmetry = -0.2, boundaryAngle = 0.0 },
-    { label = "Tunnel",   x = -420.8, y = -110.6, z = 85.4,  yaw = 210, tilt = 5,   roll = -10, fov = 65, rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0 },
+local listDemoItems = {
+    { name = "Alpha",   value = 42.5,  amount = 10.0, enabled = true },
+    { name = "Beta",    value = -17.3, amount = 5.0,  enabled = false },
+    { name = "Gamma",   value = 100.0, amount = 25.0, enabled = true },
+    { name = "Delta",   value = 0.0,   amount = 0.0,  enabled = true },
+    { name = "Epsilon", value = 88.8,  amount = -3.5, enabled = false },
 }
 local listDemoState = {}
-local listDemoScrollIdx = 5
-local listDemoDragStates = {} -- per-item DragFloatRow state tables
-local listDemoEditMode = false
-local listDemoCurveEditor = false
-local listDemoRelativeMode = false
-local listDemoShowValues = false
+local listDemoDragStates = {}
 local listDemoPendingDelete = nil
 
 --------------------------------------------------------------------------------
@@ -2309,50 +2301,30 @@ local function drawListsDemo()
     local styles = wu.Styles
     local lists = wu.Lists
 
-    -- Mode toggles
-    controls.ButtonRow({
-        { label = listDemoEditMode and "  Edit: ON  " or "  Edit: OFF  ",
-          style = listDemoEditMode and "active" or "inactive",
-          onClick = function() listDemoEditMode = not listDemoEditMode end },
-        { label = listDemoCurveEditor and "  Tangents: ON  " or "  Tangents: OFF  ",
-          style = listDemoCurveEditor and "active" or "inactive",
-          onClick = function() listDemoCurveEditor = not listDemoCurveEditor end },
-        { label = listDemoRelativeMode and "  Delta XYZ  " or "  Global XYZ  ",
-          style = listDemoRelativeMode and "active" or "inactive",
-          onClick = function() listDemoRelativeMode = not listDemoRelativeMode end },
-        { label = listDemoShowValues and "  Values  " or "  Labels  ",
-          style = listDemoShowValues and "active" or "inactive",
-          onClick = function() listDemoShowValues = not listDemoShowValues end },
-    })
-
-    ImGui.Dummy(0, 2)
-
-    -- Toolbar: add, remove, scroll, clear
+    -- Toolbar
     controls.ButtonRow({
         { label = "  Add  ", style = "active",
           onClick = function()
-              table.insert(listDemoPositions, {
-                  label = "Pos " .. (#listDemoPositions + 1),
-                  x = math.random() * 1000 - 500, y = math.random() * 1000 - 500, z = math.random() * 500,
-                  yaw = math.random() * 360, tilt = math.random() * 40 - 20, roll = 0, fov = 70,
-                  rollRotations = 0, tangentStrength = 1.0, tangentBias = 0.0, tangentAsymmetry = 0.0, boundaryAngle = 0.0,
+              table.insert(listDemoItems, {
+                  name = "Item " .. (#listDemoItems + 1),
+                  value = math.random() * 200 - 100,
+                  amount = math.random() * 50 - 25,
+                  enabled = true,
               })
           end },
         { label = "  Remove  ", style = "inactive",
           onClick = function()
-              if listDemoState.focusIndex and listDemoPositions[listDemoState.focusIndex] then
-                  table.remove(listDemoPositions, listDemoState.focusIndex)
+              if listDemoState.focusIndex and listDemoItems[listDemoState.focusIndex] then
+                  table.remove(listDemoItems, listDemoState.focusIndex)
                   listDemoDragStates[listDemoState.focusIndex] = nil
-                  if listDemoState.focusIndex > #listDemoPositions then
-                      listDemoState.focusIndex = #listDemoPositions > 0 and #listDemoPositions or nil
-                  end
+                  listDemoState.focusIndex = nil
               end
           end },
-        { label = "  Scroll #" .. listDemoScrollIdx .. "  ", style = "inactive",
-          onClick = function() listDemoState.scrollTarget = listDemoScrollIdx end },
+        { label = "  Scroll #3  ", style = "inactive",
+          onClick = function() listDemoState.scrollTarget = 3 end },
         { label = "  Clear  ", style = "danger",
           onHold = function()
-              listDemoPositions = {}
+              listDemoItems = {}
               listDemoState = {}
               listDemoDragStates = {}
           end,
@@ -2362,216 +2334,53 @@ local function drawListsDemo()
     ImGui.Dummy(0, 4)
 
     -- Render the list
-    lists.render(listDemoPositions, function(item, index, state)
-        local isActive = state.activeIndex == index
+    lists.render(listDemoItems, function(item, index, state)
         local useDisabled = state.activeIndex ~= nil and state.activeIndex ~= index
-        local spacing = ImGui.GetStyle().ItemSpacing.x
+        local isSelected = state.focusIndex == index
 
-        -- Per-item persistent state for DragFloatRow
         if not listDemoDragStates[index] then listDemoDragStates[index] = {} end
         local ds = listDemoDragStates[index]
         if not ds.row1 then ds.row1 = {} end
-        if not ds.row2 then ds.row2 = {} end
-        if not ds.row3 then ds.row3 = {} end
-        if not ds.row4 then ds.row4 = {} end
 
-        -- Row 1: Load, Update(hold, external), Delete(hold, external), then label or progress
-        local buttonsStartX = ImGui.GetCursorPosX()
-
-        if useDisabled then
-            -- Dimmed buttons: plain ImGui.Button so PushDragDisabled colors show through
-            ImGui.Button(IconGlyphs.Upload .. "##load_" .. index, 0, 0)
-            ImGui.SameLine()
-            ImGui.Button(IconGlyphs.Refresh .. "##upd_" .. index, 0, 0)
-            ImGui.SameLine()
-            ImGui.Button(IconGlyphs.TrashCanOutline .. "##del_" .. index, 0, 0)
-        else
-            if ImGui.Button(IconGlyphs.Upload .. "##load_" .. index, 0, 0) then
-                state.focusIndex = index
-                wu.Notify.info("Loaded: " .. item.label)
-            end
-
-            ImGui.SameLine()
-            controls.HoldButton("lst_upd_" .. index, IconGlyphs.Refresh, {
-                duration = 1.0, style = "inactive", progressDisplay = "external",
-                onHold = function()
-                    item.x = math.random() * 1000 - 500
-                    item.y = math.random() * 1000 - 500
-                    item.z = math.random() * 500
-                    wu.Notify.success("Updated: " .. item.label)
-                end,
-                onClick = function() wu.Notify.info("Hold to update") end,
-            })
-
-            ImGui.SameLine()
-            controls.HoldButton("lst_del_" .. index, IconGlyphs.TrashCanOutline, {
-                duration = 1.0, style = "danger", progressDisplay = "external",
-                onHold = function()
-                    table.remove(listDemoPositions, index)
-                    if state.focusIndex and state.focusIndex > #listDemoPositions then
-                        state.focusIndex = #listDemoPositions > 0 and #listDemoPositions or nil
-                    end
-                    wu.Notify.success("Deleted: " .. item.label)
-                end,
-                onClick = function() wu.Notify.info("Hold to delete") end,
-            })
-        end
-
-        ImGui.SameLine()
-        local buttonsEndX = ImGui.GetCursorPosX()
-        local buttonsWidth = buttonsEndX - buttonsStartX - spacing
-
-        -- Remaining space: hold progress or position label
-        local showedProgress = false
-        if not useDisabled then
-            showedProgress = controls.ShowFirstActiveHoldProgress(
-                { "lst_upd_" .. index, "lst_del_" .. index },
-                ImGui.GetContentRegionAvail(), "danger"
-            )
-        end
-        if not showedProgress then
-            local posLabel = string.format("%d: x=%.1f, y=%.1f, z=%.1f", index, item.x, item.y, item.z)
-            if useDisabled then styles.PushDragDisabled() else styles.PushOutlined() end
-            ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
-            ImGui.DragFloat("##lbl_" .. index, 0, 0, 0, 0, posLabel)
-            if useDisabled then styles.PopDragDisabled() else styles.PopOutlined() end
-        end
-
-        -- Edit mode rows
-        if listDemoEditMode then
-            local disabledMode = useDisabled and true or nil
-            -- Show values toggle or shift held: suppress labels so DragFloatRow shows numeric values
-            local showValues = listDemoShowValues
-            local function lbl(name) if showValues then return nil end return name end
-
-            -- Row 2: ACTIVE/spacer, Roll(DragInt), X, Y, Z(DragFloatRow)
-            if isActive then
-                styles.PushButton("active")
-                ImGui.Button("ACTIVE", buttonsWidth, 0)
-                styles.PopButton("active")
-            else
-                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.Button("##spacer_" .. index, buttonsWidth, 0)
-                ImGui.PopStyleColor(3)
-            end
-            ImGui.SameLine()
-
-            -- Roll rotations as DragInt (separate from XYZ floats)
-            local row2Avail = ImGui.GetContentRegionAvail()
-            local row2W = math.floor((row2Avail - spacing * 3) / 4)
-
-            if index == 1 then
-                ImGui.BeginDisabled(true)
-                ImGui.SetNextItemWidth(row2W)
-                ImGui.DragInt("##rollRot_" .. index, 0, 0.1, 0, 0, "--")
-                ImGui.EndDisabled()
-            else
-                if not ds.row2roll then ds.row2roll = {} end
-                local _, rollChanged = controls.DragIntRow(nil, "ri_" .. index, {
-                    { value = item.rollRotations or 0, label = lbl("Roll"), default = 0, min = -10, max = 10, width = row2W },
-                }, { speed = 0.1, state = ds.row2roll, disabled = disabledMode })
-                if rollChanged then item.rollRotations = _[1] end
-            end
-            ImGui.SameLine()
-
-            -- XYZ as DragFloatRow (3 elements filling remaining space)
-            local xyzDrags
-            if listDemoRelativeMode then
-                xyzDrags = {
-                    { value = 0, color = styles.dragColors.x, label = lbl("X"), min = -2000, max = 2000, default = 0,
-                      onChange = function(_, delta) item.x = item.x + delta end },
-                    { value = 0, color = styles.dragColors.y, label = lbl("Y"), min = -2000, max = 2000, default = 0,
-                      onChange = function(_, delta) item.y = item.y + delta end },
-                    { value = 0, color = styles.dragColors.z, label = lbl("Z"), min = -2000, max = 2000, default = 0,
-                      onChange = function(_, delta) item.z = item.z + delta end },
-                }
-            else
-                xyzDrags = {
-                    { value = item.x, color = styles.dragColors.x, label = lbl("X"), min = -2000, max = 2000, default = 0 },
-                    { value = item.y, color = styles.dragColors.y, label = lbl("Y"), min = -2000, max = 2000, default = 0 },
-                    { value = item.z, color = styles.dragColors.z, label = lbl("Z"), min = -2000, max = 2000, default = 0 },
-                }
-            end
-
-            local xyzVals, xyzChanged = controls.DragFloatRow(nil, "r2_" .. index, xyzDrags, {
-                speed = 0.1, state = ds.row2, disabled = disabledMode,
-                mode = listDemoRelativeMode and "delta" or nil,
-            })
-            if xyzChanged and not listDemoRelativeMode then
-                item.x = xyzVals[1]
-                item.y = xyzVals[2]
-                item.z = xyzVals[3]
-            end
-
-            -- Row 3: spacer, FOV, Yaw, Tilt, Roll
-            ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
-            ImGui.Button("##sp3_" .. index, buttonsWidth, 0)
-            ImGui.PopStyleColor(3)
-            ImGui.SameLine()
-
-            local row3Vals, row3Changed = controls.DragFloatRow(nil, "r3_" .. index, {
-                { value = item.fov or 70, label = lbl("FOV"), min = 20, max = 130, default = 70 },
-                { value = item.yaw or 0, label = lbl("Yaw"), default = 0 },
-                { value = item.tilt or 0, label = lbl("Tilt"), min = -90, max = 90, default = 0 },
-                { value = item.roll or 0, label = lbl("Roll"), min = -360, max = 360, default = 0 },
-            }, { speed = 0.1, state = ds.row3, disabled = disabledMode })
-            if row3Changed then
-                item.fov = row3Vals[1]
-                item.yaw = row3Vals[2]
-                item.tilt = row3Vals[3]
-                item.roll = row3Vals[4]
-            end
-
-            -- Row 4: tangent controls
-            if listDemoCurveEditor then
-                ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(0, 0, 0, 0))
-                ImGui.Button("##sp4_" .. index, buttonsWidth, 0)
-                ImGui.PopStyleColor(3)
-                ImGui.SameLine()
-
-                local isBoundary = index == 1 or index == #listDemoPositions
-                local row4Drags = {}
-                if isBoundary then
-                    table.insert(row4Drags, { value = item.boundaryAngle or 0, label = lbl("Angle"), min = -180, max = 180, default = 0, speed = 1.0 })
-                else
-                    table.insert(row4Drags, { value = 0, disabled = true, label = "--" })
-                end
-                table.insert(row4Drags, { value = item.tangentStrength or 1.0, label = lbl("Str"), min = 0, max = 10, default = 1.0, format = "%.2f" })
-                table.insert(row4Drags, { value = item.tangentBias or 0.0, label = lbl("Bias"), min = -1, max = 1, default = 0.0, format = "%.2f" })
-                table.insert(row4Drags, { value = item.tangentAsymmetry or 0.0, label = lbl("Asym"), min = -1, max = 1, default = 0.0, format = "%.2f" })
-
-                local row4Vals, row4Changed = controls.DragFloatRow(nil, "r4_" .. index, row4Drags, {
-                    speed = 0.1, state = ds.row4, disabled = disabledMode,
-                })
-                if row4Changed then
-                    if isBoundary then
-                        item.boundaryAngle = row4Vals[1]
-                        item.tangentStrength = row4Vals[2]
-                        item.tangentBias = row4Vals[3]
-                        item.tangentAsymmetry = row4Vals[4]
-                    else
-                        item.tangentStrength = row4Vals[1]
-                        item.tangentBias = row4Vals[2]
-                        item.tangentAsymmetry = row4Vals[3]
-                    end
-                end
-            end
-        end
+        controls.DragFloatRow(nil, "r1_" .. index, {
+            { type = "button",
+              icon = isSelected and "CheckCircle" or "CheckCircleOutline",
+              style = isSelected and "active" or "inactive",
+              onClick = function()
+                  if isSelected then
+                      state.focusIndex = nil
+                  else
+                      state.focusIndex = index
+                  end
+              end },
+            { type = "button", icon = "TrashCanOutline",
+              holdDuration = 1.0, style = "danger", id = "lst_del_" .. index,
+              progressDisplay = "external",
+              onClick = function() listDemoPendingDelete = index end },
+            { value = 0, label = item.name, min = -999, max = 999, mode = "delta",
+              progressFrom = "lst_del_" .. index, progressStyle = "danger",
+              onChange = function(delta) item.value = item.value + delta end },
+            { value = item.amount, label = "Amount", min = -999, max = 999, default = 0,
+              progressFrom = "lst_del_" .. index, progressStyle = "danger",
+              onChange = function(v) item.amount = v end },
+        }, { speed = 0.1, state = ds.row1, disabled = useDisabled and true or nil })
     end, listDemoState, {
         showCount = true,
         reorderable = true,
-        placeholder = "No saved positions. Click 'Add' to create one.",
+        placeholder = "No items. Click 'Add' to create one.",
         onReorder = function(from, to)
             local moved = table.remove(listDemoDragStates, from)
             table.insert(listDemoDragStates, to, moved or {})
         end,
     })
+
+    -- Deferred deletion (safe, outside render loop)
+    if listDemoPendingDelete then
+        table.remove(listDemoItems, listDemoPendingDelete)
+        listDemoDragStates[listDemoPendingDelete] = nil
+        listDemoState.focusIndex = nil
+        listDemoPendingDelete = nil
+    end
 end
 
 --------------------------------------------------------------------------------
