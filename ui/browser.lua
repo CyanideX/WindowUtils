@@ -1,5 +1,5 @@
 ------------------------------------------------------
--- WindowUtils - Window Browser Module
+-- WindowUtils - Window Browser
 -- Browse and manage discovered CET windows
 ------------------------------------------------------
 

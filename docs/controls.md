@@ -1,6 +1,6 @@
-# Controls  - WindowUtils UI Control Library
+# Controls
 
-Grid-based layout system, styled buttons, sliders, inputs, hold-to-confirm buttons, bound controls, and layout helpers.
+Grid-based layout, styled buttons, sliders, inputs, hold-to-confirm buttons, bound controls, and layout helpers.
 
 ## Quick Start
 
@@ -251,6 +251,11 @@ Compound control that renders multiple float drag inputs (and optionally buttons
 | weight | number\|nil | 1 | Flex weight for remaining space (ignored when width/widthPercent/fitLabel is set) |
 | disabled | boolean\|string\|nil | nil | Per-drag disabled style override (same values as opts.disabled) |
 | onChange | function\|nil | nil | Per-drag `(newValue, key)` callback |
+| widthFrom | string\|nil | nil | Use cached width from a button group (see `getButtonGroupWidth`) |
+| groupId | string\|nil | nil | Group ID for width caching (buttons with same groupId have widths summed) |
+| progressFrom | string\|nil | nil | Replace with progress bar when the named hold button is active |
+| progressStyle | string\|nil | "danger" | Style for cross-element progress bar |
+| mode | string\|nil | nil | Per-element `"delta"` override |
 
 **Button_Definition fields:**
 
@@ -259,11 +264,18 @@ Compound control that renders multiple float drag inputs (and optionally buttons
 | type | string | required | Must be `"button"` |
 | icon | string\|nil | nil | Icon name (resolved via `utils.resolveIcon`) |
 | label | string\|nil | nil | Button text |
+| hoverLabel | string\|nil | nil | Text shown on hover (label-to-value pattern) |
 | style | string | "inactive" | Button style |
 | tooltip | string\|nil | nil | Hover tooltip |
 | onClick | function\|nil | nil | Click callback `(index)` |
 | holdDuration | number\|nil | nil | Hold-to-confirm duration |
+| progressDisplay | string\|nil | nil | Hold progress display mode |
+| progressFrom | string\|nil | nil | Show progress bar from another hold button |
+| progressStyle | string\|nil | "danger" | Progress bar style |
 | width | number\|nil | auto | Fixed pixel width |
+| weight | number\|nil | nil | Flex weight (participates in remaining space distribution) |
+| disabled | boolean\|nil | nil | Disable the button |
+| id | string\|nil | nil | Custom button ID (for hold buttons) |
 
 Elements without `type` (or `type = "drag"`) are treated as drags. Elements with `type = "button"` render as buttons. All elements are laid out left-to-right with `SameLine()`. Fixed-width elements (`width`, `widthPercent`, `fitLabel`) and buttons are subtracted from available space first; remaining space is divided proportionally by `weight` among weighted drags.
 
@@ -609,6 +621,12 @@ Get cached minimum width for a ButtonRow (when `opts.id` is set).
 
 **Returns:** `number|nil`  - minimum width in pixels
 
+### `getButtonGroupWidth(groupId)`
+
+Get cached combined width of a button group from a previous `DragFloatRow`/`DragIntRow`. Buttons with the same `groupId` have their widths + spacing summed and cached.
+
+**Returns:** `number|nil`  - combined pixel width
+
 ## Bound Controls
 
 ### `bind(data, defaults?, onSave?, bindOpts?)`
@@ -893,7 +911,7 @@ Child region with optional background color and border. Always has internal padd
 | opts.border | boolean | false | Show border |
 | opts.borderOnHover | boolean | false | Show border only when hovered |
 | opts.width | number | 0 | Panel width (0 = fill available) |
-| opts.height | number | 0 | Panel height (0 = auto-fit content) |
+| opts.height | number\|"auto" | 0 | Panel height (0 = auto-fit, `"auto"` = measured from content) |
 | opts.flags | number | 0 | Extra ImGui window flags |
 
 ```lua

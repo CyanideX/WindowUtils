@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Settings Module
--- Handles persistence and configuration management
+-- WindowUtils - Settings
+-- Persistence and configuration management
 ------------------------------------------------------
 
 local settings = {}

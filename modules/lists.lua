@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Lists Module
--- Scrollable list container with per-item callbacks
+-- WindowUtils - Lists
+-- Scrollable list rendering with per-item callbacks
 ------------------------------------------------------
 
 local controls = require("modules/controls")

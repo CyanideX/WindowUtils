@@ -1,6 +1,8 @@
 ------------------------------------------------------
--- WindowUtils - DragDrop Module
+-- WindowUtils - DragDrop
 -- Drag-and-drop reordering for ImGui lists
+------------------------------------------------------
+-- Thank you to notaspirit for the guidance
 ------------------------------------------------------
 
 local styles = require("modules/styles")

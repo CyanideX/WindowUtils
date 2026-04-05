@@ -1,4 +1,4 @@
-# Styles  - WindowUtils Color & Style Presets
+# Styles
 
 Push/pop style helpers for consistent ImGui theming across CET mods.
 
@@ -21,7 +21,7 @@ styles.PopButton("danger")
 
 ## Color Palette
 
-All colors are `{r, g, b, a}` tables with values 0–1, accessible via `styles.colors.<key>`.
+All colors are `{r, g, b, a}` tables with values 0-1, accessible via `styles.colors.<key>`.
 
 | Key | RGBA | Usage |
 |-----|------|-------|
@@ -45,9 +45,17 @@ All colors are `{r, g, b, a}` tables with values 0–1, accessible via `styles.c
 | `greyActive` | 0.35, 0.35, 0.35, 1 | Grey active (pressed) state |
 | `greyText` | 0.5, 0.5, 0.5, 1 | Subdued text |
 | `greyLight` | 0.6, 0.6, 0.6, 1 | Muted text |
+| `greyDim` | 0.7, 0.7, 0.7, 1 | Dimmed text |
 | `textBlack` | 0, 0, 0, 1 | Dark text on bright buttons |
 | `textWhite` | 1, 1, 1, 1 | Light text on dark buttons |
 | `transparent` | 0, 0, 0, 0 | Invisible |
+| `frameBg` | 0.12, 0.26, 0.42, 0.3 | Outlined control background |
+| `frameBorder` | 0.24, 0.59, 1, 0.35 | Outlined control border |
+| `outlinedDangerBg` | 0.78, 0.19, 0.19, 0.10 | Danger outlined background |
+| `outlinedDangerBorder` | 0.78, 0.19, 0.19, 0.47 | Danger outlined border |
+| `outlinedSuccessBg` | 0.13, 0.79, 0.60, 0.10 | Success outlined background |
+| `outlinedSuccessBorder` | 0.13, 0.79, 0.59, 0.30 | Success outlined border |
+| `sliderDisabledBg` | 0.65, 0.7, 1, 0.045 | Disabled slider background |
 | `splitterHover` | 0.3, 0.5, 0.7, 0.5 | Splitter bar hover background |
 | `splitterDrag` | 0, 1, 0.7, 0.6 | Splitter bar drag background |
 | `splitterIcon` | 0.6, 0.6, 0.7, 1 | Splitter bar icon (idle) |
@@ -57,13 +65,11 @@ All colors are `{r, g, b, a}` tables with values 0–1, accessible via `styles.c
 | `scrollbarHover` | 0.8, 0.8, 1, 0.6 | Scrollbar thumb hover |
 | `scrollbarActive` | 0.8, 0.8, 1, 0.8 | Scrollbar thumb drag |
 
-Colors are passed as RGBA float tables directly to ImGui  - no pre-computation needed.
-
 ## API Reference
 
 ### Button Styles
 
-Each style has a matched `Push`/`Pop` pair. Push sets 4 colors + centered text alignment; Pop reverses them.
+Each named style has a matched `Push`/`Pop` pair. Push sets 4 colors + centered text alignment; Pop reverses them.
 
 | Push | Pop | Colors |
 |------|-----|--------|
@@ -74,19 +80,14 @@ Each style has a matched `Push`/`Pop` pair. Push sets 4 colors + centered text a
 | `PushButtonUpdate()` | `PopButtonUpdate()` | Green bg, dark text |
 | `PushButtonDisabled()` | `PopButtonDisabled()` | Grey bg, grey text |
 | `PushButtonStatusbar()` | `PopButtonStatusbar()` | Subtle blue bg, yellow text |
+| `PushButtonLabel()` | `PopButtonLabel()` | Dark blue bg, white text |
+| `PushButtonLabelOutlined()` | `PopButtonLabelOutlined()` | Dark blue bg, white text, blue border |
 | `PushButtonTransparent()` | `PopButtonTransparent()` | Transparent bg, no inner spacing |
-| `PushButtonFrameless()` | `PopButtonFrameless()` | Transparent bg, zero frame padding (renders like text but clickable) |
-
-Padded variants add `FramePadding` and `ItemSpacing` from `styles.spacing`:
-
-| Push | Pop |
-|------|-----|
-| `PushButtonActivePadded()` | `PopButtonActivePadded()` |
-| `PushButtonInactivePadded()` | `PopButtonInactivePadded()` |
+| `PushButtonFrameless()` | `PopButtonFrameless()` | Transparent bg, zero frame padding |
 
 ### `PushButton(styleNameOrTable)` / `PopButton(styleNameOrTable)`
 
-Universal button style  - accepts a name string or a custom color table.
+Universal button style - accepts a name string or a custom color table.
 
 ```lua
 -- By name:
@@ -97,28 +98,25 @@ styles.PopButton("active")
 styles.PushButton({
     bg = {0.2, 0, 0.5, 1},
     hover = {0.3, 0.1, 0.6, 1},
-    active = {0.15, 0, 0.4, 1},  -- pressed state (optional, falls back to hover)
+    active = {0.15, 0, 0.4, 1},
     text = {1, 1, 1, 1},
+    border = true,  -- optional, adds blue border
 })
-styles.PopButton({ bg = ... })  -- pass same table type to pop
+styles.PopButton({ border = true })  -- pass same table type to pop
 ```
 
-Valid names: `"active"`, `"inactive"`, `"danger"`, `"warning"`, `"update"`, `"disabled"`, `"statusbar"`, `"transparent"`.
+Valid names: `"active"`, `"inactive"`, `"danger"`, `"warning"`, `"update"`, `"disabled"`, `"statusbar"`, `"label"`, `"labelOutlined"`, `"transparent"`, `"frameless"`.
 
 ### `buttonDefaults`
 
-Pre-defined color tables for each named button style. Access via `styles.buttonDefaults.<name>` to read or override individual presets.
+Pre-defined color tables for each named button style. Access via `styles.buttonDefaults.<name>`.
 
 ```lua
--- Read a preset
 local danger = styles.buttonDefaults.danger
--- { bg = {1, 0.3, 0.3, 0.88}, hover = {1, 0.38, 0.38, 1}, active = {0.93, 0.27, 0.27, 1}, text = {0.17, 0, 0, 1} }
-
--- Override at runtime
-styles.buttonDefaults.danger.text = { 1, 1, 1, 1 }
+-- { bg = {1, 0.3, 0.3, 0.88}, hover = {1, 0.38, 0.38, 1}, ... }
 ```
 
-Available keys: `active`, `inactive`, `danger`, `warning`, `update`, `disabled`, `statusbar`.
+Available keys: `active`, `inactive`, `danger`, `warning`, `update`, `disabled`, `statusbar`, `label`, `labelOutlined`.
 
 ### Outlined Styles
 
@@ -129,6 +127,44 @@ For sliders, progress bars, and other framed elements.
 | `PushOutlined()` | `PopOutlined()` | Blue border + dark frame |
 | `PushOutlinedDanger()` | `PopOutlinedDanger()` | Red border + red histogram fill |
 | `PushOutlinedSuccess()` | `PopOutlinedSuccess()` | Green border + green histogram fill |
+
+### Drag Color Theming
+
+#### `dragBgBase`
+
+Base background color for drag controls: `{ 0.12, 0.26, 0.50 }`.
+
+#### `dragColors`
+
+Preset axis colors for `DragFloatRow`/`DragIntRow`:
+
+```lua
+styles.dragColors = {
+    x = { 0.8, 0.3, 0.3, 1.0 },   -- red
+    y = { 0.3, 0.7, 0.3, 1.0 },   -- green
+    z = { 0.3, 0.5, 0.9, 1.0 },   -- blue
+}
+```
+
+#### `PushDragColor(color)` / `PopDragColor()`
+
+Push colored drag style with faded blue FrameBg and axis-colored hover, active, and border. Returns `false` if color is nil or invalid.
+
+#### `PushDragDisabled()` / `PopDragDisabled()`
+
+Faded blue disabled drag style. Pushes 8 colors + 1 var (FrameBorderSize 0).
+
+#### `PushDragStyle(el, dim, wasHovered)` / `PopDragStyle(styleType, trulyDisabled)`
+
+High-level drag style selection used by `DragFloatRow`/`DragIntRow`. Chooses between disabled, outlined, or colored styles based on element state.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| el | table | Element definition (needs `.color`, `.disabled`) |
+| dim | boolean\|string | `true` = fully disabled, `"dimmed"` = outlined on hover, `"dimmedColor"` = color on hover |
+| wasHovered | boolean | Whether element was hovered last frame |
+
+**Returns (Push):** `string, boolean` - styleType (`"disabled"`, `"outlined"`, `"color"`), trulyDisabled
 
 ### Text Styles
 
@@ -150,21 +186,7 @@ For sliders, progress bars, and other framed elements.
 
 `PushScrollbar(opts?)` / `PopScrollbar()`
 
-Themed scrollbar with transparent track and styled thumb. Call before any scrollable region. `PopScrollbar` takes no arguments  - it always pops 4 colors and 2 style vars.
-
-```lua
--- Simple (uses defaults)
-styles.PushScrollbar()
-ImGui.BeginChild("scroll", 0, 200)
--- scrollable content
-ImGui.EndChild()
-styles.PopScrollbar()
-
--- Customized
-styles.PushScrollbar({ size = 5, rounding = 4, grab = { 0, 1, 0.7, 0.4 } })
--- scrollable content
-styles.PopScrollbar()
-```
+Themed scrollbar with transparent track and styled thumb.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -175,36 +197,17 @@ styles.PopScrollbar()
 | hover | table | scrollbarHover | Thumb hover color |
 | active | table | scrollbarActive | Thumb drag color |
 
-Default colors: transparent background, light blue-white thumb (0.8, 0.8, 1.0) at increasing opacity for rest/hover/active.
-
 ### External Window Styles
 
 `PushExternalWindow(overrideStyling, disableScrollbar)` / `PopExternalWindow(varCount, colorCount)`
 
-Push/pop style overrides for externally managed windows. Used internally by `core.updateExternalWindows()` to apply scrollbar styling or hide scrollbars on all managed windows.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| overrideStyling | boolean | Apply WindowUtils scrollbar styling (size, rounding, colors) |
-| disableScrollbar | boolean | Set scrollbar size to 0 (hides scrollbars entirely) |
+Push/pop style overrides for externally managed windows.
 
 **Returns (Push):** `number, number` - varCount, colorCount (pass both to Pop)
-
-```lua
-local vars, colors = styles.PushExternalWindow(true, false)
--- render managed windows
-styles.PopExternalWindow(vars, colors)
-```
-
-When `disableScrollbar` is true, only scrollbar size is pushed (1 var). When `overrideStyling` is true, scrollbar size, rounding, and 4 colors are pushed. When both are false, nothing is pushed.
 
 ### `ToColor(c)`
 
 Convert a `{r, g, b, a}` table to an ImGui U32 color value.
-
-```lua
-local u32 = styles.ToColor({1, 0, 0, 1})  -- red
-```
 
 ## Spacing Defaults
 
@@ -216,5 +219,3 @@ styles.spacing = {
     itemSpacingY = 8
 }
 ```
-
-Used by the padded button variants. Modify these before pushing padded styles to change spacing globally.

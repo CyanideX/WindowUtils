@@ -1,5 +1,5 @@
 ------------------------------------------------------
--- WindowUtils - UI Module
+-- WindowUtils - UI
 -- Settings window using library components
 ------------------------------------------------------
 

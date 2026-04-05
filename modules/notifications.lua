@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Notifications Module
--- Toast notification queue rendered at screen edge
+-- WindowUtils - Notifications
+-- Toast notification queue
 ------------------------------------------------------
 
 local styles = require("modules/styles")

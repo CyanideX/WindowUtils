@@ -1,6 +1,6 @@
-# Expand  - WindowUtils Window Expansion
+# Expand
 
-Automatic window resizing for toggle panels. When a panel opens, the window grows to accommodate it; when it closes, the window shrinks back. Supports three sizing modes, drag-to-resize, constraint animation, and position anchoring.
+Automatic window resizing for toggle panels. When a panel opens, the window grows; when it closes, the window shrinks. Supports three sizing modes, drag-to-resize, constraint animation, and position anchoring.
 
 ## Architecture
 

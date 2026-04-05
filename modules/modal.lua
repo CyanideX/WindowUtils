@@ -1,7 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Modal Module
--- Centered popup system with button configuration
--- and convenience functions
+-- WindowUtils - Modal
+-- Centered popup dialogs
 ------------------------------------------------------
 
 local settings = require("core/settings")

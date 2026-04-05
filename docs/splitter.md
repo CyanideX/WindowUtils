@@ -1,6 +1,6 @@
-# Splitter  - WindowUtils Panel Dividers
+# Splitter
 
-Draggable dividers for two-panel, multi-panel, and collapsible toggle layouts with visual feedback and animated transitions.
+Draggable dividers for two-panel, multi-panel, and collapsible toggle layouts.
 
 ## Quick Start
 

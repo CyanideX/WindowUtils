@@ -1,9 +1,10 @@
 ------------------------------------------------------
--- WindowUtils - Utils Module
+-- WindowUtils - Utils
 -- Shared utility functions
 ------------------------------------------------------
-
--- See docs/utils.md "Reusable Table Convention" for the full pattern.
+-- See docs/utils.md "Reusable Table Convention"
+-- for the full pattern.
+------------------------------------------------------
 
 local utils = {}
 

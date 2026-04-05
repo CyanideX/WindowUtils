@@ -1,5 +1,7 @@
--- expand.lua - Window Expansion Manager
--- Manages window resizing for expand-mode toggle panels. See docs/expand.md for architecture.
+------------------------------------------------------
+-- WindowUtils - Expand
+-- Window resizing for toggle panels
+------------------------------------------------------
 
 local core = require("core/core")
 local controls = require("modules/controls")

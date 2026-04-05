@@ -1,7 +1,7 @@
 ------------------------------------------------------
 -- WindowUtils - UI Definitions
 -- Setting metadata for search, icons, ranges, tooltips
--- Initialized after IconGlyphs is available
+------------------------------------------------------
 ------------------------------------------------------
 
 local settings = require("core/settings")

@@ -1,6 +1,6 @@
-# Modal - WindowUtils Popup Dialogs
+# Modal
 
-Centered modal popups with percent-based sizing, button configuration, hold-to-confirm support, and a styled variant with panel backgrounds.
+Centered modal popups with percent-based sizing, button configuration, hold-to-confirm, and a styled variant.
 
 ## Quick Start
 

@@ -1,5 +1,5 @@
 ------------------------------------------------------
--- WindowUtils - Effects Module
+-- WindowUtils - Effects
 -- Blur, dim background, and grid visualization
 ------------------------------------------------------
 

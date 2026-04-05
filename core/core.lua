@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Core Module
--- Window state management, grid snapping, and animations
+-- WindowUtils - Core
+-- Window state management, grid snapping, animations
 ------------------------------------------------------
 
 local settings = require("core/settings")

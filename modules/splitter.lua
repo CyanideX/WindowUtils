@@ -1,6 +1,8 @@
 ------------------------------------------------------
--- WindowUtils - Splitter Module
--- Draggable panel dividers for two-panel layouts
+-- WindowUtils - Splitter
+-- Draggable panel dividers and toggle layouts
+------------------------------------------------------
+-- Thank you to KeanuWheeze for the guidance
 ------------------------------------------------------
 
 local styles = require("modules/styles")

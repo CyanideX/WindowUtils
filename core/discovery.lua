@@ -1,5 +1,5 @@
 ------------------------------------------------------
--- WindowUtils - Discovery Module
+-- WindowUtils - Discovery
 -- Dynamic window discovery via RedCetWM plugin
 ------------------------------------------------------
 

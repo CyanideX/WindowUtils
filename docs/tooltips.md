@@ -1,4 +1,4 @@
-# Tooltips  - WindowUtils Tooltip Helpers
+# Tooltips
 
 Hover tooltips for ImGui elements with styling variants, keybind hints, and multi-line support.
 

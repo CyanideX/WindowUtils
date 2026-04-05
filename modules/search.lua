@@ -1,7 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Search Module
--- Reusable search state manager with multi-word
--- matching, caching, and UI helpers
+-- WindowUtils - Search
+-- Multi-word search with caching and UI helpers
 ------------------------------------------------------
 
 local settings = require("core/settings")

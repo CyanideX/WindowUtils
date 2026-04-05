@@ -1,9 +1,8 @@
 ------------------------------------------------------
--- WindowUtils - Controls Module
--- Universal ImGui control helpers for CET mods
+-- WindowUtils - Controls
+-- ImGui control helpers for CET mods
 ------------------------------------------------------
---
--- PUBLIC API (what mod authors should call):
+-- PUBLIC API:
 --   controls.ColWidth(cols, gap, hasIcon)
 --   controls.IconButton(icon, visible)
 --   controls.Button(label, style, width, height)
@@ -32,12 +31,8 @@
 --   controls.ButtonRow(defs, opts)
 --   controls.bind(data, defaults, onSave, bindOpts) / unbind(ctx)
 --   controls.PanelGroup(id, opts)
---
--- INTERNAL (used by the above, not intended for direct use):
---   cacheFrameState, iconPrefix, calcControlWidth, computeElementWidths,
---   renderDragRow, getDragSpeed, measureButtonDefs, bindControl,
---   bindDispatch, bindMethods
---
+------------------------------------------------------
+-- See controls.md docs for more information
 ------------------------------------------------------
 
 local styles = require("modules/styles")

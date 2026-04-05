@@ -1,7 +1,7 @@
---------------------------------------------------------
--- WindowUtils - External API Module
--- Interface for other mods to control WindowUtils
---------------------------------------------------------
+------------------------------------------------------
+-- WindowUtils - API
+-- Public interface for other mods
+------------------------------------------------------
 
 local settings = require("core/settings")
 local core = require("core/core")

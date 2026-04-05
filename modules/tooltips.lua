@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Tooltips Module
--- Universal tooltip utilities for CET mods
+-- WindowUtils - Tooltips
+-- Tooltip utilities for CET mods
 ------------------------------------------------------
 
 local settings = require("core/settings")

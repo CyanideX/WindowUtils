@@ -1,4 +1,4 @@
-# Notifications  - WindowUtils Toast Notifications
+# Notifications
 
 Screen-edge toast notifications with level-based styling, auto-dismiss, and fade-out.
 

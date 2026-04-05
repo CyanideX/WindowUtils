@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Tabs Module
--- Styled tab bars with badge and disabled tab support
+-- WindowUtils - Tabs
+-- Styled tab bars with badges and disabled support
 ------------------------------------------------------
 
 local styles = require("modules/styles")

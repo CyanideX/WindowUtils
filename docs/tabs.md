@@ -1,4 +1,4 @@
-# Tabs  - WindowUtils Tab Bars
+# Tabs
 
 Styled tab bars with badge indicators, disabled tabs, and programmatic selection.
 

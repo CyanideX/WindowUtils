@@ -1,6 +1,6 @@
-# Search - WindowUtils Settings Filter
+# Search
 
-Search/filter system that dims non-matching controls when a query is active. Integrates with the bind system so controls handle dimming automatically.
+Search/filter system that dims non-matching controls when a query is active.
 
 ## Quick Start
 

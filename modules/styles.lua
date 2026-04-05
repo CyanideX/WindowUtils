@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Styles Module
--- Pure push/pop ImGui style pairs for CET mods
+-- WindowUtils - Styles
+-- Push/pop ImGui style pairs for CET mods
 ------------------------------------------------------
 
 local styles = {}

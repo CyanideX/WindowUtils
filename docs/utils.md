@@ -1,6 +1,6 @@
-# Utils  - WindowUtils Shared Utilities
+# Utils
 
-Low-level helper functions used across WindowUtils modules. Available for direct use in mods that need icon resolution, text truncation, or size parsing.
+Low-level helper functions used across WindowUtils modules.
 
 ## Quick Start
 
@@ -86,6 +86,12 @@ Check if either Shift key is currently held.
 
 **Returns:** `boolean`
 
+### `isAltHeld()`
+
+Check if either Alt key is currently held.
+
+**Returns:** `boolean`
+
 ### `snapToIncrement(val, increment?)`
 
 Snap a value to the nearest increment.
@@ -113,6 +119,40 @@ Compute the minimum usable width for a single icon button based on live ImGui me
 **Returns:** `number`  - minimum pixel width (icon glyph + frame padding)
 
 Used internally by `Splitter.multi()` to auto-detect minimum panel widths.
+
+### `getDragSpeed(baseSpeed, multiplier?)`
+
+Compute drag speed with shift-precision applied. ImGui natively multiplies drag speed by 10x when Shift is held, so this counters that and applies a configurable multiplier.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| baseSpeed | number | - | Normal drag speed |
+| multiplier | number | 0.1 | Speed multiplier when Shift is held |
+
+**Returns:** `number` - effective drag speed for this frame
+
+### `cachedCalcTextSize(text, charWidth)`
+
+Cache `ImGui.CalcTextSize` results, invalidated when charWidth changes (font/DPI change).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| text | string | Text to measure |
+| charWidth | number | Current character width for cache invalidation |
+
+**Returns:** `number` - pixel width of text
+
+### `cachedTruncateText(label, innerWidth, charWidth)`
+
+Cache truncated text results, invalidated when charWidth changes.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| label | string | Text to truncate |
+| innerWidth | number | Available pixel width |
+| charWidth | number | Current character width for cache invalidation |
+
+**Returns:** `string, boolean` - truncated text, whether truncation occurred
 
 
 ## Reusable Table Convention

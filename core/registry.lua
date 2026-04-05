@@ -1,6 +1,6 @@
 ------------------------------------------------------
--- WindowUtils - Registry Module
--- Window metadata registry for pOpen/close-button tracking
+-- WindowUtils - Registry
+-- Window metadata for pOpen/close-button tracking
 ------------------------------------------------------
 
 local registry = {}

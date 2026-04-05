@@ -1,4 +1,4 @@
-# DragDrop  - WindowUtils List Reordering
+# DragDrop
 
 Drag-and-drop reordering for ImGui lists with visual feedback and drop indicators.
 

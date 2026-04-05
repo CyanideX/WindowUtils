@@ -1,6 +1,6 @@
-# Lists - WindowUtils Scrollable List Container
+# Lists
 
-Scrollable list rendering with per-item callbacks, active-index tracking with delayed unhighlight, disabled styling for non-active items, auto-scroll, clipper optimization, and optional drag-drop reorder.
+Scrollable list rendering with per-item callbacks, active-index tracking, disabled styling, auto-scroll, clipper optimization, and drag-drop reorder.
 
 ## Quick Start
 
