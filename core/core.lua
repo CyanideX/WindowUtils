@@ -629,6 +629,34 @@ function core.update(windowName, options)
     -- Resolve settings with constraint animation bypass
     local constraintAnimActive = core.isConstraintAnimatingForWindow(windowName)
 
+    -- Sweep stale constraint animations that were never driven by updateConstraintAnimation.
+    -- Without this, consumers that skip getExpandConstraint leave entries in
+    -- constraintAnimByWindow forever, permanently disabling grid snap.
+    if constraintAnimActive then
+        local byWindow = constraintAnimByWindow[windowName]
+        if byWindow then
+            local now = os.clock()
+            for property in pairs(byWindow) do
+                local anim = constraintAnimations[property]
+                if anim and anim.active and (now - anim.startTime) >= anim.duration then
+                    anim.current = anim.target
+                    anim.active = false
+                    anim.snapPending = true
+
+                    byWindow[property] = nil
+                    if not snapPendingByWindow[windowName] then
+                        snapPendingByWindow[windowName] = {}
+                    end
+                    snapPendingByWindow[windowName][property] = true
+                end
+            end
+            if not next(byWindow) then
+                constraintAnimByWindow[windowName] = nil
+            end
+            constraintAnimActive = core.isConstraintAnimatingForWindow(windowName)
+        end
+    end
+
     local useGrid = options.gridEnabled
     if useGrid == nil then
         useGrid = settings.getConfig(windowName, "gridEnabled")
