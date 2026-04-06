@@ -524,9 +524,12 @@ function expand.applyWindowSize(windowName)
 
     captureBase(base, panels, curW, curH, totalPanelW, totalPanelH)
 
-    -- Persist base dimensions so we can override ImGui .ini on reload
-    -- when panels don't auto-restore
-    core.saveWindowBase(windowName, base.w, base.h)
+    -- Persist base dimensions when they change (used to override ImGui .ini on reload when panels don't auto-restore)
+    if base.w ~= base._lastSavedW or base.h ~= base._lastSavedH then
+        core.saveWindowBase(windowName, base.w, base.h)
+        base._lastSavedW = base.w
+        base._lastSavedH = base.h
+    end
 
     local effW, effH = computeEffectiveBase(base, panels)
     local shouldResize = determineResize(panels)
