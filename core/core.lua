@@ -222,6 +222,11 @@ end
 ---@param maxH number Raw maximum height in pixels
 ---@param windowName? string Window name for grid config lookup
 function core.setNextWindowSizeConstraints(minW, minH, maxW, maxH, windowName)
+    -- On session start, override ImGui .ini size if expand panels won't auto-restore
+    if windowName then
+        core.applySessionRestore(windowName)
+    end
+
     -- Bypass grid alignment during constraint animation for smooth interpolation
     if windowName and core.isConstraintAnimatingForWindow(windowName) then
         ImGui.SetNextWindowSizeConstraints(minW, minH, maxW, maxH)
@@ -1590,6 +1595,126 @@ function core.saveWindowCache()
     if not file then return end
     file:write(content)
     file:close()
+end
+
+--------------------------------------------------------------------------------
+-- Panel State Persistence
+--------------------------------------------------------------------------------
+
+--- Save a toggle panel's open/closed state into the window cache.
+---@param windowName string The window this panel belongs to
+---@param panelId string The panel identifier
+---@param isOpen boolean Current open state
+---@param persist string|boolean Persist mode: "auto", "manual", true, or false
+---@param dragSize number|nil Current flex drag size (nil if not dragged)
+function core.savePanelState(windowName, panelId, isOpen, persist, dragSize)
+    if not persist or persist == false then return end
+    local entry = windowCache[windowName]
+    if not entry then
+        entry = {}
+        windowCache[windowName] = entry
+    end
+    if not entry.panels then
+        entry.panels = {}
+    end
+    local mode = (persist == true) and "auto" or persist
+    entry.panels[panelId] = { wasOpen = isOpen, persist = mode, dragSize = dragSize }
+end
+
+--- Load a toggle panel's saved state from the window cache.
+--- Returns the saved isOpen value for "auto" persist mode, nil otherwise.
+---@param windowName string The window this panel belongs to
+---@param panelId string The panel identifier
+---@return boolean|nil savedOpen The saved open state, or nil if not found/not auto
+---@return number|nil dragSize The saved flex drag size, or nil
+function core.loadPanelState(windowName, panelId)
+    local entry = windowCache[windowName]
+    if not entry or not entry.panels then return nil, nil end
+    local panel = entry.panels[panelId]
+    if not panel then return nil, nil end
+    if panel.persist == "auto" then
+        return panel.wasOpen, panel.dragSize
+    end
+    return nil, nil
+end
+
+--- Query a panel's last saved open state regardless of persist mode.
+--- For mod authors using "manual" persist who want to check what the user had.
+---@param windowName string The window this panel belongs to
+---@param panelId string The panel identifier
+---@return boolean|nil wasOpen The saved open state, or nil if not found
+---@return number|nil dragSize The saved flex drag size, or nil
+function core.getSavedPanelState(windowName, panelId)
+    local entry = windowCache[windowName]
+    if not entry or not entry.panels then return nil, nil end
+    local panel = entry.panels[panelId]
+    if not panel then return nil, nil end
+    return panel.wasOpen, panel.dragSize
+end
+
+--- Save the base (collapsed) window dimensions into the cache.
+--- Used to override ImGui .ini on reload when panels don't auto-restore.
+---@param windowName string The window name
+---@param baseW number Base width without expand panels
+---@param baseH number Base height without expand panels
+function core.saveWindowBase(windowName, baseW, baseH)
+    local entry = windowCache[windowName]
+    if not entry then
+        entry = {}
+        windowCache[windowName] = entry
+    end
+    entry.baseWidth = baseW
+    entry.baseHeight = baseH
+end
+
+--- Get the cached base (collapsed) window dimensions.
+---@param windowName string The window name
+---@return number|nil baseW, number|nil baseH
+function core.getWindowCacheBase(windowName)
+    local entry = windowCache[windowName]
+    if not entry then return nil, nil end
+    return entry.baseWidth, entry.baseHeight
+end
+
+--- Check if any panel on a window will auto-restore to open.
+---@param windowName string The window name
+---@return boolean anyAutoOpen True if at least one panel will restore open
+function core.hasAutoRestorePanels(windowName)
+    local entry = windowCache[windowName]
+    if not entry or not entry.panels then return false end
+    for _, panel in pairs(entry.panels) do
+        if panel.persist == "auto" and panel.wasOpen then
+            return true
+        end
+    end
+    return false
+end
+
+--------------------------------------------------------------------------------
+-- Session Restore
+--------------------------------------------------------------------------------
+
+-- Tracks which windows have already had their session restore applied (once per session)
+local sessionRestored = {}
+
+--- On the first frame of a session, override ImGui .ini window size with the
+--- cached base dimensions if no expand panels will auto-restore to open.
+--- This prevents the glitch where the window appears at expanded size but
+--- all panels are collapsed.
+--- Called from setNextWindowSizeConstraints (before Begin).
+---@param windowName string The window name
+function core.applySessionRestore(windowName)
+    if sessionRestored[windowName] then return end
+    sessionRestored[windowName] = true
+
+    -- If any panel will auto-restore open, the expanded .ini size is correct
+    if core.hasAutoRestorePanels(windowName) then return end
+
+    -- No panels auto-restoring: override with base (collapsed) size
+    local baseW, baseH = core.getWindowCacheBase(windowName)
+    if baseW and baseH then
+        ImGui.SetNextWindowSize(baseW, baseH, ImGuiCond.Always)
+    end
 end
 
 --------------------------------------------------------------------------------

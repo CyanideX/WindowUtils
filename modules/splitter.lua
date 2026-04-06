@@ -537,9 +537,23 @@ end
 local function getToggleState(id, opts)
     if not toggleStates[id] then
         opts = opts or {}
+
+        -- Determine initial open state: check persisted state first
+        local initialOpen = opts.defaultOpen ~= false
+        local persist = opts.persist
+        local windowName = opts.windowName
+        local restoredDragSize = nil
+        if windowName and persist then
+            local saved, savedDragSize = core.loadPanelState(windowName, id)
+            if saved ~= nil then
+                initialOpen = saved
+                restoredDragSize = savedDragSize
+            end
+        end
+
         toggleStates[id] = {
-            isOpen = opts.defaultOpen ~= false,
-            animProgress = (opts.defaultOpen ~= false) and 1.0 or 0.0,
+            isOpen = initialOpen,
+            animProgress = initialOpen and 1.0 or 0.0,
             lastTime = os.clock(),
             speed = opts.speed or COLLAPSE_SPEED,
             animate = opts.animate ~= false,
@@ -552,6 +566,9 @@ local function getToggleState(id, opts)
             toggleOnClick = opts.toggleOnClick or false,
             pressedForToggle = false,   -- toggleOnClick: tracks press-to-release cycle
             pressedOnBar = false,       -- expand: tracks press on bar for drag initiation
+            persist = persist,          -- persistence mode: "auto", "manual", true, or false/nil
+            windowName = windowName,    -- window name for persistence
+            restoredDragSize = restoredDragSize, -- flex drag size from previous session
         }
     end
     return toggleStates[id]
@@ -602,6 +619,11 @@ local function drawToggleBar(id, state, side)
             state.dragging = false
             state.expandDragStart = nil
             expand.commitDrag(state.expandId)
+            -- Persist the new drag size after user finishes resizing
+            if state.persist and state.windowName then
+                local ds = expand.getTargetSize(state.expandId)
+                core.savePanelState(state.windowName, id, state.isOpen, state.persist, ds)
+            end
         end
 
         if state.dragging then
@@ -646,6 +668,10 @@ local function drawToggleBar(id, state, side)
                 state.animProgress = state.isOpen and 1.0 or 0.0
             end
             expand.onToggle(state.expandId, state.isOpen)
+            if state.persist and state.windowName then
+                local ds = expand.getTargetSize(state.expandId)
+                core.savePanelState(state.windowName, id, state.isOpen, state.persist, ds)
+            end
         end
 
         -- Cursor
@@ -664,6 +690,9 @@ local function drawToggleBar(id, state, side)
             state.isOpen = not state.isOpen
             if not state.animate then
                 state.animProgress = state.isOpen and 1.0 or 0.0
+            end
+            if state.persist and state.windowName then
+                core.savePanelState(state.windowName, id, state.isOpen, state.persist, nil)
             end
         end
 
@@ -1122,6 +1151,7 @@ function splitter.toggle(id, panels, opts)
             expandDuration = opts.expandDuration,
             expandEasing = opts.expandEasing,
             isOpen = state.isOpen,
+            restoredDragSize = state.restoredDragSize,
         })
         local prevMode = state.sizeMode
         state.sizeMode = opts.sizeMode or "fixed"
@@ -1258,6 +1288,10 @@ function splitter.setToggle(id, open)
         if state.expandId then
             expand.onToggle(state.expandId, open)
         end
+        if state.persist and state.windowName then
+            local ds = state.expandId and expand.getTargetSize(state.expandId) or nil
+            core.savePanelState(state.windowName, id, open, state.persist, ds)
+        end
     end
 end
 
@@ -1267,6 +1301,16 @@ end
 function splitter.getToggle(id)
     local state = toggleStates[id]
     return state and state.isOpen or nil
+end
+
+--- Query a panel's last saved open state from the window cache.
+--- Works with any persist mode ("auto" or "manual"). Returns the state
+--- that was saved when the game last closed, regardless of current state.
+---@param windowName string The window name
+---@param panelId string The panel identifier
+---@return boolean|nil wasOpen The saved open state, or nil if not found
+function splitter.getSavedToggle(windowName, panelId)
+    return core.getSavedPanelState(windowName, panelId)
 end
 
 --- Set toggle animation enabled/disabled

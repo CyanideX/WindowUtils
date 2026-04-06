@@ -52,7 +52,7 @@ function expand.init(id, opts)
             currentAnimating = false,
             currentDragging  = false,
             -- Drag support
-            dragSize         = nil,     -- flex mode: panel size set by drag (overrides panelSizePx)
+            dragSize         = opts.restoredDragSize or nil,
             dragOffset       = nil,     -- fixed mode: additive offset to baseW/baseH during drag
             panelDragStart   = nil,     -- flex mode: panel size at drag start
             sizeMode         = opts.sizeMode or "fixed",
@@ -78,7 +78,7 @@ function expand.init(id, opts)
         local s = expandStates[id]
         if opts.isOpen and s.normalPct then
             local dim = s.cachedDisplayDim
-            local effectiveSize = s.panelSizePx
+            local effectiveSize = s.dragSize or s.panelSizePx
             if dim and dim > 0 and effectiveSize then
                 local deltaPct = (effectiveSize / dim) * 100
                 core.startConstraintAnimation(opts.windowName, s.constraintProp, s.normalPct + deltaPct, {
@@ -523,6 +523,11 @@ function expand.applyWindowSize(windowName)
     end
 
     captureBase(base, panels, curW, curH, totalPanelW, totalPanelH)
+
+    -- Persist base dimensions so we can override ImGui .ini on reload
+    -- when panels don't auto-restore
+    core.saveWindowBase(windowName, base.w, base.h)
+
     local effW, effH = computeEffectiveBase(base, panels)
     local shouldResize = determineResize(panels)
     local targetW, targetH = applyResize(windowName, effW, effH, totalPanelW, totalPanelH, base, shouldResize)
