@@ -128,8 +128,19 @@ function tabs.bar(id, tabDefs, opts)
 
             if open then
                 state.selected = i
+
                 if tab.content then
-                    tab.content()
+                    if tab.noScroll then
+                        -- Fill available space with no scrollbar for tabs that manage their own layout
+                        local cw, ch = ImGui.GetContentRegionAvail()
+                        local flags = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+                        if ImGui.BeginChild("##" .. id .. "_noscroll_" .. i, cw, ch, false, flags) then
+                            tab.content()
+                        end
+                        ImGui.EndChild()
+                    else
+                        tab.content()
+                    end
                 end
 
                 ImGui.EndTabItem()

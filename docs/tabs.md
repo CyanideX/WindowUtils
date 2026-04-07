@@ -43,6 +43,7 @@ Each entry in `tabDefs` is a table:
 | badge | boolean\|number\|nil | nil | Badge indicator (see below) |
 | disabled | boolean | false | Grey out and prevent selection |
 | tooltip | string\|nil | nil | Tooltip on tab hover |
+| noScroll | boolean | false | Wrap content in a no-scroll child that fills available space (for tabs managing their own layout with splitters/panels) |
 
 #### Badges
 

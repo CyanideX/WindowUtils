@@ -231,4 +231,53 @@ function search.SearchBar(state, opts)
     return state:getQuery()
 end
 
+--- Render a search bar with placeholder text instead of an icon.
+--- Uses InputTextWithHint for inline placeholder that disappears on focus.
+--- Right-click the input to clear. No icon prefix, full-width input.
+---@param state table|nil SearchState (no-op if nil)
+---@param opts? table {cols?: number, placeholder?: string, maxLength?: number, clearIcon?: boolean}
+---@return string query Current query text
+function search.SearchBarPlain(state, opts)
+    if not state then return "" end
+    opts = opts or {}
+    local placeholder = opts.placeholder or "Search..."
+    local maxLength = opts.maxLength or 256
+    local hasQuery = not state:isEmpty()
+
+    -- Optional clear icon when query is active
+    local hasIcon = false
+    if opts.clearIcon and hasQuery then
+        local ic = IconGlyphs or {}
+        local icon = ic.Close or "X"
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
+        local clicked = controls.IconButton(icon, true)
+        if clicked then state:clear() end
+        tooltips.Show("Clear search")
+        ImGui.SameLine()
+        ImGui.PopStyleVar()
+        hasIcon = true
+    end
+
+    -- Input field with hint
+    local w = controls.ColWidth(opts.cols or 12, nil, hasIcon)
+    ImGui.SetNextItemWidth(w)
+    styles.PushOutlined()
+    local newText, changed = ImGui.InputTextWithHint(
+        "##search_" .. state.id, placeholder, state:getQuery(), maxLength
+    )
+    styles.PopOutlined()
+
+    -- Right-click to clear
+    if ImGui.IsItemClicked(1) then
+        state:clear()
+        newText = ""
+        changed = true
+    end
+
+    if changed then
+        state:setQuery(newText)
+    end
+    return state:getQuery()
+end
+
 return search

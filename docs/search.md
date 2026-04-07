@@ -166,6 +166,35 @@ registerForEvent("onInit", function()
 end)
 ```
 
+## Plain Search Bar (Placeholder Text)
+
+A variant without the magnifying glass icon. Uses `InputTextWithHint` to show placeholder text inside the input that disappears when the user starts typing.
+
+```lua
+search.SearchBarPlain(searchState, {
+    cols = 12,
+    placeholder = "Search vehicles...",
+})
+```
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| cols | number | 12 | Column width (1-12 grid) |
+| placeholder | string | "Search..." | Hint text shown when input is empty |
+| maxLength | number | 256 | Maximum input length |
+| clearIcon | boolean | false | Show a clear (X) icon when query is active |
+
+With `clearIcon = true`, a close button appears to the left of the input when the query is non-empty:
+
+```lua
+search.SearchBarPlain(searchState, {
+    placeholder = "Filter items...",
+    clearIcon = true,
+})
+```
+
+Both variants drive the same `SearchState`, so all dimming, caching, and category matching work identically.
+
 ## API Reference
 
 ### `search.new(id, opts?)`
@@ -183,7 +212,11 @@ Retrieve an existing search state by id, or nil.
 
 ### `search.SearchBar(state, opts?)`
 
-Render a search input that drives a search state. Returns the current query string.
+Render a search input with magnifying glass icon that drives a search state. Returns the current query string.
+
+### `search.SearchBarPlain(state, opts?)`
+
+Render a search input with placeholder hint text (no icon) that drives a search state. Returns the current query string. Supports optional `clearIcon` to show a close button when query is active.
 
 ### `state:matches(key, terms)`
 

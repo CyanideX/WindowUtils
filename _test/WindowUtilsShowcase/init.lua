@@ -1972,6 +1972,8 @@ end
 
 local searchDemoState = nil
 local searchDemoCtx = nil
+local searchPlainState = nil
+local searchPlainClearState = nil
 
 local function drawSearchDemo()
     local controls = wu.Controls
@@ -1984,6 +1986,8 @@ local function drawSearchDemo()
             search = searchDemoState,
             defs = searchDemoDefs,
         })
+        searchPlainState = search.new("showcase_search_plain")
+        searchPlainClearState = search.new("showcase_search_plain_clear")
     end
 
     local c = searchDemoCtx
@@ -1992,6 +1996,7 @@ local function drawSearchDemo()
     controls.TextMuted("No beginDim/endDim needed. Controls dim automatically.")
     ImGui.Dummy(0, 4)
 
+    controls.SectionHeader("SearchBar (icon variant)", 0, 4)
     search.SearchBar(searchDemoState, { cols = 12 })
     ImGui.Dummy(0, 4)
 
@@ -2023,6 +2028,28 @@ local function drawSearchDemo()
     if controls.Button("  Clear Search  ", "inactive") then
         searchDemoState:clear()
     end
+
+    -- SearchBarPlain demos
+    ImGui.Dummy(0, 12)
+    controls.Separator(0, 4)
+    controls.SectionHeader("SearchBarPlain (placeholder variant)", 0, 4)
+    controls.TextMuted("No icon. Placeholder text shown inside the input when empty.")
+
+    ImGui.Dummy(0, 4)
+    controls.TextMuted("Default placeholder:")
+    search.SearchBarPlain(searchPlainState, { cols = 12 })
+    ImGui.Dummy(0, 2)
+    controls.TextMuted("Query: \"" .. searchPlainState:getQuery() .. "\"")
+
+    ImGui.Dummy(0, 8)
+    controls.TextMuted("Custom placeholder + clear icon:")
+    search.SearchBarPlain(searchPlainClearState, {
+        cols = 12,
+        placeholder = "Filter vehicles...",
+        clearIcon = true,
+    })
+    ImGui.Dummy(0, 2)
+    controls.TextMuted("Query: \"" .. searchPlainClearState:getQuery() .. "\"")
 end
 
 --------------------------------------------------------------------------------
@@ -2791,10 +2818,6 @@ registerForEvent("onDraw", function()
         wu.Controls.TextMuted("See the Tooltips tab for API usage. Right-click bound controls to reset.")
         ImGui.Dummy(0, 4)
 
-        -- Wrap tabs in NoScrollbar child to prevent main window scrollbar flash
-        local cw, ch = ImGui.GetContentRegionAvail()
-        local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
-        ImGui.BeginChild("##showcase_content", cw, ch, false, noScroll)
         local controlsBadge = nil
         if notifBadgeMode == "dot" and notifBadgeCount > 0 then
             controlsBadge = true
@@ -2803,28 +2826,27 @@ registerForEvent("onDraw", function()
         end
 
         local selected, changed = tabs.bar("##showcase_tabs", {
-            { label = "Controls",    content = drawControlsDemo, badge = controlsBadge },
+            { label = "Controls",    content = drawControlsDemo, badge = controlsBadge, noScroll = true },
             { label = "Drag & Drop", content = drawDragDropDemo },
-            { label = "Splitters",   content = drawSplitterDemo },
-            { label = "Multi-Split", content = drawMultiSplitterDemo },
-            { label = "Toggle",      content = drawTogglePanelDemo },
-            { label = "Edge Toggle", content = drawEdgeToggleDemo },
-            { label = "Expand",      content = drawExpandDemo },
-            { label = "Expand (V)", content = drawExpandVertDemo },
-            { label = "Telemetry",  content = drawTelemetryDemo },
+            { label = "Splitters",   content = drawSplitterDemo, noScroll = true },
+            { label = "Multi-Split", content = drawMultiSplitterDemo, noScroll = true },
+            { label = "Toggle",      content = drawTogglePanelDemo, noScroll = true },
+            { label = "Edge Toggle", content = drawEdgeToggleDemo, noScroll = true },
+            { label = "Expand",      content = drawExpandDemo, noScroll = true },
+            { label = "Expand (V)", content = drawExpandVertDemo, noScroll = true },
+            { label = "Telemetry",  content = drawTelemetryDemo, noScroll = true },
             { label = "Tooltips",   content = drawTooltipsDemo },
             { label = "Search",     content = drawSearchDemo },
             { label = "Modal",      content = drawModalDemo },
             { label = "Hold Multi", content = drawHoldProgressDemo },
             { label = "Lists",      content = drawListsDemo },
             { label = "Echo",       content = drawEchoDemo },
-            { label = "Colors",     content = drawColorControlsDemo },
+            { label = "Colors",     content = drawColorControlsDemo, noScroll = true },
         })
 
         if changed and selected == 1 and notifClearOnOpen then
             notifBadgeCount = 0
         end
-        ImGui.EndChild()
 
         -- Expand: drive window sizing at main window scope (after EndChild)
         wu.Expand.applyWindowSize(DEMO_WINDOW_NAME)
