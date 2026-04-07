@@ -17,7 +17,7 @@ tips.ShowDanger("This cannot be undone!")
 
 All tooltip functions check `ImGui.IsItemHovered()` internally  - call them immediately after the ImGui element they describe.
 
-> **`tooltipsEnabled` setting:** Only `Show()` and `ShowIf()` respect the global `tooltipsEnabled` setting. All other functions (`ShowAlways`, `ShowWrapped`, `ShowTitled`, `ShowColored`, `ShowMuted`, `ShowSuccess`, `ShowDanger`, `ShowWarning`, `ShowHelp`, `ShowKeybind`, `ShowWithHint`, `ShowLines`, `ShowBullets`) always display when hovered.
+> **`tooltipsEnabled` setting:** Only `Show()` and `ShowIf()` respect the global `tooltipsEnabled` setting. All other functions (`ShowAlways`, `ShowWrapped`, `ShowTitled`, `ShowColored`, `ShowMuted`, `ShowSuccess`, `ShowDanger`, `ShowWarning`, `ShowHelp`, `ShowKeybind`, `ShowWithHint`, `ShowLines`, `ShowBullets`, `ShowColor`) always display when hovered.
 
 ## Configuration
 
@@ -139,4 +139,27 @@ Tooltip with optional title and bullet points.
 ```lua
 ImGui.Button("Features")
 tips.ShowBullets("Supported modes:", {"Standard", "Night Vision", "Thermal"})
+```
+
+## Color Tooltips
+
+### `ShowColor(r, g, b, displayName, hex?)`
+
+Shows a color tooltip with a small swatch preview, display name, and optional hex code. Uses the `ifHovered()` guard pattern (only renders when the previous item is hovered).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| r | number | Red channel (0.0-1.0) |
+| g | number | Green channel (0.0-1.0) |
+| b | number | Blue channel (0.0-1.0) |
+| displayName | string | Color display name shown next to the swatch |
+| hex | string\|nil | Optional hex string shown as `#RRGGBB` below the name. Omitted if nil. |
+
+```lua
+ImGui.Button("##color_preview")
+tips.ShowColor(1.0, 0.5, 0.0, "Sunset Orange", "FF8000")
+
+-- Without hex code
+ImGui.Button("##swatch")
+tips.ShowColor(0.2, 0.6, 1.0, "Sky Blue")
 ```

@@ -157,6 +157,115 @@ local echoEditMode = true
 local echoCurveEditor = false
 local echoPendingDelete = nil
 
+-- Demo state for color controls
+local colorDemoColors = {
+    -- Warm (30)
+    { name = "Rose",           hex = "FF007F", category = "warm" },
+    { name = "Crimson",        hex = "DC143C", category = "warm" },
+    { name = "Cherry Red",     hex = "CC2244", category = "warm" },
+    { name = "Tomato",         hex = "FF6347", category = "warm" },
+    { name = "Coral Pink",     hex = "FF6B6B", category = "warm" },
+    { name = "Salmon",         hex = "FA8072", category = "warm" },
+    { name = "Peach",          hex = "FFCBA4", category = "warm" },
+    { name = "Sunset Orange",  hex = "FD9E51", category = "warm" },
+    { name = "Tangerine",      hex = "FF9966", category = "warm" },
+    { name = "Amber",          hex = "FFBF00", category = "warm" },
+    { name = "Gold",           hex = "FFD700", category = "warm" },
+    { name = "Lemon",          hex = "FFF44F", category = "warm" },
+    { name = "Scarlet",        hex = "FF2400", category = "warm" },
+    { name = "Vermilion",      hex = "E34234", category = "warm" },
+    { name = "Rust",           hex = "B7410E", category = "warm" },
+    { name = "Sienna",         hex = "A0522D", category = "warm" },
+    { name = "Terracotta",     hex = "E2725B", category = "warm" },
+    { name = "Apricot",        hex = "FBCEB1", category = "warm" },
+    { name = "Marigold",       hex = "EAA221", category = "warm" },
+    { name = "Honey",          hex = "EB9605", category = "warm" },
+    { name = "Papaya",         hex = "FFEFD5", category = "warm" },
+    { name = "Brick",          hex = "CB4154", category = "warm" },
+    { name = "Burgundy",       hex = "800020", category = "warm" },
+    { name = "Maroon",         hex = "800000", category = "warm" },
+    { name = "Wine",           hex = "722F37", category = "warm" },
+    { name = "Blush",          hex = "DE5D83", category = "warm" },
+    { name = "Flamingo",       hex = "FC8EAC", category = "warm" },
+    { name = "Melon",          hex = "FEBAAD", category = "warm" },
+    { name = "Pumpkin",        hex = "FF7518", category = "warm" },
+    { name = "Saffron",        hex = "F4C430", category = "warm" },
+    -- Cool (30)
+    { name = "Lime",           hex = "32CD32", category = "cool" },
+    { name = "Forest Green",   hex = "228B22", category = "cool" },
+    { name = "Emerald",        hex = "50C878", category = "cool" },
+    { name = "Mint",           hex = "98FF98", category = "cool" },
+    { name = "Teal",           hex = "008080", category = "cool" },
+    { name = "Cyan",           hex = "00FFFF", category = "cool" },
+    { name = "Sky Blue",       hex = "87CEEB", category = "cool" },
+    { name = "Ocean Blue",     hex = "2266AA", category = "cool" },
+    { name = "Royal Blue",     hex = "4169E1", category = "cool" },
+    { name = "Navy",           hex = "000080", category = "cool" },
+    { name = "Indigo",         hex = "4B0082", category = "cool" },
+    { name = "Violet",         hex = "8B00FF", category = "cool" },
+    { name = "Purple",         hex = "800080", category = "cool" },
+    { name = "Magenta",        hex = "FF00FF", category = "cool" },
+    { name = "Lavender",       hex = "E6E6FA", category = "cool" },
+    { name = "Jade",           hex = "00A86B", category = "cool" },
+    { name = "Sage",           hex = "BCB88A", category = "cool" },
+    { name = "Pine",           hex = "01796F", category = "cool" },
+    { name = "Seafoam",        hex = "93E9BE", category = "cool" },
+    { name = "Aquamarine",     hex = "7FFFD4", category = "cool" },
+    { name = "Turquoise",      hex = "40E0D0", category = "cool" },
+    { name = "Cerulean",       hex = "007BA7", category = "cool" },
+    { name = "Cobalt",         hex = "0047AB", category = "cool" },
+    { name = "Sapphire",       hex = "0F52BA", category = "cool" },
+    { name = "Periwinkle",     hex = "CCCCFF", category = "cool" },
+    { name = "Amethyst",       hex = "9966CC", category = "cool" },
+    { name = "Plum",           hex = "8E4585", category = "cool" },
+    { name = "Orchid",         hex = "DA70D6", category = "cool" },
+    { name = "Fuchsia",        hex = "FF00FF", category = "cool" },
+    { name = "Mauve",          hex = "E0B0FF", category = "cool" },
+    -- Neutral (30)
+    { name = "White",          hex = "FFFFFF", category = "neutral" },
+    { name = "Snow",           hex = "FFFAFA", category = "neutral" },
+    { name = "Ivory",          hex = "FFFFF0", category = "neutral" },
+    { name = "Linen",          hex = "FAF0E6", category = "neutral" },
+    { name = "Cream",          hex = "FFFDD0", category = "neutral" },
+    { name = "Eggshell",       hex = "F0EAD6", category = "neutral" },
+    { name = "Bone",           hex = "E3DAC9", category = "neutral" },
+    { name = "Khaki",          hex = "C3B091", category = "neutral" },
+    { name = "Tan",            hex = "D2B48C", category = "neutral" },
+    { name = "Taupe",          hex = "483C32", category = "neutral" },
+    { name = "Sand",           hex = "C2B280", category = "neutral" },
+    { name = "Beige",          hex = "F5F5DC", category = "neutral" },
+    { name = "Platinum",       hex = "E5E4E2", category = "neutral" },
+    { name = "Silver",         hex = "C0C0C0", category = "neutral" },
+    { name = "Ash",            hex = "B2BEB5", category = "neutral" },
+    { name = "Pewter",         hex = "8BA8B7", category = "neutral" },
+    { name = "Slate Grey",     hex = "708090", category = "neutral" },
+    { name = "Steel",          hex = "71797E", category = "neutral" },
+    { name = "Graphite",       hex = "53565A", category = "neutral" },
+    { name = "Gunmetal",       hex = "2C3539", category = "neutral" },
+    { name = "Charcoal",       hex = "333333", category = "neutral" },
+    { name = "Jet",            hex = "343434", category = "neutral" },
+    { name = "Onyx",           hex = "0F0F0F", category = "neutral" },
+    { name = "Obsidian",       hex = "1B1B1B", category = "neutral" },
+    { name = "Smoke",          hex = "738276", category = "neutral" },
+    { name = "Fog",            hex = "D6D2C4", category = "neutral" },
+    { name = "Dove",           hex = "B6AFA9", category = "neutral" },
+    { name = "Mushroom",       hex = "BAA38B", category = "neutral" },
+    { name = "Greige",         hex = "C4B7A6", category = "neutral" },
+    { name = "Flint",          hex = "6F6A63", category = "neutral" },
+}
+local colorDemoDefaults = { selectedColor = "FD9E51" }
+local colorDemoState = { selectedColor = "FD9E51" }
+local colorDemoConfig = {
+    swatchSize    = 24,
+    swatchSpacing = 4,
+    borderSize    = 2.0,
+    scaleBorder   = false,
+    sortMode      = "hue",
+}
+local colorDemoGroupLimits = { warm = 30, cool = 30, neutral = 30 }
+local colorSortModes = { "none", "hue", "lightness" }
+local colorSortIndex = 2  -- default to "hue"
+
 --------------------------------------------------------------------------------
 -- Tab 1: Controls Demo
 -- Merges: standard controls, hold buttons, action buttons, button rows,
@@ -2527,6 +2636,111 @@ local function drawEchoDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 16: Color Controls Demo
+--------------------------------------------------------------------------------
+
+local function drawColorControlsDemo()
+    local controls = wu.Controls
+    local tooltips = wu.Tooltips
+    local utils = wu.Utils
+    local splitter = wu.Splitter
+
+    -- Build filtered color list based on group limits
+    local filteredColors = {}
+    local groupCounts = {}
+    for _, c in ipairs(colorDemoColors) do
+        local cat = c.category or "other"
+        groupCounts[cat] = (groupCounts[cat] or 0) + 1
+        local limit = colorDemoGroupLimits[cat] or 999
+        if groupCounts[cat] <= limit then
+            filteredColors[#filteredColors + 1] = c
+        end
+    end
+
+    local selHex = colorDemoState.selectedColor
+    local r, g, b = utils.HexToRGB(selHex)
+
+    splitter.horizontal("##color_split", function()
+        -- Left panel: standalone swatch grid only
+        if controls.BeginFillChild("color_left_scroll") then end
+
+        controls.SectionHeader("SwatchGrid", 0, 4)
+        controls.TextMuted("controls.SwatchGrid(id, colors, selectedHex, onSelect, config)")
+
+        ImGui.ColorButton("##selected_preview", r, g, b, 1)
+        tooltips.ShowColor(r, g, b, "Selected Color", selHex)
+        ImGui.SameLine()
+        ImGui.Text("Selected: #" .. (selHex or "none"))
+        ImGui.SameLine()
+        controls.TextMuted(string.format("RGB: %.2f, %.2f, %.2f", r, g, b))
+
+        ImGui.Spacing()
+
+        controls.SwatchGrid("colorDemo", filteredColors, colorDemoState.selectedColor, function(entry)
+            colorDemoState.selectedColor = entry.hex
+        end, colorDemoConfig)
+
+        controls.EndFillChild("color_left_scroll")
+    end, function()
+        -- Right panel: config, utilities, bound grid
+        if controls.BeginFillChild("color_right_scroll") then end
+
+        controls.SectionHeader("Swatch Config", 0, 4)
+
+        colorDemoConfig.swatchSize    = ImGui.SliderInt("Swatch Size##swSz", colorDemoConfig.swatchSize, 8, 64)
+        colorDemoConfig.swatchSpacing = ImGui.SliderInt("Spacing##swSpc", colorDemoConfig.swatchSpacing, 0, 16)
+        colorDemoConfig.borderSize    = ImGui.SliderFloat("Border##swBdr", colorDemoConfig.borderSize, 0.5, 8.0, "%.1f")
+        colorDemoConfig.scaleBorder   = ImGui.Checkbox("Scale Border with Size##swScBdr", colorDemoConfig.scaleBorder)
+
+        ImGui.Dummy(0, 2)
+        controls.TextMuted("Max size is always 2x swatch size.")
+
+        ImGui.Dummy(0, 4)
+        local newSortIdx
+        newSortIdx, _ = ImGui.Combo("Sort Mode##swSort", colorSortIndex - 1, colorSortModes, #colorSortModes)
+        colorSortIndex = newSortIdx + 1
+        colorDemoConfig.sortMode = colorSortModes[colorSortIndex]
+        if colorDemoConfig.sortMode == "none" then colorDemoConfig.sortMode = false end
+
+        controls.SectionHeader("Group Limits", 8, 4)
+        controls.TextMuted("Adjust how many swatches per category.")
+        ImGui.Dummy(0, 2)
+
+        local catTotals = {}
+        for _, c in ipairs(colorDemoColors) do
+            local cat = c.category or "other"
+            catTotals[cat] = (catTotals[cat] or 0) + 1
+        end
+
+        colorDemoGroupLimits.warm    = ImGui.SliderInt("Warm##grpWarm",    colorDemoGroupLimits.warm,    0, catTotals.warm or 12)
+        colorDemoGroupLimits.cool    = ImGui.SliderInt("Cool##grpCool",    colorDemoGroupLimits.cool,    0, catTotals.cool or 15)
+        colorDemoGroupLimits.neutral = ImGui.SliderInt("Neutral##grpNeut", colorDemoGroupLimits.neutral, 0, catTotals.neutral or 9)
+
+        controls.SectionHeader("Color Utilities", 8, 4)
+        controls.TextMuted("Pure conversion functions in utils.lua")
+        ImGui.Dummy(0, 2)
+
+        local demoHex = selHex or "FF8800"
+        local dr, dg, db = utils.HexToRGB(demoHex)
+        ImGui.Text("HexToRGB(\"" .. demoHex .. "\")")
+        ImGui.SameLine()
+        controls.TextMuted("= " .. string.format("%.3f, %.3f, %.3f", dr, dg, db))
+
+        local roundTrip = utils.RGBToHex(dr, dg, db)
+        ImGui.Text("RGBToHex(...)")
+        ImGui.SameLine()
+        controls.TextMuted("= \"" .. roundTrip .. "\"")
+
+        local h, s, l = utils.RGBToHSL(dr, dg, db)
+        ImGui.Text("RGBToHSL(...)")
+        ImGui.SameLine()
+        controls.TextMuted("= " .. string.format("H:%.3f S:%.3f L:%.3f", h, s, l))
+
+        controls.EndFillChild("color_right_scroll")
+    end, { defaultPct = 0.55, minPct = 0.25, maxPct = 0.8 })
+end
+
+--------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     wu = GetMod("WindowUtils")
@@ -2604,6 +2818,7 @@ registerForEvent("onDraw", function()
             { label = "Hold Multi", content = drawHoldProgressDemo },
             { label = "Lists",      content = drawListsDemo },
             { label = "Echo",       content = drawEchoDemo },
+            { label = "Colors",     content = drawColorControlsDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then

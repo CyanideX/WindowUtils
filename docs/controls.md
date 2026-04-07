@@ -487,6 +487,57 @@ Color picker with icon prefix and right-click reset.
 
 **Returns:** `table, boolean`  - new `{r,g,b,a}` color, whether changed
 
+## Swatch Grid
+
+### `SwatchGrid(id, colors, selectedHex, onSelect, config?)`
+
+Grid of colored swatch buttons with dynamic column layout, optional hue sorting, and category grouping. All pixel values are specified at 1080p baseline and scaled internally to the current display resolution.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string |  - | Unique ImGui ID for this grid instance |
+| colors | table |  - | Array of Color_Entry tables |
+| selectedHex | string\|nil | nil | Hex of the currently selected color (for highlight) |
+| onSelect | function |  - | Callback: `onSelect(entry)` called when a swatch is clicked |
+| config | table\|nil | nil | Swatch_Config overrides (merged with defaults) |
+
+Returns immediately without rendering if `colors` is nil or empty.
+
+**Color_Entry format:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| name | string | Yes | Unique identifier for this color |
+| hex | string | Yes | 6-character hex code (no `#` prefix) |
+| displayName | string | No | Tooltip label (defaults to `name`) |
+| category | string | No | Grouping key; entries with the same category are grouped with a labeled separator |
+
+**Swatch_Config options:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| swatchSize | number | 24 | Base swatch size (1080p px, scaled internally). Max is always 2x this value. |
+| swatchSpacing | number | 4 | Gap between swatches (1080p px) |
+| borderSize | number | 2 | Selection highlight border thickness (supports floats) |
+| scaleBorder | boolean | false | Scale border proportionally with swatch size (baseline: borderSize at size 24) |
+| sortMode | string\|boolean | false | Sort mode: `false`/`"none"`, `"hue"`, or `"lightness"` |
+
+Caller-provided config fields override defaults; missing fields use defaults.
+
+```lua
+local myColors = {
+    { name = "Sunset Orange", hex = "FD9E51", category = "warm" },
+    { name = "Cherry Red",    hex = "CC2244", category = "warm" },
+    { name = "Ocean Blue",    hex = "2266AA", category = "cool" },
+    { name = "Forest Green",  hex = "228844", category = "cool" },
+    { name = "Slate Grey",    hex = "778899", category = "neutral" },
+}
+
+c.SwatchGrid("myGrid", myColors, selectedHex, function(entry)
+    selectedHex = entry.hex
+end, { sortMode = "hue" })
+```
+
 ## Hold-to-Confirm Button
 
 ### `HoldButton(id, label, opts?)`
@@ -652,6 +703,7 @@ Create a bound context that auto-reads values from a data table, auto-resets on 
 | `ctx:DragIntRow` | `(icon, keys, min, max, opts?)` |
 | `ctx:Checkbox` | `(label, key, opts?)` |
 | `ctx:ColorEdit4` | `(icon, key, opts?)` |
+| `ctx:SwatchGrid` | `(key, colors, opts?)` |
 | `ctx:Combo` | `(icon, key, items, opts?)` |
 | `ctx:InputText` | `(icon, key, opts?)` |
 | `ctx:InputFloat` | `(icon, key, opts?)` |
@@ -823,6 +875,30 @@ ctx:ToggleButtonRow({
     { key = "showGrid", icon = IconGlyphs.Grid, tooltip = "Grid" },
     { key = "showGuides", icon = IconGlyphs.RulerSquare, tooltip = "Guides" },
     { key = "snapEnabled", icon = IconGlyphs.Magnet, tooltip = "Snap" },
+})
+```
+
+#### `ctx:SwatchGrid(key, colors, opts?)`
+
+Bound swatch grid. Reads `data[key]` as the selected hex, writes back on selection. Right-click resets to `defaults[key]`.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| key | string |  - | Data table key (value is a hex string) |
+| colors | table |  - | Array of Color_Entry tables |
+| opts.config | table\|nil | nil | Swatch_Config overrides |
+| opts.onChange | function\|nil | nil | Callback after selection change |
+
+```lua
+local myColors = {
+    { name = "Sunset Orange", hex = "FD9E51", category = "warm" },
+    { name = "Cherry Red",    hex = "CC2244", category = "warm" },
+    { name = "Ocean Blue",    hex = "2266AA", category = "cool" },
+}
+
+ctx:SwatchGrid("accentColor", myColors, {
+    config = { sortMode = "hue" },
+    onChange = function() refreshTheme() end,
 })
 ```
 

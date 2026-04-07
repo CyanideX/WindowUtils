@@ -246,4 +246,27 @@ function tooltips.ShowBullets(title, bullets)
     end)
 end
 
+--------------------------------------------------------------------------------
+-- Color Tooltips
+--------------------------------------------------------------------------------
+
+--- Show a color tooltip with swatch preview, display name, and optional hex code.
+---@param r number Red (0.0-1.0)
+---@param g number Green (0.0-1.0)
+---@param b number Blue (0.0-1.0)
+---@param displayName string Color display name
+---@param hex string|nil Optional hex string shown as "#RRGGBB"
+function tooltips.ShowColor(r, g, b, displayName, hex)
+    ifHovered(function()
+        ImGui.ColorButton("##tooltip_color", r, g, b, 1)
+        ImGui.SameLine()
+        ImGui.Text(displayName)
+        if hex then
+            ImGui.PushStyleColor(ImGuiCol.Text, styles.ToColor(styles.colors.greyText))
+            ImGui.Text("#" .. hex:upper())
+            ImGui.PopStyleColor()
+        end
+    end)
+end
+
 return tooltips

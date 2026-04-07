@@ -155,6 +155,61 @@ Cache truncated text results, invalidated when charWidth changes.
 **Returns:** `string, boolean` - truncated text, whether truncation occurred
 
 
+## Color Conversion
+
+Pure functions for converting between hex, RGB, and HSL color representations. All RGB and HSL values use 0.0-1.0 float ranges.
+
+### `HexToRGB(hex)`
+
+Convert a 6-character hex string to RGB floats. Accepts hex with or without a `#` prefix. Returns the fallback `0.5, 0.5, 0.5` for invalid input (nil, empty, non-string, wrong length, or non-hex characters).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| hex | string\|nil | Hex color string, e.g. `"FF8800"` or `"#FF8800"` |
+
+**Returns:** `number, number, number` - r, g, b each 0.0-1.0
+
+```lua
+local r, g, b = utils.HexToRGB("FF0000")    -- 1.0, 0.0, 0.0
+local r, g, b = utils.HexToRGB("#00FF00")   -- 0.0, 1.0, 0.0
+local r, g, b = utils.HexToRGB(nil)         -- 0.5, 0.5, 0.5 (fallback)
+```
+
+### `RGBToHex(r, g, b)`
+
+Convert RGB floats to a 6-character uppercase hex string. Inputs outside [0.0, 1.0] are clamped before conversion.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| r | number | Red channel (0.0-1.0) |
+| g | number | Green channel (0.0-1.0) |
+| b | number | Blue channel (0.0-1.0) |
+
+**Returns:** `string` - 6-character uppercase hex (e.g. `"FF8800"`)
+
+```lua
+local hex = utils.RGBToHex(1, 0, 0)         -- "FF0000"
+local hex = utils.RGBToHex(0.5, 0.5, 0.5)   -- "808080"
+```
+
+### `RGBToHSL(r, g, b)`
+
+Convert RGB floats to HSL floats. Achromatic colors (where r, g, and b are equal) return h=0, s=0.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| r | number | Red channel (0.0-1.0) |
+| g | number | Green channel (0.0-1.0) |
+| b | number | Blue channel (0.0-1.0) |
+
+**Returns:** `number, number, number` - h, s, l each 0.0-1.0
+
+```lua
+local h, s, l = utils.RGBToHSL(1, 0, 0)       -- 0.0, 1.0, 0.5 (pure red)
+local h, s, l = utils.RGBToHSL(1, 1, 1)       -- 0.0, 0.0, 1.0 (white, achromatic)
+local h, s, l = utils.RGBToHSL(0.5, 0.5, 0.5) -- 0.0, 0.0, 0.5 (grey, achromatic)
+```
+
 ## Reusable Table Convention
 
 WindowUtils modules frequently reuse pre-allocated tables to avoid per-frame garbage collection pressure. The convention distinguishes two cases:

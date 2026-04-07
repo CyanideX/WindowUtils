@@ -193,4 +193,76 @@ function utils.cachedTruncateText(label, innerWidth, charWidth)
     return result, wasTruncated
 end
 
+--------------------------------------------------------------------------------
+-- Color Conversion
+--------------------------------------------------------------------------------
+
+--- Convert a 6-character hex string to RGB floats.
+--- @param hex string|nil Hex color (with or without "#" prefix)
+--- @return number r, number g, number b  Each 0.0-1.0; returns 0.5, 0.5, 0.5 on invalid input
+function utils.HexToRGB(hex)
+    if type(hex) ~= "string" then return 0.5, 0.5, 0.5 end
+
+    if hex:sub(1, 1) == "#" then
+        hex = hex:sub(2)
+    end
+
+    if #hex ~= 6 then return 0.5, 0.5, 0.5 end
+
+    -- Reject non-hex characters up front
+    if hex:find("[^%da-fA-F]") then return 0.5, 0.5, 0.5 end
+
+    local r = tonumber(hex:sub(1, 2), 16) / 255
+    local g = tonumber(hex:sub(3, 4), 16) / 255
+    local b = tonumber(hex:sub(5, 6), 16) / 255
+
+    return r, g, b
+end
+
+--- Convert RGB floats to a 6-character uppercase hex string.
+--- @param r number Red (0.0-1.0)
+--- @param g number Green (0.0-1.0)
+--- @param b number Blue (0.0-1.0)
+--- @return string hex  6-character uppercase hex (e.g. "FF8800")
+function utils.RGBToHex(r, g, b)
+    -- Clamp to valid range before conversion
+    r = math.min(1, math.max(0, r or 0))
+    g = math.min(1, math.max(0, g or 0))
+    b = math.min(1, math.max(0, b or 0))
+    return string.format("%02X%02X%02X",
+        math.floor(r * 255 + 0.5),
+        math.floor(g * 255 + 0.5),
+        math.floor(b * 255 + 0.5))
+end
+
+--- Convert RGB floats to HSL floats.
+--- @param r number Red (0.0-1.0)
+--- @param g number Green (0.0-1.0)
+--- @param b number Blue (0.0-1.0)
+--- @return number h, number s, number l  Each 0.0-1.0
+function utils.RGBToHSL(r, g, b)
+    local maxC = math.max(r, g, b)
+    local minC = math.min(r, g, b)
+    local l = (maxC + minC) / 2
+
+    if maxC == minC then
+        return 0, 0, l
+    end
+
+    local d = maxC - minC
+    local s = l > 0.5 and d / (2 - maxC - minC) or d / (maxC + minC)
+
+    local h
+    if maxC == r then
+        h = (g - b) / d + (g < b and 6 or 0)
+    elseif maxC == g then
+        h = (b - r) / d + 2
+    else
+        h = (r - g) / d + 4
+    end
+    h = h / 6
+
+    return h, s, l
+end
+
 return utils
