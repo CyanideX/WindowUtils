@@ -30,6 +30,7 @@ local notifications = require("modules/notifications")
 local search = require("modules/search")
 local modal = require("modules/modal")
 local lists = require("modules/lists")
+local popout = require("modules/popout")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -88,6 +89,7 @@ WindowUtils.Notify = notifications
 WindowUtils.Search = search
 WindowUtils.Modal = modal
 WindowUtils.Lists = lists
+WindowUtils.Popout = popout
 
 registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
     ui.toggle()

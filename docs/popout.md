@@ -1,0 +1,223 @@
+# Popout
+
+Detachable panels that can dock inline or float in a separate window. Two visual styles: "panel" (default panel background) and "inline" (no background, blends with parent).
+
+The module never auto-renders toggle buttons. Use `toggleButton()` inside your content callback or anywhere else in your UI to let users dock/undock. This gives you full control over button placement.
+
+## Quick Start
+
+```lua
+local wu = GetMod("WindowUtils")
+local pop = wu.Popout
+
+-- Panel-style: styled background, placeholder with dock button when detached
+pop.popout("my_panel", {
+    title = "My Panel",
+    style = "panel",
+    content = function()
+        ImGui.Text("Panel content")
+        wu.Controls.ButtonRow({ pop.toggleButton("my_panel") })
+    end,
+})
+
+-- Inline-style: no background, no auto buttons, user controls everything
+pop.popout("my_inline", {
+    title = "Transport",
+    style = "inline",
+    content = function()
+        wu.Controls.ButtonRow({ pop.toggleButton("my_inline") })
+        ImGui.Text("Inline content")
+    end,
+})
+```
+
+## Functions
+
+### `popout(id, opts)`
+
+Main rendering function. Call once per frame where the content should appear.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string | - | Unique popout identifier |
+| opts.content | function | nil | Callback that renders the panel content |
+| opts.title | string | id | Title text shown centered in the floating window |
+| opts.style | string | "panel" | `"panel"` or `"inline"` |
+| opts.defaultDocked | boolean | true | Initial dock state on first use |
+| opts.size | table | {width=300, height=200} | Floating window size `{width, height}` |
+| opts.icon | string\|nil | nil | Glyph for the placeholder dock button (panel style only) |
+| opts.bg | table\|false\|nil | nil | Background: nil = style default, false = none, table = custom RGBA |
+| opts.placeholder | function\|nil | nil | Content rendered in the placeholder when detached |
+| opts.hideWhenDetached | boolean | false | Skip placeholder entirely when detached |
+
+**Returns:** `boolean` - current docked state (`true` = docked, `false` = detached)
+
+**Background behavior:**
+- `"panel"` style: default panel background (matching `controls.Panel`) in docked, placeholder, and floating states
+- `"inline"` style: no background in any state
+- `bg = false` disables background on any style; `bg = {r, g, b, a}` enables a custom one on any style
+
+**Placeholder behavior when detached:**
+- `"panel"` style: renders a styled panel with a dock button and optional `placeholder` callback content (SameLine with the button)
+- `"inline"` style: renders only the `placeholder` callback if provided, no auto button. Use `toggleButton()` inside your content for dock/undock control.
+- `hideWhenDetached = true`: skips the placeholder entirely for either style
+
+### `toggle(id)`
+
+Flip the dock state. No-op if ID hasn't been rendered yet.
+
+### `setDocked(id, docked)`
+
+Set the dock state programmatically.
+
+### `isDocked(id)`
+
+Query the current dock state. Returns `true` if ID not found (safe default).
+
+### `getIcon(id)`
+
+Returns `IconGlyphs.OpenInNew` when docked, `IconGlyphs.DockWindow` when detached.
+
+### `toggleButton(id, opts?)`
+
+Returns a `controls.ButtonRow`-compatible button definition wired to `toggle(id)`. Icon and tooltip update automatically based on current state.
+
+**Returns:** `table` - `{ type = "button", icon, tooltip, onClick }`
+
+Place this anywhere in your UI. It works with any popout ID regardless of where the `popout()` call lives.
+
+## Examples
+
+### Panel with Placeholder
+
+When detached, a styled placeholder with a dock button remains in the parent. The `placeholder` callback adds content next to the button.
+
+```lua
+pop.popout("settings", {
+    title = "Settings",
+    style = "panel",
+    content = function()
+        ImGui.Text("Settings content")
+        controls.ButtonRow({ pop.toggleButton("settings") })
+    end,
+    placeholder = function()
+        controls.TextMuted("Settings panel is floating.")
+    end,
+})
+```
+
+### Hidden When Detached
+
+The panel vanishes from the parent layout entirely. Put the dock button inside your content.
+
+```lua
+pop.popout("tools", {
+    title = "Tools",
+    style = "panel",
+    hideWhenDetached = true,
+    content = function()
+        ImGui.Text("Tool content")
+        controls.ButtonRow({ pop.toggleButton("tools") })
+    end,
+})
+```
+
+### Inline Style
+
+No background, no auto buttons. The toggle button lives inside the content and works in both docked and floating states.
+
+```lua
+pop.popout("transport", {
+    title = "Transport",
+    style = "inline",
+    content = function()
+        controls.ButtonRow({ pop.toggleButton("transport") })
+        ImGui.Text("Transport controls")
+    end,
+})
+```
+
+### Inline with Custom Background
+
+Force a panel background on an inline-style popout.
+
+```lua
+pop.popout("transport", {
+    title = "Transport",
+    style = "inline",
+    bg = { 0.65, 0.7, 1.0, 0.045 },
+    content = function()
+        controls.ButtonRow({ pop.toggleButton("transport") })
+        ImGui.Text("Transport controls with background")
+    end,
+})
+```
+
+### Panel Without Background
+
+Disable the default panel background.
+
+```lua
+pop.popout("raw", {
+    title = "Raw Panel",
+    style = "panel",
+    bg = false,
+    content = function()
+        ImGui.Text("No background")
+        controls.ButtonRow({ pop.toggleButton("raw") })
+    end,
+})
+```
+
+### Toggle from Anywhere
+
+`toggleButton` and `toggle` work with any ID from anywhere in your UI.
+
+```lua
+-- Button in a toolbar that controls a popout defined elsewhere
+controls.ButtonRow({
+    pop.toggleButton("detail_panel"),
+    { label = "  Save  ", style = "active", onClick = save },
+})
+
+-- The popout itself, rendered in a different part of the layout
+pop.popout("detail_panel", {
+    title = "Details",
+    style = "panel",
+    content = function()
+        ImGui.Text("Detail content")
+    end,
+})
+```
+
+### Integration with Splitter
+
+```lua
+split.toggle("sidebar", {
+    { content = function()
+        pop.popout("props", {
+            title = "Properties",
+            style = "panel",
+            content = function()
+                ImGui.Text("Property editor")
+                controls.ButtonRow({ pop.toggleButton("props") })
+            end,
+        })
+    end },
+    { content = drawMain },
+}, { side = "right", size = 280 })
+```
+
+### Programmatic Control
+
+```lua
+pop.setDocked("my_panel", false)
+
+if pop.isDocked("my_panel") then
+    ImGui.Text("Panel is docked")
+end
+
+if wu.Controls.Button("  Toggle  ") then
+    pop.toggle("my_panel")
+end
+```

@@ -2768,6 +2768,71 @@ local function drawColorControlsDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 17: Popout Panels Demo
+--------------------------------------------------------------------------------
+
+local function drawPopoutDemo()
+    local controls = wu.Controls
+    local pop = wu.Popout
+
+    controls.TextMuted("Panel-style popout with placeholder when detached.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_panel", {
+        title = "Panel Popout",
+        style = "panel",
+        size = { width = 300, height = 200 },
+        content = function()
+            ImGui.Text("This is panel content.")
+            ImGui.Text("It has a styled background when docked.")
+            controls.ButtonRow({
+                pop.toggleButton("demo_panel"),
+            })
+        end,
+        placeholder = function()
+            controls.TextMuted("Panel is detached. Click the button to re-dock.")
+        end,
+    })
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Hidden popout: leaves no trace in the parent when detached.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_hidden", {
+        title = "Hidden Popout",
+        style = "panel",
+        hideWhenDetached = true,
+        size = { width = 300, height = 200 },
+        content = function()
+            ImGui.Text("This panel disappears from the parent.")
+            ImGui.Text("The dock button lives in the floating window.")
+            controls.ButtonRow({
+                pop.toggleButton("demo_hidden"),
+            })
+        end,
+    })
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Inline-style popout: no auto button, user places toggleButton anywhere.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_inline", {
+        title = "Inline Popout",
+        style = "inline",
+        size = { width = 280, height = 180 },
+        content = function()
+            controls.ButtonRow({
+                pop.toggleButton("demo_inline"),
+            })
+            ImGui.Text("Inline content, no background.")
+            ImGui.Text("Blends with the parent layout.")
+        end,
+    })
+end
+
+--------------------------------------------------------------------------------
 
 registerForEvent("onInit", function()
     wu = GetMod("WindowUtils")
@@ -2842,6 +2907,7 @@ registerForEvent("onDraw", function()
             { label = "Lists",      content = drawListsDemo },
             { label = "Echo",       content = drawEchoDemo },
             { label = "Colors",     content = drawColorControlsDemo, noScroll = true },
+            { label = "Popout",     content = drawPopoutDemo },
         })
 
         if changed and selected == 1 and notifClearOnOpen then
