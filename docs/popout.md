@@ -2,7 +2,7 @@
 
 Detachable panels that can dock inline or float in a separate window. Two visual styles: "panel" (default panel background) and "inline" (no background, blends with parent).
 
-The module never auto-renders toggle buttons. Use `toggleButton()` inside your content callback or anywhere else in your UI to let users dock/undock. This gives you full control over button placement.
+The module never auto-renders toggle buttons. Use `toggleButton()` inside your content callback or anywhere else in your UI to let users dock/undock.
 
 ## Quick Start
 
@@ -20,7 +20,7 @@ pop.popout("my_panel", {
     end,
 })
 
--- Inline-style: no background, no auto buttons, user controls everything
+-- Inline-style: no background, no auto buttons
 pop.popout("my_inline", {
     title = "Transport",
     style = "inline",
@@ -45,8 +45,8 @@ Main rendering function. Call once per frame where the content should appear.
 | opts.style | string | "panel" | `"panel"` or `"inline"` |
 | opts.defaultDocked | boolean | true | Initial dock state on first use |
 | opts.size | table | {width=300, height=200} | Floating window size `{width, height}` in pixels |
-| opts.widthPercent | number | nil | Floating window width as display percentage (overrides size.width) |
-| opts.fitHeight | boolean | false | Auto-resize floating window height to content, snapped to grid |
+| opts.widthPercent | number | nil | Width as display percentage (overrides size.width, also sets min width) |
+| opts.fitHeight | boolean | false | Auto-size height to content, snapped to next grid cell |
 | opts.minSize | table\|nil | nil | Minimum floating window size `{width, height}` |
 | opts.maxSize | table\|nil | nil | Maximum floating window size `{width, height}` |
 | opts.flags | number\|nil | nil | Extra ImGui window flags for the floating window |
@@ -58,14 +58,20 @@ Main rendering function. Call once per frame where the content should appear.
 **Returns:** `boolean` - current docked state (`true` = docked, `false` = detached)
 
 **Background behavior:**
-- `"panel"` style: default panel background (matching `controls.Panel`) in docked, placeholder, and floating states
+- `"panel"` style: default panel background in docked, placeholder, and floating states
 - `"inline"` style: no background in any state
-- `bg = false` disables background on any style; `bg = {r, g, b, a}` enables a custom one on any style
+- `bg = false` disables background on any style; `bg = {r, g, b, a}` enables a custom one
 
 **Placeholder behavior when detached:**
-- `"panel"` style: renders a styled panel with a dock button and optional `placeholder` callback content (SameLine with the button)
-- `"inline"` style: renders only the `placeholder` callback if provided, no auto button. Use `toggleButton()` inside your content for dock/undock control.
-- `hideWhenDetached = true`: skips the placeholder entirely for either style
+- `"panel"` style: styled panel with a dock button and optional `placeholder` callback (SameLine)
+- `"inline"` style: only `placeholder` callback if provided, no auto button
+- `hideWhenDetached = true`: skips placeholder entirely
+
+**fitHeight behavior:**
+- Auto-sizes the floating window height to content, ceiled to the next grid cell boundary
+- Width is user-resizable (drag to resize); `widthPercent` sets the initial and minimum width
+- Uses a two-phase approach: measures content for 1-2 frames, then locks the Panel to fill the grid-ceiled window height
+- Re-measures automatically if the user resizes width (content may reflow)
 
 ### `toggle(id)`
 
@@ -89,13 +95,9 @@ Returns a `controls.ButtonRow`-compatible button definition wired to `toggle(id)
 
 **Returns:** `table` - `{ type = "button", icon, tooltip, onClick }`
 
-Place this anywhere in your UI. It works with any popout ID regardless of where the `popout()` call lives.
-
 ## Examples
 
 ### Panel with Placeholder
-
-When detached, a styled placeholder with a dock button remains in the parent. The `placeholder` callback adds content next to the button.
 
 ```lua
 pop.popout("settings", {
@@ -113,8 +115,6 @@ pop.popout("settings", {
 
 ### Hidden When Detached
 
-The panel vanishes from the parent layout entirely. Put the dock button inside your content.
-
 ```lua
 pop.popout("tools", {
     title = "Tools",
@@ -127,62 +127,15 @@ pop.popout("tools", {
 })
 ```
 
-### Inline Style
-
-No background, no auto buttons. The toggle button lives inside the content and works in both docked and floating states.
-
-```lua
-pop.popout("transport", {
-    title = "Transport",
-    style = "inline",
-    content = function()
-        controls.ButtonRow({ pop.toggleButton("transport") })
-        ImGui.Text("Transport controls")
-    end,
-})
-```
-
-### Inline with Custom Background
-
-Force a panel background on an inline-style popout.
-
-```lua
-pop.popout("transport", {
-    title = "Transport",
-    style = "inline",
-    bg = { 0.65, 0.7, 1.0, 0.045 },
-    content = function()
-        controls.ButtonRow({ pop.toggleButton("transport") })
-        ImGui.Text("Transport controls with background")
-    end,
-})
-```
-
-### Panel Without Background
-
-Disable the default panel background.
-
-```lua
-pop.popout("raw", {
-    title = "Raw Panel",
-    style = "panel",
-    bg = false,
-    content = function()
-        ImGui.Text("No background")
-        controls.ButtonRow({ pop.toggleButton("raw") })
-    end,
-})
-```
-
 ### Fit Height with Display Width Percent
 
-Auto-resize the floating window height to fit content (snapped to the nearest grid unit). Width set as a percentage of display resolution.
+Auto-sizes height to content (grid-snapped). Width starts at 25% of display and is user-resizable (25% is also the minimum).
 
 ```lua
 pop.popout("compact", {
     title = "Compact Panel",
     style = "panel",
-    widthPercent = 15,
+    widthPercent = 25,
     fitHeight = true,
     content = function()
         ImGui.Text("Height fits content, snapped to grid.")
@@ -192,8 +145,6 @@ pop.popout("compact", {
 ```
 
 ### Size Constraints
-
-Constrain the floating window dimensions (grid-aligned).
 
 ```lua
 pop.popout("constrained", {
@@ -209,9 +160,48 @@ pop.popout("constrained", {
 })
 ```
 
-### Toggle from Anywhere
+### Inline Style
 
-`toggleButton` and `toggle` work with any ID from anywhere in your UI.
+```lua
+pop.popout("transport", {
+    title = "Transport",
+    style = "inline",
+    content = function()
+        controls.ButtonRow({ pop.toggleButton("transport") })
+        ImGui.Text("Transport controls")
+    end,
+})
+```
+
+### Inline with Custom Background
+
+```lua
+pop.popout("transport", {
+    title = "Transport",
+    style = "inline",
+    bg = { 0.65, 0.7, 1.0, 0.045 },
+    content = function()
+        controls.ButtonRow({ pop.toggleButton("transport") })
+        ImGui.Text("Transport controls with background")
+    end,
+})
+```
+
+### Panel Without Background
+
+```lua
+pop.popout("raw", {
+    title = "Raw Panel",
+    style = "panel",
+    bg = false,
+    content = function()
+        ImGui.Text("No background")
+        controls.ButtonRow({ pop.toggleButton("raw") })
+    end,
+})
+```
+
+### Toggle from Anywhere
 
 ```lua
 -- Button in a toolbar that controls a popout defined elsewhere
