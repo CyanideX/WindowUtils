@@ -1874,92 +1874,93 @@ function controls.Column(id, defs, opts)
     if not defs or #defs == 0 then return end
     opts = opts or {}
 
-    -- Phase 1: calculate heights (cancel spacing between children, matching splitter pattern)
     local spacingY = frameCache.itemSpacingY
     local gap = opts.gap or spacingY * 2
     local availW, availH = ImGui.GetContentRegionAvail()
     availH = math.max(availH, 1)
+
+    -- Auto-height cache (persists across frames for stable layout)
+    local ac = columnAutoCache[id]
+    if not ac then
+        ac = { n = 0 }
+        columnAutoCache[id] = ac
+    end
+
+    -- Invalidate stale entries only when slot count changes
+    local n = #defs
+    if ac.n ~= n then
+        for i = n + 1, ac.n do ac[i] = nil end
+        ac.n = n
+    end
+
+    -- Single pass: tally fixed heights and flex weights, count content-bearing slots
     local fixedH = 0
     local totalFlex = 0
-
-    local autoCache = columnAutoCache[id]
-    if not autoCache then
-        autoCache = {}
-        columnAutoCache[id] = autoCache
-    end
-
-    -- Clear stale cache entries when slot count changes
-    for i = #defs + 1, #autoCache do
-        autoCache[i] = nil
-    end
-
-    -- Count non-empty slots for gap calculation
-    local nonEmptyCount = 0
-    for i, def in ipairs(defs) do
+    local contentSlots = 0
+    for i = 1, n do
+        local def = defs[i]
         if def.auto then
-            local cached = autoCache[i] or 0
-            fixedH = fixedH + cached
-            if cached > 0 then nonEmptyCount = nonEmptyCount + 1 end
+            local h = ac[i] or 0
+            fixedH = fixedH + h
+            if h > 0 then contentSlots = contentSlots + 1 end
         elseif def.height then
             fixedH = fixedH + def.height
-            nonEmptyCount = nonEmptyCount + 1
+            contentSlots = contentSlots + 1
         else
             totalFlex = totalFlex + (def.flex or 1)
-            nonEmptyCount = nonEmptyCount + 1
+            contentSlots = contentSlots + 1
         end
     end
 
-    local totalGap = gap * math.max(nonEmptyCount - 1, 0)
+    local totalGap = gap * math.max(contentSlots - 1, 0)
     local remainingH = math.max(availH - fixedH - totalGap, 0)
 
-    -- Phase 2: render children, only applying gap between slots that have content
-    local prevHadContent = false
-    for i, def in ipairs(defs) do
-        -- Determine if this slot has content (auto slots check cache from previous frame)
-        local slotHasContent = true
-        if def.auto and (autoCache[i] or 0) == 0 then
-            slotHasContent = false
-        end
+    -- Render pass
+    local prevRendered = false
+    for i = 1, n do
+        local def = defs[i]
 
+        -- Will this slot produce visible output? (auto uses previous frame's measurement)
+        local willRender = not def.auto or (ac[i] or 0) > 0
+
+        -- Gap: only between two adjacent slots that both have content
         if i > 1 then
-            if prevHadContent and slotHasContent then
-                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY + gap)
-            else
-                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
-            end
+            local addGap = prevRendered and willRender
+            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY + (addGap and gap or 0))
         end
 
         if def.auto then
             local _, startY = ImGui.GetCursorPos()
             if def.content then def.content() end
             local _, endY = ImGui.GetCursorPos()
-            autoCache[i] = math.max(endY - startY - spacingY, 0)
-            prevHadContent = autoCache[i] > 0
+            local measured = math.max(endY - startY - spacingY, 0)
+            ac[i] = measured
+            prevRendered = measured > 0
         else
             local childH
             if def.height then
                 childH = def.height
+            elseif totalFlex > 0 then
+                childH = math.floor(remainingH * (def.flex or 1) / totalFlex)
             else
-                childH = totalFlex > 0
-                    and math.floor(remainingH * (def.flex or 1) / totalFlex)
-                    or 0
+                childH = 0
             end
 
             if def.bg then
                 ImGui.PushStyleColor(ImGuiCol.ChildBg, def.bg[1], def.bg[2], def.bg[3], def.bg[4] or 1.0)
             end
 
-            local childId = "##col_" .. id .. "_" .. i
-            local childFlags = (def.flags or 0)
+            local childFlags = def.flags or 0
             if def.height then
                 childFlags = childFlags + ImGuiWindowFlags.NoScrollbar
             end
-            ImGui.BeginChild(childId, availW, childH, def.border or false, childFlags)
+
+            ImGui.BeginChild("##col_" .. id .. "_" .. i, availW, childH, def.border or false, childFlags)
             if def.content then def.content() end
             ImGui.EndChild()
 
             if def.bg then ImGui.PopStyleColor() end
-            prevHadContent = true
+            prevRendered = true
         end
     end
 end
