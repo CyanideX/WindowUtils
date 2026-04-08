@@ -1879,7 +1879,6 @@ function controls.Column(id, defs, opts)
     local gap = opts.gap or spacingY * 2
     local availW, availH = ImGui.GetContentRegionAvail()
     availH = math.max(availH, 1)
-    local totalGap = gap * math.max(#defs - 1, 0)
     local fixedH = 0
     local totalFlex = 0
 
@@ -1889,30 +1888,53 @@ function controls.Column(id, defs, opts)
         columnAutoCache[id] = autoCache
     end
 
+    -- Clear stale cache entries when slot count changes
+    for i = #defs + 1, #autoCache do
+        autoCache[i] = nil
+    end
+
+    -- Count non-empty slots for gap calculation
+    local nonEmptyCount = 0
     for i, def in ipairs(defs) do
         if def.auto then
-            fixedH = fixedH + (autoCache[i] or 0)
+            local cached = autoCache[i] or 0
+            fixedH = fixedH + cached
+            if cached > 0 then nonEmptyCount = nonEmptyCount + 1 end
         elseif def.height then
             fixedH = fixedH + def.height
+            nonEmptyCount = nonEmptyCount + 1
         else
             totalFlex = totalFlex + (def.flex or 1)
+            nonEmptyCount = nonEmptyCount + 1
         end
     end
 
+    local totalGap = gap * math.max(nonEmptyCount - 1, 0)
     local remainingH = math.max(availH - fixedH - totalGap, 0)
 
-    -- Phase 2: render children, cancelling implicit item spacing and applying gap
+    -- Phase 2: render children, only applying gap between slots that have content
+    local prevHadContent = false
     for i, def in ipairs(defs) do
+        -- Determine if this slot has content (auto slots check cache from previous frame)
+        local slotHasContent = true
+        if def.auto and (autoCache[i] or 0) == 0 then
+            slotHasContent = false
+        end
+
         if i > 1 then
-            ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY + gap)
+            if prevHadContent and slotHasContent then
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY + gap)
+            else
+                ImGui.SetCursorPosY(ImGui.GetCursorPosY() - spacingY)
+            end
         end
 
         if def.auto then
-            -- Auto-sized: render inline (no child window), measure content height
             local _, startY = ImGui.GetCursorPos()
             if def.content then def.content() end
             local _, endY = ImGui.GetCursorPos()
             autoCache[i] = math.max(endY - startY - spacingY, 0)
+            prevHadContent = autoCache[i] > 0
         else
             local childH
             if def.height then
@@ -1937,6 +1959,7 @@ function controls.Column(id, defs, opts)
             ImGui.EndChild()
 
             if def.bg then ImGui.PopStyleColor() end
+            prevHadContent = true
         end
     end
 end
