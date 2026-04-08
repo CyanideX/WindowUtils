@@ -44,7 +44,12 @@ Main rendering function. Call once per frame where the content should appear.
 | opts.title | string | id | Title text shown centered in the floating window |
 | opts.style | string | "panel" | `"panel"` or `"inline"` |
 | opts.defaultDocked | boolean | true | Initial dock state on first use |
-| opts.size | table | {width=300, height=200} | Floating window size `{width, height}` |
+| opts.size | table | {width=300, height=200} | Floating window size `{width, height}` in pixels |
+| opts.widthPercent | number | nil | Floating window width as display percentage (overrides size.width) |
+| opts.fitHeight | boolean | false | Auto-resize floating window height to content, snapped to grid |
+| opts.minSize | table\|nil | nil | Minimum floating window size `{width, height}` |
+| opts.maxSize | table\|nil | nil | Maximum floating window size `{width, height}` |
+| opts.flags | number\|nil | nil | Extra ImGui window flags for the floating window |
 | opts.icon | string\|nil | nil | Glyph for the placeholder dock button (panel style only) |
 | opts.bg | table\|false\|nil | nil | Background: nil = style default, false = none, table = custom RGBA |
 | opts.placeholder | function\|nil | nil | Content rendered in the placeholder when detached |
@@ -165,6 +170,41 @@ pop.popout("raw", {
     content = function()
         ImGui.Text("No background")
         controls.ButtonRow({ pop.toggleButton("raw") })
+    end,
+})
+```
+
+### Fit Height with Display Width Percent
+
+Auto-resize the floating window height to fit content (snapped to the nearest grid unit). Width set as a percentage of display resolution.
+
+```lua
+pop.popout("compact", {
+    title = "Compact Panel",
+    style = "panel",
+    widthPercent = 15,
+    fitHeight = true,
+    content = function()
+        ImGui.Text("Height fits content, snapped to grid.")
+        controls.ButtonRow({ pop.toggleButton("compact") })
+    end,
+})
+```
+
+### Size Constraints
+
+Constrain the floating window dimensions (grid-aligned).
+
+```lua
+pop.popout("constrained", {
+    title = "Constrained",
+    style = "panel",
+    size = { width = 300, height = 200 },
+    minSize = { width = 200, height = 150 },
+    maxSize = { width = 500, height = 400 },
+    content = function()
+        ImGui.Text("Resizable within constraints")
+        controls.ButtonRow({ pop.toggleButton("constrained") })
     end,
 })
 ```

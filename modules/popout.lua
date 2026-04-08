@@ -63,18 +63,56 @@ end
 -- Rendering
 --------------------------------------------------------------------------------
 
+--- Resolve the initial floating window width from opts.
+--- Supports pixels (number) or display percentage (string like "25%").
+---@param opts table
+---@param fallback number
+---@return number
+local function resolveWidth(opts, fallback)
+    if opts.widthPercent then
+        local sw = GetDisplayResolution()
+        return math.floor(sw * opts.widthPercent / 100)
+    end
+    local size = opts.size or {}
+    return size.width or fallback
+end
+
 --- Render the floating window for a detached popout.
---- Panel style: content wrapped in controls.Panel (fills remaining space).
---- Inline style: content rendered directly (no panel wrapper) unless opts.bg is set.
 ---@param inst table PopoutInstance
 ---@param opts table Caller options
 local function renderFloatingWindow(inst, opts)
-    ImGui.SetNextWindowSize(inst.size.width, inst.size.height, ImGuiCond.FirstUseEver)
+    local w = resolveWidth(opts, inst.size.width)
+    local h = inst.size.height
 
-    local flags = ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoScrollbar
+    -- Size constraints (grid-aligned when available)
+    -- widthPercent doubles as minimum width when no explicit minSize is set
+    local mn = opts.minSize or {}
+    local mx = opts.maxSize or {}
+    local minW = mn.width or (opts.widthPercent and w or 0)
+    core.setNextWindowSizeConstraints(
+        minW, mn.height or 0,
+        mx.width or 9999, mx.height or 9999
+    )
+
+    -- Initial size (FirstUseEver only, so user can resize width freely)
+    ImGui.SetNextWindowSize(w, h, ImGuiCond.FirstUseEver)
+
+    local extraFlags = opts.flags or 0
+    local flags = ImGuiWindowFlags.NoTitleBar + ImGuiWindowFlags.NoScrollbar + extraFlags
     local displayTitle = inst.title .. inst.windowName
 
     if ImGui.Begin(displayTitle, flags) then
+        -- fitHeight: lock height to grid-ceiled cache, preserve user's current width
+        if opts.fitHeight and inst.fitHeightCache then
+            local curW = ImGui.GetWindowSize()
+            ImGui.SetWindowSize(curW, inst.fitHeightCache)
+            -- Re-measure if width changed (content may reflow)
+            if inst.fitLastWidth and inst.fitLastWidth ~= curW then
+                inst.fitHeightStable = false
+            end
+            inst.fitLastWidth = curW
+        end
+
         -- Centered title
         local titleW = ImGui.CalcTextSize(inst.title)
         local winW = ImGui.GetWindowSize()
@@ -88,8 +126,6 @@ local function renderFloatingWindow(inst, opts)
             settings.debugPrint("popout: WindowUtils.Update not available for '" .. inst.title .. "'")
         end
 
-        -- Panel style gets a panel wrapper by default; inline gets none by default.
-        -- opts.bg overrides: table = custom color, false = force no bg, nil = style default.
         local wantBg = opts.bg
         if wantBg == nil then
             wantBg = (inst.style == "panel")
@@ -98,9 +134,40 @@ local function renderFloatingWindow(inst, opts)
         if wantBg then
             local panelOpts = {}
             if type(wantBg) == "table" then panelOpts.bg = wantBg end
-            controls.Panel("popout_float_" .. inst.windowName, opts.content, panelOpts)
+
+            if opts.fitHeight then
+                if inst.fitHeightStable then
+                    -- Cache is stable: Panel fills remaining space, no measurement
+                    controls.Panel("popout_float_" .. inst.windowName, opts.content, panelOpts)
+                else
+                    -- Measuring frame: auto-height Panel, compute grid-ceiled window height
+                    panelOpts.height = "auto"
+                    controls.Panel("popout_float_" .. inst.windowName, opts.content, panelOpts)
+                    local gridSize = (settings.master.gridUnits or settings.defaults.gridUnits) * settings.GRID_UNIT_SIZE
+                    local padY = ImGui.GetStyle().WindowPadding.y
+                    local totalH = ImGui.GetCursorPosY() + padY
+                    local newCache = math.ceil(totalH / gridSize) * gridSize
+                    if inst.fitHeightCache == newCache then
+                        -- Height settled, switch to fill mode next frame
+                        inst.fitHeightStable = true
+                    end
+                    inst.fitHeightCache = newCache
+                end
+            else
+                controls.Panel("popout_float_" .. inst.windowName, opts.content, panelOpts)
+            end
         elseif opts.content then
             opts.content()
+            if opts.fitHeight and not inst.fitHeightStable then
+                local gridSize = (settings.master.gridUnits or settings.defaults.gridUnits) * settings.GRID_UNIT_SIZE
+                local padY = ImGui.GetStyle().WindowPadding.y
+                local totalH = ImGui.GetCursorPosY() + padY
+                local newCache = math.ceil(totalH / gridSize) * gridSize
+                if inst.fitHeightCache == newCache then
+                    inst.fitHeightStable = true
+                end
+                inst.fitHeightCache = newCache
+            end
         end
     end
     ImGui.End()
@@ -174,15 +241,20 @@ end
 --- Render a popout panel. Call once per frame where the content should appear.
 ---
 --- opts fields:
----   content         function    Content callback (rendered docked or in floating window)
----   title           string      Floating window title (default: id)
----   style           string      "panel" (default) or "inline"
----   defaultDocked   boolean     Initial dock state (default: true)
----   size            table       Floating window size {width, height}
----   icon            string      Glyph for placeholder dock button
----   bg              table|false Panel background: nil = style default, false = none, table = custom RGBA
----   placeholder     function    Extra content rendered in the placeholder when detached (panel style)
----   hideWhenDetached boolean    Skip placeholder entirely when detached (default: false)
+---   content          function    Content callback (rendered docked or in floating window)
+---   title            string      Floating window title (default: id)
+---   style            string      "panel" (default) or "inline"
+---   defaultDocked    boolean     Initial dock state (default: true)
+---   size             table       Floating window size {width, height} in pixels
+---   widthPercent     number      Floating window width as display percentage (overrides size.width)
+---   fitHeight        boolean     Auto-resize floating window height to content, snapped to grid
+---   minSize          table       Minimum floating window size {width, height}
+---   maxSize          table       Maximum floating window size {width, height}
+---   flags            number      Extra ImGui window flags for the floating window
+---   icon             string      Glyph for placeholder dock button
+---   bg               table|false Panel background: nil = style default, false = none, table = custom RGBA
+---   placeholder      function    Extra content rendered in the placeholder when detached
+---   hideWhenDetached boolean     Skip placeholder entirely when detached (default: false)
 ---
 ---@param id string Unique popout identifier
 ---@param opts table

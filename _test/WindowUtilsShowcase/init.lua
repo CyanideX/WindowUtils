@@ -2815,6 +2815,29 @@ local function drawPopoutDemo()
 
     controls.Separator(8, 8)
 
+    controls.TextMuted("Fit-height popout: auto-sizes to content, snapped to grid.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_fit", {
+        title = "Fit Height",
+        style = "panel",
+        widthPercent = 25,
+        fitHeight = true,
+        content = function()
+            ImGui.Text("This window auto-sizes its height to content.")
+            ImGui.Text("Width is 25% of display resolution.")
+            ImGui.Text("Height snaps to the nearest grid unit.")
+            controls.ButtonRow({
+                pop.toggleButton("demo_fit"),
+            })
+        end,
+        placeholder = function()
+            controls.TextMuted("Floating at 25% display width, fit to content.")
+        end,
+    })
+
+    controls.Separator(8, 8)
+
     controls.TextMuted("Inline-style popout: no auto button, user places toggleButton anywhere.")
     ImGui.Dummy(0, 4)
 
