@@ -170,11 +170,13 @@ local function renderFloatingWindow(inst, opts)
             applyFitHeight(inst)
         end
 
-        local titleW = ImGui.CalcTextSize(inst.title)
-        local winW = ImGui.GetWindowSize()
-        ImGui.SetCursorPosX((winW - titleW) * 0.5)
-        ImGui.Text(inst.title)
-        ImGui.Dummy(0, 4)
+        if opts.showTitle ~= false then
+            local titleW = ImGui.CalcTextSize(inst.title)
+            local winW = ImGui.GetWindowSize()
+            ImGui.SetCursorPosX((winW - titleW) * 0.5)
+            ImGui.Text(inst.title)
+            ImGui.Dummy(0, controls.Scaled(4))
+        end
 
         if core.update then
             core.update(displayTitle)
@@ -250,6 +252,7 @@ end
 ---   bg               table|false Background: nil=style default, false=none, table=custom RGBA
 ---   placeholder      function    Content in placeholder when detached
 ---   hideWhenDetached boolean     Skip placeholder entirely (default: false)
+---   showTitle        boolean     Show centered title in floating window (default: true)
 ---
 ---@param id string
 ---@param opts table

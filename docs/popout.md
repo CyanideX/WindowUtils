@@ -56,6 +56,7 @@ Main rendering function. Call once per frame where the docked content should app
 | opts.bg | table\|false\|nil | nil | Background: nil = style default, false = none, table = custom RGBA |
 | opts.placeholder | function\|nil | nil | Content rendered in the placeholder when detached |
 | opts.hideWhenDetached | boolean | false | Skip placeholder entirely when detached |
+| opts.showTitle | boolean | true | Show centered title in the floating window |
 
 **Returns:** `boolean` - current docked state (`true` = docked, `false` = detached)
 

@@ -60,6 +60,8 @@ local function Scaled(value)
     return math.floor(value * (frameCache.displayHeight / 1080) + 0.5)
 end
 
+controls.Scaled = Scaled
+
 --------------------------------------------------------------------------------
 -- State tables (grouped here for organization; used by various controls below)
 --------------------------------------------------------------------------------

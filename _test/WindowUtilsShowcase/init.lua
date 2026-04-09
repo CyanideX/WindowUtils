@@ -2975,6 +2975,28 @@ local function drawPopoutDemo()
             ImGui.Text("Blends with the parent layout.")
         end,
     })
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Titleless popout: floating window with no title bar.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_titleless", {
+        title = "Titleless",
+        style = "panel",
+        showTitle = false,
+        size = { width = 280, height = 160 },
+        content = function()
+            ImGui.Text("No title in the floating window.")
+            ImGui.Text("Content starts immediately.")
+            controls.ButtonRow({
+                pop.toggleButton("demo_titleless"),
+            })
+        end,
+        placeholder = function()
+            controls.TextMuted("Titleless panel is floating.")
+        end,
+    })
 end
 
 --------------------------------------------------------------------------------
