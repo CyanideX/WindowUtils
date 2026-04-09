@@ -35,20 +35,11 @@ end
 -- Helpers
 --------------------------------------------------------------------------------
 
---- Resolve whether a panel background should be rendered.
---- nil = style default (panel=true, inline=false), false = off, table = custom RGBA.
----@param bg any opts.bg value
----@param style string "panel" or "inline"
----@return any wantBg false or truthy (true or RGBA table)
 local function resolveBg(bg, style)
     if bg == nil then return style == "panel" end
     return bg
 end
 
---- Compute the floating window width in pixels.
----@param opts table
----@param fallbackW number
----@return number
 local function resolveWidth(opts, fallbackW)
     if opts.widthPercent then
         local sw = GetDisplayResolution()
@@ -57,17 +48,11 @@ local function resolveWidth(opts, fallbackW)
     return fallbackW
 end
 
---- Compute grid cell size from current settings.
----@return number
 local function getGridCellSize()
     local units = settings.master.gridUnits or settings.defaults.gridUnits
     return units * settings.GRID_UNIT_SIZE
 end
 
---- Build Panel opts table from bg value.
----@param bg any resolved bg (false, true, or RGBA table)
----@param height? any Panel height override
----@return table
 local function panelOpts(bg, height)
     local p = {}
     if type(bg) == "table" then p.bg = bg end
@@ -98,9 +83,11 @@ local function getInstance(id, opts)
             windowName      = "###popout_" .. id,
             warnedNoUpdate  = false,
             -- fitHeight state
-            fitCache        = nil,   -- grid-ceiled height (number or nil)
-            fitStable       = false, -- true once measurement settles
-            fitLastWidth    = nil,   -- tracks width changes for reflow detection
+            fitCache        = nil,
+            fitStable       = false,
+            fitLastWidth    = nil,
+            -- Cached opts for drawAll
+            lastOpts        = nil,
         }
     end
     return popoutStates[id]
@@ -110,22 +97,17 @@ end
 -- Floating Window
 --------------------------------------------------------------------------------
 
---- Apply fitHeight: lock height to cached grid-ceiled value, allow width resize.
---- Invalidates the stable flag if the user resized width (content may reflow).
----@param inst table
 local function applyFitHeight(inst)
     if not inst.fitCache then return end
     local curW = ImGui.GetWindowSize()
     ImGui.SetWindowSize(curW, inst.fitCache)
-    if inst.fitLastWidth and inst.fitLastWidth ~= curW then
+    -- Only invalidate on meaningful width changes (> 1px) to avoid flicker
+    if inst.fitLastWidth and math.abs(inst.fitLastWidth - curW) > 1 then
         inst.fitStable = false
     end
     inst.fitLastWidth = curW
 end
 
---- Measure content height after rendering, ceil to grid, update cache.
---- Sets fitStable=true once the measurement settles (same value two frames running).
----@param inst table
 local function measureFitHeight(inst)
     local gridSize = getGridCellSize()
     local padY = ImGui.GetStyle().WindowPadding.y
@@ -137,17 +119,10 @@ local function measureFitHeight(inst)
     inst.fitCache = newCache
 end
 
---- Render content inside the floating window with appropriate bg wrapping.
---- fitHeight uses a two-phase approach:
----   Measuring: Panel with auto-height so cursor reflects content, not window.
----   Stable: Panel fills remaining space (window is already grid-locked).
----@param inst table
----@param opts table
 local function renderFloatingContent(inst, opts)
     local bg = resolveBg(opts.bg, inst.style)
 
     if not opts.fitHeight then
-        -- Normal mode: Panel fills remaining space or render content directly
         if bg then
             controls.Panel("popout_float_" .. inst.windowName, opts.content, panelOpts(bg))
         elseif opts.content then
@@ -156,7 +131,6 @@ local function renderFloatingContent(inst, opts)
         return
     end
 
-    -- fitHeight mode
     if bg then
         if inst.fitStable then
             controls.Panel("popout_float_" .. inst.windowName, opts.content, panelOpts(bg))
@@ -172,12 +146,9 @@ local function renderFloatingContent(inst, opts)
     end
 end
 
----@param inst table
----@param opts table
 local function renderFloatingWindow(inst, opts)
     local w = resolveWidth(opts, inst.size.width)
 
-    -- Size constraints (only when needed)
     local hasConstraints = opts.minSize or opts.maxSize or opts.widthPercent
     if hasConstraints then
         local mn = opts.minSize or {}
@@ -199,15 +170,14 @@ local function renderFloatingWindow(inst, opts)
             applyFitHeight(inst)
         end
 
-        -- Centered title
         local titleW = ImGui.CalcTextSize(inst.title)
         local winW = ImGui.GetWindowSize()
         ImGui.SetCursorPosX((winW - titleW) * 0.5)
         ImGui.Text(inst.title)
+        ImGui.Dummy(0, 4)
 
-        -- WindowUtils.Update integration
         if core.update then
-            core.update(displayTitle, { treatAllDragsAsWindowDrag = true })
+            core.update(displayTitle, { gridEnabled = false })
         elseif not inst.warnedNoUpdate then
             inst.warnedNoUpdate = true
             settings.debugPrint("popout: WindowUtils.Update not available for '" .. inst.title .. "'")
@@ -222,9 +192,6 @@ end
 -- Docked / Placeholder
 --------------------------------------------------------------------------------
 
----@param id string
----@param inst table
----@param opts table
 local function renderDocked(id, inst, opts)
     local bg = resolveBg(opts.bg, inst.style)
     if bg then
@@ -234,17 +201,12 @@ local function renderDocked(id, inst, opts)
     end
 end
 
----@param id string
----@param inst table
----@param opts table
 local function renderPlaceholder(id, inst, opts)
-    -- Inline: no auto button, only user-provided placeholder content
     if inst.style == "inline" then
         if opts.placeholder then opts.placeholder() end
         return
     end
 
-    -- Panel: styled container with dock button + optional placeholder content
     local bg = resolveBg(opts.bg, inst.style)
 
     local function content()
@@ -269,7 +231,10 @@ end
 -- Public API
 --------------------------------------------------------------------------------
 
---- Render a popout panel. Call once per frame where the content should appear.
+--- Render a popout panel at the call site.
+--- Docked: renders content inline. Detached: renders placeholder + floating window.
+--- Stores opts on the instance so drawAll() can re-render detached windows
+--- even when this call site is inactive (e.g., tab switched away).
 ---
 ---   content          function    Content callback
 ---   title            string      Floating window title (default: id)
@@ -293,16 +258,30 @@ function popout.popout(id, opts)
     opts = opts or {}
     local inst = getInstance(id, opts)
 
+    -- Store opts so drawAll renders the floating window from a consistent context
+    inst.lastOpts = opts
+
     if inst.isDocked then
         renderDocked(id, inst, opts)
     else
         if not opts.hideWhenDetached then
             renderPlaceholder(id, inst, opts)
         end
-        renderFloatingWindow(inst, opts)
+        -- Floating window is rendered by drawAll() at the top level
     end
 
     return inst.isDocked
+end
+
+--- Render floating windows for all detached popouts.
+--- Call once per frame at the top level, outside any Begin/End or child windows.
+--- All detached popouts are rendered here, ensuring a consistent ImGui context.
+function popout.drawAll()
+    for id, inst in pairs(popoutStates) do
+        if not inst.isDocked and inst.lastOpts then
+            renderFloatingWindow(inst, inst.lastOpts)
+        end
+    end
 end
 
 --- Flip the dock state.

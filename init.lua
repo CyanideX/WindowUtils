@@ -124,6 +124,8 @@ registerForEvent("onDraw", function()
 
         modal.draw()
 
+        popout.drawAll()
+
         core.updateExternalWindows()
         core.processDeferred()
     end

@@ -4,6 +4,8 @@ Detachable panels that can dock inline or float in a separate window. Two visual
 
 The module never auto-renders toggle buttons. Use `toggleButton()` inside your content callback or anywhere else in your UI to let users dock/undock.
 
+Floating windows for detached popouts are rendered centrally by WindowUtils each frame, not at the call site. This means detached popouts persist even when their `popout()` call is inactive (e.g., the tab was switched away). No special handling is needed by the consumer.
+
 ## Quick Start
 
 ```lua
@@ -35,7 +37,7 @@ pop.popout("my_inline", {
 
 ### `popout(id, opts)`
 
-Main rendering function. Call once per frame where the content should appear.
+Main rendering function. Call once per frame where the docked content should appear. When detached, the floating window is rendered automatically by WindowUtils at the top level (via `drawAll()`), so it persists even if this call site becomes inactive.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -76,6 +78,10 @@ Main rendering function. Call once per frame where the content should appear.
 ### `toggle(id)`
 
 Flip the dock state. No-op if ID hasn't been rendered yet.
+
+### `drawAll()`
+
+Renders floating windows for all detached popouts. Called automatically by WindowUtils once per frame at the top level. Consumers do not need to call this.
 
 ### `setDocked(id, docked)`
 
