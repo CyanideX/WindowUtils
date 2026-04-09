@@ -1192,6 +1192,8 @@ function splitter.toggle(id, panels, opts)
 
     -- edgeFlush: when collapsed, bar sits flush against window edge (right/bottom only).
     -- When open, normal padding applies. Flex extends into freed padding when collapsed.
+    -- edgeFlush: bar sits flush against window edge when collapsed (right/bottom only).
+    -- Top/left requires window-level padding changes and is not supported here.
     local fixedFirst = (side == "left" or side == "top")
     local flushOffset = 0
     if opts.edgeFlush and not fixedFirst then
