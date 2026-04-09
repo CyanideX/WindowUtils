@@ -1128,6 +1128,112 @@ c.Row("layout", {
 })
 ```
 
+## MultiRow Layout
+
+### `MultiRow(id, rows, defs, opts?)`
+
+Horizontal row of child windows where cells can span the full vertical height or stack multiple rows of normal-height controls. Useful for placing a tall button alongside stacked controls.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string | - | Unique row ID prefix |
+| rows | number | - | Number of visual rows (determines region height) |
+| defs | table | - | Array of cell definitions |
+| opts.gap | number\|nil | ItemSpacing.x | Horizontal spacing between cells |
+
+**Height calculation:**
+
+Region height = `rows * (frameCache.frameHeight + frameCache.itemSpacingY)`
+
+**Cell definition fields:**
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| width | number\|nil | nil | Fixed width in pixels |
+| cols | number\|nil | nil | Width from ColWidth grid (1-12) |
+| flex | number\|nil | 1 | Proportional share of remaining space |
+| span | boolean\|nil | nil | If true, single child at full region height |
+| rows | table\|nil | nil | Array of content functions for stacked rows |
+| content | function\|nil | nil | Single content function |
+| bg | table\|nil | nil | Background color `{r,g,b,a}` |
+| border | boolean | false | Show child border |
+| flags | number | 0 | Extra ImGui window flags |
+
+**Cell type resolution** (first match wins):
+
+1. `span = true` - Span cell: single child window at full region height, calls `content()`
+2. `rows` is a non-empty array - Stack cell: each function rendered in its own nested child window
+3. `content` is a function - Single content cell at full region height
+4. None of the above - Empty child window
+
+Stack row height = `floor((regionHeight - (N - 1) * itemSpacingY) / N)` where N is the number of stacked rows.
+
+**Error handling:**
+
+- `defs` nil or empty: returns immediately (silent)
+- `rows` not a number or < 1: logs error, returns
+- Cell has both `span` and `rows`: logs warning, treats as span
+
+**Span cell with tall button:**
+
+```lua
+c.MultiRow("demo", 2, {
+    { cols = 3, span = true, content = function()
+        local _, h = ImGui.GetContentRegionAvail()
+        c.Button("Tall", "active", -1, h)
+    end },
+    { rows = {
+        function() c.Button("Top", "inactive", -1) end,
+        function() c.Button("Bottom", "inactive", -1) end,
+    } },
+})
+```
+
+**Stack cell with three rows:**
+
+```lua
+c.MultiRow("stack", 3, {
+    { rows = {
+        function() c.Button("Row 1", "inactive", -1) end,
+        function() c.Button("Row 2", "inactive", -1) end,
+        function() c.Button("Row 3", "inactive", -1) end,
+    } },
+})
+```
+
+**Mixed layout with flex widths:**
+
+```lua
+c.MultiRow("mixed", 2, {
+    { flex = 1, span = true, content = function()
+        local _, h = ImGui.GetContentRegionAvail()
+        c.Button("Span", "active", -1, h)
+    end },
+    { flex = 2, rows = {
+        function() c.Button("A", "inactive", -1) end,
+        function() c.Button("B", "inactive", -1) end,
+    } },
+    { flex = 1, content = function()
+        c.Button("Single", "inactive", -1)
+    end },
+})
+```
+
+**Background and border:**
+
+```lua
+c.MultiRow("styled", 2, {
+    { bg = { 0.2, 0.4, 0.8, 0.15 }, border = true, span = true, content = function()
+        local _, h = ImGui.GetContentRegionAvail()
+        c.Button("Highlighted", "active", -1, h)
+    end },
+    { rows = {
+        function() c.Button("Normal 1", "inactive", -1) end,
+        function() c.Button("Normal 2", "inactive", -1) end,
+    } },
+})
+```
+
 ## Column Layout
 
 ### `Column(id, defs, opts?)`

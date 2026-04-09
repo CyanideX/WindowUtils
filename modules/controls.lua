@@ -28,6 +28,7 @@
 --   controls.ActionButton(label, opts)
 --   controls.BeginFillChild(id, opts) / EndFillChild(id)
 --   controls.Row(defs, opts)
+--   controls.MultiRow(id, rows, defs, opts)
 --   controls.Column(defs, opts)
 --   controls.ButtonRow(defs, opts)
 --   controls.bind(data, defaults, onSave, bindOpts) / unbind(ctx)
@@ -1851,6 +1852,100 @@ function controls.Row(id, defs, opts)
         ImGui.BeginChild(childId, childW, rowHeight, def.border or false, def.flags or 0)
         if def.content then def.content() end
         ImGui.EndChild()
+
+        if def.bg then ImGui.PopStyleColor() end
+
+        if i < #defs then
+            ImGui.SameLine()
+        end
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Layout: MultiRow (horizontal cells with vertical spanning/stacking)
+--------------------------------------------------------------------------------
+
+--- Horizontal row of child windows where cells can span multiple rows or stack controls vertically
+---@param id string Unique row ID prefix
+---@param rows number Number of visual rows (determines region height)
+---@param defs table Array of cell defs: {width?, cols?, flex?, span?, rows?, content?, bg?, border?, flags?}
+---@param opts? table {gap?}
+---@return nil
+function controls.MultiRow(id, rows, defs, opts)
+    if not defs or #defs == 0 then return end
+    if type(rows) ~= "number" or rows < 1 then
+        print("[WindowUtils] MultiRow '" .. id .. "': invalid row count")
+        return
+    end
+    opts = opts or {}
+
+    local rowHeight = frameCache.frameHeight + frameCache.itemSpacingY
+    local regionHeight = rows * rowHeight
+
+    -- Phase 1: calculate widths
+    local availW = ImGui.GetContentRegionAvail()
+    local gap = opts.gap or frameCache.itemSpacingX
+    local totalGap = gap * (#defs - 1)
+    local fixedW = 0
+    local totalFlex = 0
+    local calcWidths = {}
+
+    for i, def in ipairs(defs) do
+        if def.width then
+            fixedW = fixedW + def.width
+        elseif def.cols then
+            calcWidths[i] = controls.ColWidth(def.cols, gap)
+            fixedW = fixedW + calcWidths[i]
+        else
+            totalFlex = totalFlex + (def.flex or 1)
+        end
+    end
+
+    local remainingW = math.max(availW - totalGap - fixedW, 0)
+
+    -- Phase 2: render cells
+    for i, def in ipairs(defs) do
+        local cellW
+        if def.width then
+            cellW = def.width
+        elseif calcWidths[i] then
+            cellW = calcWidths[i]
+        else
+            cellW = totalFlex > 0
+                and math.floor(remainingW * (def.flex or 1) / totalFlex)
+                or 0
+        end
+
+        if def.bg then
+            ImGui.PushStyleColor(ImGuiCol.ChildBg, def.bg[1], def.bg[2], def.bg[3], def.bg[4] or 1.0)
+        end
+
+        local useSpan = def.span == true
+        if useSpan and def.rows then
+            print("[WindowUtils] MultiRow '" .. id .. "' cell " .. i .. ": span and rows both set, using span")
+        end
+
+        if useSpan then
+            ImGui.BeginChild("##mr_" .. id .. "_" .. i, cellW, regionHeight, def.border or false, def.flags or 0)
+            if def.content then def.content() end
+            ImGui.EndChild()
+        elseif def.rows and #def.rows > 0 then
+            ImGui.BeginChild("##mr_" .. id .. "_" .. i, cellW, regionHeight, def.border or false, def.flags or 0)
+            local stackRowH = math.floor((regionHeight - (#def.rows - 1) * frameCache.itemSpacingY) / #def.rows)
+            for rowIdx, rowFn in ipairs(def.rows) do
+                ImGui.BeginChild("##mr_" .. id .. "_" .. i .. "_r" .. rowIdx, cellW, stackRowH, false, 0)
+                rowFn()
+                ImGui.EndChild()
+            end
+            ImGui.EndChild()
+        elseif def.content then
+            ImGui.BeginChild("##mr_" .. id .. "_" .. i, cellW, regionHeight, def.border or false, def.flags or 0)
+            def.content()
+            ImGui.EndChild()
+        else
+            ImGui.BeginChild("##mr_" .. id .. "_" .. i, cellW, regionHeight, def.border or false, def.flags or 0)
+            ImGui.EndChild()
+        end
 
         if def.bg then ImGui.PopStyleColor() end
 

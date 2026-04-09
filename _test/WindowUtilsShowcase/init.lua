@@ -88,6 +88,10 @@ local dimmedColorRowState = { x = 0, y = 0, z = 0 }
 local dragRowDeltaState = { dx = 0, dy = 0, dz = 0 }
 local dragRowDeltaRowState = {} -- Persistent state for unbound delta row (hover/delta accum)
 
+-- MultiRow demo state
+local mrSliderVal = 50
+local mrDragVal = 0.5
+
 -- Expand demo state
 local expSizeMode = "fixed"
 local expVertSizeMode = "fixed"
@@ -265,6 +269,120 @@ local colorDemoConfig = {
 local colorDemoGroupLimits = { warm = 30, cool = 30, neutral = 30 }
 local colorSortModes = { "none", "hue", "lightness" }
 local colorSortIndex = 2  -- default to "hue"
+
+--------------------------------------------------------------------------------
+-- MultiRow Demo (Controls tab page 6)
+--------------------------------------------------------------------------------
+
+local function drawMultiRowDemo()
+    local controls = wu.Controls
+
+    -- Example 1: Span cell with tall button alongside stacked buttons
+    controls.TextMuted("Span cell: tall button spanning 2 rows alongside stacked buttons")
+    ImGui.Dummy(0, 2)
+    controls.MultiRow("mr_span", 2, {
+        { cols = 3, span = true, content = function()
+            local _, h = ImGui.GetContentRegionAvail()
+            controls.Button("  Tall  ", "active", -1, h)
+        end },
+        { rows = {
+            function() controls.Button("  Top Button  ", "inactive", -1) end,
+            function() controls.Button("  Bottom Button  ", "inactive", -1) end,
+        } },
+    })
+
+    ImGui.Dummy(0, 8)
+
+    -- Example 2: Grid layout inside stack rows (buttons with column spans, slider, drag)
+    controls.TextMuted("Grid inside stack rows: buttons with col spans, slider, and drag")
+    ImGui.Dummy(0, 2)
+    controls.MultiRow("mr_grid", 3, {
+        { rows = {
+            function()
+                -- Row 1: 1-col button, 2-col button, 1-col button (4 cols total)
+                controls.Row("mr_g_r1", {
+                    { cols = 3, content = function()
+                        controls.Button("  1  ", "inactive", -1)
+                    end },
+                    { cols = 6, content = function()
+                        controls.Button("  2-wide  ", "active", -1)
+                    end },
+                    { cols = 3, content = function()
+                        controls.Button("  1  ", "inactive", -1)
+                    end },
+                })
+            end,
+            function()
+                -- Row 2: 2-col button, 2-col button
+                controls.Row("mr_g_r2", {
+                    { content = function()
+                        controls.Button("  Left Half  ", "inactive", -1)
+                    end },
+                    { content = function()
+                        controls.Button("  Right Half  ", "active", -1)
+                    end },
+                })
+            end,
+            function()
+                -- Row 3: full-width slider
+                mrSliderVal = controls.SliderInt("TuneVariant", "mr_slider", mrSliderVal, 0, 100)
+            end,
+        } },
+    })
+
+    ImGui.Dummy(0, 8)
+
+    -- Example 3: Mixed layout with span + grid stack + flex
+    controls.TextMuted("Mixed: span button + grid stack with slider and drag")
+    ImGui.Dummy(0, 2)
+    controls.MultiRow("mr_mixed", 3, {
+        { cols = 3, span = true, content = function()
+            local _, h = ImGui.GetContentRegionAvail()
+            controls.Button("  Span  ", "active", -1, h)
+        end },
+        { rows = {
+            function()
+                controls.Row("mr_m_r1", {
+                    { cols = 4, content = function()
+                        controls.Button("  A  ", "inactive", -1)
+                    end },
+                    { cols = 4, content = function()
+                        controls.Button("  B  ", "inactive", -1)
+                    end },
+                    { cols = 4, content = function()
+                        controls.Button("  C  ", "inactive", -1)
+                    end },
+                })
+            end,
+            function()
+                mrDragVal = controls.DragFloat("Speedometer", "mr_drag", mrDragVal, 0.0, 1.0)
+            end,
+            function()
+                mrSliderVal = controls.SliderInt("TuneVariant", "mr_slider2", mrSliderVal, 0, 100)
+            end,
+        } },
+    })
+
+    ImGui.Dummy(0, 8)
+
+    -- Example 4: Background and border
+    controls.TextMuted("Background and border: cells with bg colors and border enabled")
+    ImGui.Dummy(0, 2)
+    controls.MultiRow("mr_styled", 2, {
+        { flex = 1, bg = { 0.2, 0.5, 1.0, 0.12 }, border = true, span = true, content = function()
+            local _, h = ImGui.GetContentRegionAvail()
+            controls.Button("  Highlighted  ", "active", -1, h)
+        end },
+        { flex = 1, bg = { 0.2, 0.8, 0.3, 0.08 }, rows = {
+            function() controls.Button("  Row 1  ", "inactive", -1) end,
+            function() controls.Button("  Row 2  ", "inactive", -1) end,
+        } },
+        { flex = 1, border = true, rows = {
+            function() controls.Button("  Border 1  ", "inactive", -1) end,
+            function() controls.Button("  Border 2  ", "inactive", -1) end,
+        } },
+    })
+end
 
 --------------------------------------------------------------------------------
 -- Tab 1: Controls Demo
@@ -710,6 +828,10 @@ local function drawControlsDemo()
                 controls.EndFillChild("demo_fill")
 
             elseif controlsPage == 6 then
+                -- MultiRow Layout
+                drawMultiRowDemo()
+
+            elseif controlsPage == 7 then
                 -- Notifications
                 controls.TextMuted("Toast notifications drawn by WindowUtils:")
                 ImGui.Dummy(0, 4)
@@ -2871,7 +2993,8 @@ registerForEvent("onInit", function()
         { label = "Rows",     icon = ic.TableRow          or "?", page = 3 },
         { label = "Grid",     icon = ic.Grid              or "?", page = 4 },
         { label = "Layout",   icon = ic.ViewDashboard     or "?", page = 5 },
-        { label = "Notify",   icon = ic.BellOutline       or "?", page = 6 },
+        { label = "MultiRow", icon = ic.ViewSequential    or "?", page = 6 },
+        { label = "Notify",   icon = ic.BellOutline       or "?", page = 7 },
     }
 end)
 
