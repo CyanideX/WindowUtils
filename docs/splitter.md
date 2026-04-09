@@ -170,6 +170,7 @@ Standalone collapsible panel with animated slide in/out. `panels[1]` is the fixe
 | opts.defaultOpen | boolean | true | Initial open state |
 | opts.speed | number | 6.0 | Animation speed multiplier |
 | opts.barWidth | number | ItemSpacing.x | Toggle bar thickness |
+| opts.edgeFlush | boolean | false | Bar sits flush against window edge when collapsed (right/bottom only) |
 | opts.animate | boolean | true | Enable open/close animation |
 | opts.expand | boolean | false | Enable expand mode (auto window resize) |
 | opts.windowName | string\|nil | nil | ImGui window name (required for expand) |

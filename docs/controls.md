@@ -1234,6 +1234,31 @@ c.MultiRow("styled", 2, {
 })
 ```
 
+**Grid layout inside stack rows (Row/ColWidth for per-row column spans):**
+
+```lua
+c.MultiRow("grid", 3, {
+    { rows = {
+        function()
+            c.Row("r1", {
+                { cols = 3, content = function() c.Button("1", "inactive", -1) end },
+                { cols = 6, content = function() c.Button("2-wide", "active", -1) end },
+                { cols = 3, content = function() c.Button("1", "inactive", -1) end },
+            })
+        end,
+        function()
+            c.Row("r2", {
+                { content = function() c.Button("Left", "inactive", -1) end },
+                { content = function() c.Button("Right", "active", -1) end },
+            })
+        end,
+        function()
+            c.SliderInt("TuneVariant", "slider", val, 0, 100)
+        end,
+    } },
+})
+```
+
 ## Column Layout
 
 ### `Column(id, defs, opts?)`
