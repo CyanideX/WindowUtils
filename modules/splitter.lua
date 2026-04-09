@@ -1176,10 +1176,8 @@ function splitter.toggle(id, panels, opts)
     end
     local eased = easeInOut(state.animProgress)
 
-    -- Spacing cancelled by SetCursorPos like regular splitters
     local panelSize = math.floor(expandedSize * eased)
     local barW = state.barWidth
-    -- Skip sub-barW sizes to avoid CET min-height mismatch
     if panelSize > 0 and panelSize <= barW then
         if state.isOpen then
             panelSize = barW + 1
@@ -1188,9 +1186,18 @@ function splitter.toggle(id, panels, opts)
             state.animProgress = 0
         end
     end
+
     local fc = controls.getFrameCache()
     local spacing = isVert and fc.itemSpacingY or fc.itemSpacingX
-    -- In expand mode, lock flex to cached base size to avoid 1-frame lag; use live size during drag.
+
+    -- edgeFlush: when collapsed, bar sits flush against window edge (right/bottom only).
+    -- When open, normal padding applies. Flex extends into freed padding when collapsed.
+    local fixedFirst = (side == "left" or side == "top")
+    local flushOffset = 0
+    if opts.edgeFlush and not fixedFirst then
+        flushOffset = isVert and fc.windowPaddingY or fc.windowPaddingX
+    end
+
     local flexSize
     if opts.expand then
         expand.cacheBase(id, totalAvail, panelSize)
@@ -1204,7 +1211,10 @@ function splitter.toggle(id, panels, opts)
         flexSize = math.max(totalAvail - panelSize - barW, 1)
     end
 
-    local fixedFirst = (side == "left" or side == "top")
+    if flushOffset > 0 and panelSize == 0 then
+        flexSize = flexSize + flushOffset
+    end
+
     local fixedPanel = panels[1]
     local flexPanel = panels[2]
 
