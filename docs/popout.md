@@ -57,6 +57,7 @@ Main rendering function. Call once per frame where the docked content should app
 | opts.placeholder | function\|nil | nil | Content rendered in the placeholder when detached |
 | opts.hideWhenDetached | boolean | false | Skip placeholder entirely when detached |
 | opts.showTitle | boolean | true | Show centered title in the floating window |
+| opts.sideHandle | boolean | false | Show vertical grab handle on the left side of the floating window |
 
 **Returns:** `boolean` - current docked state (`true` = docked, `false` = detached)
 
@@ -257,4 +258,51 @@ end
 if wu.Controls.Button("  Toggle  ") then
     pop.toggle("my_panel")
 end
+```
+
+### Titleless Floating Window
+
+```lua
+pop.popout("compact", {
+    title = "Compact",
+    style = "panel",
+    showTitle = false,
+    content = function()
+        ImGui.Text("No title, content starts immediately.")
+        controls.ButtonRow({ pop.toggleButton("compact") })
+    end,
+})
+```
+
+### Side Handle
+
+Vertical grip bar on the left, content in a child window to the right.
+
+```lua
+pop.popout("tools", {
+    title = "Tools",
+    style = "panel",
+    sideHandle = true,
+    content = function()
+        ImGui.Text("Drag the handle to move.")
+        controls.ButtonRow({ pop.toggleButton("tools") })
+    end,
+})
+```
+
+### Side Handle + No Title
+
+Compact floating panel with just a grip and content.
+
+```lua
+pop.popout("transport", {
+    title = "Transport",
+    style = "panel",
+    sideHandle = true,
+    showTitle = false,
+    content = function()
+        controls.ButtonRow({ pop.toggleButton("transport") })
+        ImGui.Text("Minimal floating panel.")
+    end,
+})
 ```

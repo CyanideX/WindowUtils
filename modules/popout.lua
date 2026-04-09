@@ -5,6 +5,7 @@
 
 local settings = require("core/settings")
 local controls = require("modules/controls")
+local styles   = require("modules/styles")
 local core     = require("core/core")
 
 local popout = {}
@@ -15,7 +16,7 @@ local popoutStates = {}
 -- Icon Fallbacks (resolved lazily)
 --------------------------------------------------------------------------------
 
-local _undockIcon, _dockIcon
+local _undockIcon, _dockIcon, _handleIcon
 
 local function getUndockIcon()
     if not _undockIcon then
@@ -29,6 +30,13 @@ local function getDockIcon()
         _dockIcon = IconGlyphs and IconGlyphs.DockWindow or "[x]"
     end
     return _dockIcon
+end
+
+local function getHandleIcon()
+    if not _handleIcon then
+        _handleIcon = IconGlyphs and IconGlyphs.DotsVertical or "||"
+    end
+    return _handleIcon
 end
 
 --------------------------------------------------------------------------------
@@ -146,6 +154,32 @@ local function renderFloatingContent(inst, opts)
     end
 end
 
+local HANDLE_FLAGS = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+
+--- Render a vertical side handle bar with a centered grip icon.
+---@param id string Child window ID
+---@param height number Available height
+local function renderSideHandle(id, height)
+    local icon = getHandleIcon()
+    local handleW = controls.Scaled(5)
+    local colors = styles.colors
+
+    ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)
+
+    if ImGui.BeginChild(id, handleW, height, false, HANDLE_FLAGS) then
+        local winW, winH = ImGui.GetWindowSize()
+        local textW, textH = ImGui.CalcTextSize(icon)
+        ImGui.SetCursorPosX((winW - textW) / 2)
+        ImGui.SetCursorPosY((winH - textH) / 2)
+        ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(colors.splitterIcon[1], colors.splitterIcon[2], colors.splitterIcon[3], colors.splitterIcon[4]))
+        ImGui.Text(icon)
+        ImGui.PopStyleColor()
+    end
+    ImGui.EndChild()
+
+    ImGui.PopStyleVar()
+end
+
 local function renderFloatingWindow(inst, opts)
     local w = resolveWidth(opts, inst.size.width)
 
@@ -185,7 +219,20 @@ local function renderFloatingWindow(inst, opts)
             settings.debugPrint("popout: WindowUtils.Update not available for '" .. inst.title .. "'")
         end
 
-        renderFloatingContent(inst, opts)
+        if opts.sideHandle then
+            local handleW = controls.Scaled(5)
+            local _, contentH = ImGui.GetContentRegionAvail()
+            controls.Row("popout_hr_" .. inst.windowName, {
+                { width = handleW, content = function()
+                    renderSideHandle("##popout_handle_" .. inst.windowName, contentH)
+                end },
+                { content = function()
+                    renderFloatingContent(inst, opts)
+                end },
+            }, { height = contentH })
+        else
+            renderFloatingContent(inst, opts)
+        end
     end
     ImGui.End()
 end
@@ -253,6 +300,7 @@ end
 ---   placeholder      function    Content in placeholder when detached
 ---   hideWhenDetached boolean     Skip placeholder entirely (default: false)
 ---   showTitle        boolean     Show centered title in floating window (default: true)
+---   sideHandle       boolean     Show vertical grab handle on the left side (default: false)
 ---
 ---@param id string
 ---@param opts table

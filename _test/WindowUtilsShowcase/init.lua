@@ -2997,6 +2997,51 @@ local function drawPopoutDemo()
             controls.TextMuted("Titleless panel is floating.")
         end,
     })
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Side handle: vertical grab bar on the left of the floating window.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_handle", {
+        title = "Side Handle",
+        style = "panel",
+        sideHandle = true,
+        size = { width = 320, height = 200 },
+        content = function()
+            ImGui.Text("Drag the handle to move the window.")
+            ImGui.Text("Title bar is still shown above.")
+            controls.ButtonRow({
+                pop.toggleButton("demo_handle"),
+            })
+        end,
+        placeholder = function()
+            controls.TextMuted("Side handle panel is floating.")
+        end,
+    })
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Side handle + no title + background: compact floating panel.")
+    ImGui.Dummy(0, 4)
+
+    pop.popout("demo_handle_compact", {
+        title = "Compact Handle",
+        style = "panel",
+        sideHandle = true,
+        showTitle = false,
+        size = { width = 300, height = 160 },
+        content = function()
+            ImGui.Text("No title, just handle + content.")
+            ImGui.Text("Background from panel style.")
+            controls.ButtonRow({
+                pop.toggleButton("demo_handle_compact"),
+            })
+        end,
+        placeholder = function()
+            controls.TextMuted("Compact handle panel is floating.")
+        end,
+    })
 end
 
 --------------------------------------------------------------------------------
