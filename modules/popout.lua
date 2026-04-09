@@ -177,7 +177,7 @@ local function renderFloatingWindow(inst, opts)
         ImGui.Dummy(0, 4)
 
         if core.update then
-            core.update(displayTitle, { gridEnabled = false })
+            core.update(displayTitle)
         elseif not inst.warnedNoUpdate then
             inst.warnedNoUpdate = true
             settings.debugPrint("popout: WindowUtils.Update not available for '" .. inst.title .. "'")
