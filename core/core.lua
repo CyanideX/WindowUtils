@@ -1002,10 +1002,6 @@ function core.processDeferred()
     deferredSnapCount = 0
 end
 
-function core.isDiscoveryAvailable()
-    return discovery.isAvailable()
-end
-
 --- Load cached external window expanded sizes from disk.
 function core.loadWindowCache()
     local file = io.open(windowCachePath, "r")

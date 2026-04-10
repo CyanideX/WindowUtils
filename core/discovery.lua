@@ -11,6 +11,10 @@ local cacheGeneration = -1
 local currentGeneration = 0
 local lastLayoutString = nil
 
+-- Pooled window tables to avoid per-frame allocation during re-parse
+local pooledWindows = {}
+local pooledCount = 0
+
 --- Invalidate the per-frame cache (call once at start of each frame).
 function discovery.invalidateCache()
     currentGeneration = currentGeneration + 1
@@ -65,15 +69,26 @@ function discovery.getActiveWindows()
     end
     lastLayoutString = layoutString
 
-    local windows = {}
+    local writeIndex = 0
     local current = nil
 
     for line in layoutString:gmatch("[^\n]+") do
         local name = line:match("^%[Window%]%[(.-)%]")
         if name then
-            -- Finalize previous window block
+            -- Finalize previous window block into pool
             if current then
-                windows[#windows + 1] = current
+                writeIndex = writeIndex + 1
+                local entry = pooledWindows[writeIndex]
+                if entry then
+                    entry.name = current.name
+                    entry.posX = current.posX
+                    entry.posY = current.posY
+                    entry.sizeX = current.sizeX
+                    entry.sizeY = current.sizeY
+                    entry.collapsed = current.collapsed
+                else
+                    pooledWindows[writeIndex] = current
+                end
             end
             current = {
                 name = name,
@@ -101,14 +116,31 @@ function discovery.getActiveWindows()
             end
         end
     end
-    -- Finalize last window block
+    -- Finalize last window block into pool
     if current then
-        windows[#windows + 1] = current
+        writeIndex = writeIndex + 1
+        local entry = pooledWindows[writeIndex]
+        if entry then
+            entry.name = current.name
+            entry.posX = current.posX
+            entry.posY = current.posY
+            entry.sizeX = current.sizeX
+            entry.sizeY = current.sizeY
+            entry.collapsed = current.collapsed
+        else
+            pooledWindows[writeIndex] = current
+        end
     end
 
-    cachedWindows = windows
+    -- Clear stale entries when window count shrinks
+    for i = writeIndex + 1, pooledCount do
+        pooledWindows[i] = nil
+    end
+    pooledCount = writeIndex
+
+    cachedWindows = pooledWindows
     cacheGeneration = currentGeneration
-    return windows
+    return pooledWindows
 end
 
 return discovery

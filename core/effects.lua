@@ -10,6 +10,10 @@ local controls = require("modules/controls")
 
 local effects = {}
 
+local function isAnyDragging()
+    return core.isAnyWindowDragging() or external.isAnyExternalWindowDragging()
+end
+
 effects.state = {
     previewActive = false
 }
@@ -226,7 +230,7 @@ function effects.updateBlurDragState()
     if not settings.master.blurOnDragOnly then return end
     if not isOverlayOpen() then return end
 
-    local isDragging = core.isAnyWindowDragging() or external.isAnyExternalWindowDragging()
+    local isDragging = isAnyDragging()
 
     if isDragging and not effects.blur.wasDragging then
         effects.enableBlur()
@@ -347,6 +351,10 @@ end
 ---@param thickness number line thickness
 local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSize, useFeather, wb, featherPadding, featherRadius, featherCurve, gridAlpha, color, thickness)
     local radiusSq = featherRadius * featherRadius
+    -- Precompute full-alpha color and track previous alpha to skip redundant GetColorU32 calls
+    local fullAlphaColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
+    local prevAlpha = gridAlpha
+    local prevColor = fullAlphaColor
     local pos = gridSize
     while pos < primaryEnd do
         if useFeather and wb then
@@ -368,7 +376,16 @@ local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSiz
                 local lineAlpha = gridAlpha * featherAlpha
 
                 if lineAlpha > 0.001 then
-                    local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
+                    local lineColor
+                    if lineAlpha == gridAlpha then
+                        lineColor = fullAlphaColor
+                    elseif lineAlpha == prevAlpha then
+                        lineColor = prevColor
+                    else
+                        lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
+                        prevAlpha = lineAlpha
+                        prevColor = lineColor
+                    end
                     ImGui.ImDrawListAddLine(drawList, px1, py1, px2, py2, lineColor, thickness)
                 end
                 seg = segEnd
@@ -612,7 +629,7 @@ function effects.drawGridOverlay()
     local anyDragging = false
     if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
         or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
-        anyDragging = core.isAnyWindowDragging() or external.isAnyExternalWindowDragging()
+        anyDragging = isAnyDragging()
     end
 
     updateDimOverlay(displayWidth, displayHeight, anyDragging)

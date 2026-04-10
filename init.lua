@@ -46,7 +46,6 @@ local WindowUtils = {
 
 -- Configuration
 WindowUtils.SetGlobalDefaults = settings.setDefaults
-WindowUtils.Configure = settings.configure
 WindowUtils.SetWindowConfig = settings.setWindowConfig
 WindowUtils.ClearWindowConfig = settings.clearWindowConfig
 WindowUtils.GetConfig = settings.getConfig

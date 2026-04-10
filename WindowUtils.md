@@ -436,21 +436,6 @@ api.Info()
 
 Prints all settings keys with current values, defaults, and types to the CET console. Also shows quick-reference examples for `api.Get()` and `api.Set()`.
 
-### External Settings Integration
-
-Let WindowUtils read settings from your mod's own settings object:
-
-```lua
-wu.Configure(mySettingsObject)
--- WindowUtils will read from mySettingsObject.Current[key] using KEY_MAP:
---   gridUnits        -> "windowGridUnits"
---   gridEnabled      -> "windowGridEnabled"
---   animationEnabled -> "windowAnimationEnabled"
---   animationDuration-> "windowAnimationDuration"
---   easeFunction     -> "windowInterpolation"
---   tooltipsEnabled  -> "tooltipsEnabled"
-```
-
 
 
 
@@ -471,7 +456,7 @@ wu.ClearWindowConfig("Debug Window")
 local gridOn = wu.GetConfig("Debug Window", "gridEnabled")
 ```
 
-**Priority chain:** Master override (if enabled) > Per-window config > External settings > Global defaults
+**Priority chain:** Master override (if enabled) > Per-window config > Global defaults
 
 ### Global Defaults
 

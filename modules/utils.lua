@@ -185,11 +185,17 @@ function utils.cachedTruncateText(label, innerWidth, charWidth)
         truncateCache = {}
         truncateCacheCharWidth = charWidth
     end
-    local key = label .. "|" .. math.floor(innerWidth)
-    local cached = truncateCache[key]
+    -- Two-level lookup avoids string concat on every call
+    local byLabel = truncateCache[label]
+    if not byLabel then
+        byLabel = {}
+        truncateCache[label] = byLabel
+    end
+    local widthKey = math.floor(innerWidth)
+    local cached = byLabel[widthKey]
     if cached then return cached[1], cached[2] end
     local result, wasTruncated = utils.truncateText(label, innerWidth)
-    truncateCache[key] = { result, wasTruncated }
+    byLabel[widthKey] = { result, wasTruncated }
     return result, wasTruncated
 end
 

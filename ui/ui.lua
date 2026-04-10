@@ -5,6 +5,7 @@
 
 local settings  = require("core/settings")
 local core      = require("core/core")
+local discovery = require("core/discovery")
 local external  = require("core/external")
 local controls  = require("modules/controls")
 local styles    = require("modules/styles")
@@ -300,7 +301,7 @@ local function drawExperimentalSection()
     c:Header("Experimental", "experimental", experimentalIconGlyph())
     ImGui.Dummy(0, 0)
 
-    local discoveryAvailable = core.isDiscoveryAvailable()
+    local discoveryAvailable = discovery.isAvailable()
 
     if not discoveryAvailable then
         controls.StatusBar("Window Manager Not Installed")

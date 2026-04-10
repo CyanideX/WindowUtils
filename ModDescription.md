@@ -20,7 +20,7 @@ Features
 [*][b]Window Browser:[/b] Browse all discovered CET windows in one place. See window status, enable/disable individual windows, and toggle close buttons. Requires Window Manager plugin (optional).
 [*][b]External Window Management:[/b] Automatically apply grid snapping and animations to other mods' windows, no integration needed. Probe system detects active and empty windows with zero flicker. Batch or sequential auto-removal of stale windows.
 [*][b]Collapse-Safe Sizing:[/b] Window size constraints work correctly when windows are collapsed and expanded. Constraint animations smoothly transition between size states.
-[*][b]Per-Window Settings:[/b] Override grid, animation, and other settings on a per-window basis. Priority chain: Master Override > Per-Window > External Settings > Defaults.
+[*][b]Per-Window Settings:[/b] Override grid, animation, and other settings on a per-window basis. Priority chain: Master Override > Per-Window > Defaults.
 [*][b]Right-Click Reset:[/b] Right-click any slider, checkbox, combo, or color picker to reset it to its default value.
 [*][b]UI Controls Library:[/b] A complete set of styled ImGui controls for mod authors: buttons, sliders, checkboxes, combos, color pickers, inputs, text displays, progress bars, and a 12-column layout grid. All with built-in tooltip support.
 [*][b]Tooltips System:[/b] Drop-in tooltip helpers with styled, colored, titled, wrapped, multi-line, and keybind variants. Respects a global enable/disable toggle across all mods.

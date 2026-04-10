@@ -97,17 +97,6 @@ settings.windowConfigs = {}
 -- Incremented on any window override/hidden/ignored change so the browser sort cache can detect staleness
 settings.windowsGeneration = 0
 
-settings.external = nil
-
-settings.KEY_MAP = {
-    gridUnits = "windowGridUnits",
-    gridEnabled = "windowGridEnabled",
-    animationEnabled = "windowAnimationEnabled",
-    animationDuration = "windowAnimationDuration",
-    easeFunction = "windowInterpolation",
-    tooltipsEnabled = "tooltipsEnabled"
-}
-
 settings.easingKeys = {"linear", "easeIn", "easeOut", "easeInOut", "bounce"}
 settings.easingNames = {"Linear", "Ease In", "Ease Out", "Ease In-Out", "Bounce"}
 
@@ -267,12 +256,6 @@ function settings.setDefaults(config)
     end
 end
 
---- Configure with an external settings object reference.
-function settings.configure(settingsObj)
-    settings.external = settingsObj
-    settings.debugPrint("Configured")
-end
-
 --- Optional callback invoked when per-window config changes.
 --- Registered by core to auto-invalidate the grid cache.
 ---@type fun(windowName: string)|nil
@@ -321,19 +304,13 @@ function settings.getValidGridUnits(maxUnits)
 end
 
 --- Get effective configuration value for a window.
---- Priority: master (if enabled) > per-window > external > defaults
+--- Priority: master (if enabled) > per-window > defaults
 function settings.getConfig(windowName, key)
     if settings.master.enabled and settings.master[key] ~= nil then
         return settings.master[key]
     end
     if settings.windowConfigs[windowName] and settings.windowConfigs[windowName][key] ~= nil then
         return settings.windowConfigs[windowName][key]
-    end
-    if settings.external and settings.external.Current then
-        local externalKey = settings.KEY_MAP[key]
-        if externalKey and settings.external.Current[externalKey] ~= nil then
-            return settings.external.Current[externalKey]
-        end
     end
     return settings.defaults[key]
 end

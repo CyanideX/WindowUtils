@@ -61,10 +61,6 @@ local WindowUtils = nil
 
 registerForEvent("onInit", function()
     WindowUtils = GetMod("WindowUtils")
-    if WindowUtils then
-        -- Optional: Pass your settings object for integration
-        WindowUtils.Configure(mySettings)
-    end
 end)
 
 registerForEvent("onDraw", function()
@@ -78,18 +74,6 @@ registerForEvent("onDraw", function()
     end
     ImGui.End()
 end)
-```
-
-### Integrating with Your Mod's Settings
-
-WindowUtils can read settings from your mod's settings object:
-
-```lua
--- Your settings object should have a .Current table with these keys:
--- windowGridSize, windowGridEnabled, windowAnimationEnabled,
--- windowAnimationDuration, windowInterpolation
-
-WindowUtils.Configure(settings)  -- Pass parent object with .Current property
 ```
 
 ## Master Settings GUI
@@ -190,21 +174,6 @@ WindowUtils.UpdateWindow("My Window", true, true, 0.2)
 
 ### Configuration
 
-#### `WindowUtils.Configure(settingsObj)`
-
-Configure WindowUtils with your mod's settings object. WindowUtils reads from `settingsObj.Current` each frame.
-
-```lua
-WindowUtils.Configure(settings)
-```
-
-Expected keys in `.Current`:
-- `windowGridSize` (number)
-- `windowGridEnabled` (boolean)
-- `windowAnimationEnabled` (boolean)
-- `windowAnimationDuration` (number)
-- `windowInterpolation` (string)
-
 #### `WindowUtils.SetGlobalDefaults(config)`
 
 Set default configuration for all windows.
@@ -248,8 +217,7 @@ local gridSize = WindowUtils.GetConfig("My Window", "gridSize")
 Configuration is resolved in this order (highest to lowest):
 1. **Master settings** (when enabled via GUI)
 2. **Per-window overrides** (via `SetWindowConfig`)
-3. **External settings** (via `Configure`)
-4. **Global defaults** (via `SetGlobalDefaults` or built-in)
+3. **Global defaults** (via `SetGlobalDefaults` or built-in)
 
 ### Easing Functions
 
@@ -446,9 +414,6 @@ local WindowUtils = nil
 
 registerForEvent("onInit", function()
     WindowUtils = GetMod("WindowUtils")
-    if WindowUtils then
-        WindowUtils.Configure(settings)
-    end
 end)
 
 local showSettings = false

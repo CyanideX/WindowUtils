@@ -33,8 +33,6 @@ local config = {
 
 local queue = {}
 local nextId = 1
-local toRemove = {}
-local toRemoveCount = 0
 
 local levelColors = {
     info    = "blue",
@@ -152,16 +150,11 @@ function notifications.draw()
     local visibleIndex = 0
     local yOffset = 0
     local defaultToastH = ImGui.GetTextLineHeightWithSpacing() + config.toastPadding * 2
-    toRemoveCount = 0
 
     for i, toast in ipairs(queue) do
         local elapsed = now - toast.spawnTime
-        local totalLife = toast.ttl + toast.fadeOut
 
-        if elapsed >= totalLife then
-            toRemoveCount = toRemoveCount + 1
-            toRemove[toRemoveCount] = i
-        else
+        if elapsed < toast.ttl + toast.fadeOut then
             visibleIndex = visibleIndex + 1
             if visibleIndex > config.maxVisible then
                 -- Keep in queue for ordering, just don't render
@@ -226,8 +219,18 @@ function notifications.draw()
         end
     end
 
-    for i = toRemoveCount, 1, -1 do
-        table.remove(queue, toRemove[i])
+    -- Forward compaction: copy live entries to front, nil-out stale tail
+    local writeIdx = 0
+    for i = 1, #queue do
+        local toast = queue[i]
+        local elapsed = now - toast.spawnTime
+        if elapsed < toast.ttl + toast.fadeOut then
+            writeIdx = writeIdx + 1
+            queue[writeIdx] = toast
+        end
+    end
+    for i = writeIdx + 1, #queue do
+        queue[i] = nil
     end
 end
 
