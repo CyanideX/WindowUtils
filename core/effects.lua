@@ -485,7 +485,17 @@ local function drawGrid(displayWidth, displayHeight, anyDragging)
     if previewMode then
         isActive = effects.state.previewActive
     elseif settings.master.gridShowOnDragOnly then
-        isActive = anyDragging
+        if anyDragging then
+            -- Suppress grid when the dragged window has grid disabled
+            local draggedWindowName = core.getDraggingWindowName()
+            local dragGridEnabled = true
+            if draggedWindowName then
+                dragGridEnabled = settings.getConfig(draggedWindowName, "gridEnabled")
+            end
+            isActive = dragGridEnabled
+        else
+            isActive = false
+        end
     else
         isActive = true
     end
