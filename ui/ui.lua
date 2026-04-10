@@ -5,6 +5,7 @@
 
 local settings  = require("core/settings")
 local core      = require("core/core")
+local external  = require("core/external")
 local controls  = require("modules/controls")
 local styles    = require("modules/styles")
 local splitter  = require("modules/splitter")
@@ -145,7 +146,7 @@ local function drawGridSection()
     if scaleChanged then
         core.invalidateGridCache()
         if settings.master.autoAdjustOnResize then
-            core.snapAllWindows()
+            external.snapAllWindows()
         end
     end
 

@@ -5,6 +5,7 @@
 
 local settings = require("core/settings")
 local core = require("core/core")
+local external = require("core/external")
 local controls = require("modules/controls")
 
 local effects = {}
@@ -225,7 +226,7 @@ function effects.updateBlurDragState()
     if not settings.master.blurOnDragOnly then return end
     if not isOverlayOpen() then return end
 
-    local isDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+    local isDragging = core.isAnyWindowDragging() or external.isAnyExternalWindowDragging()
 
     if isDragging and not effects.blur.wasDragging then
         effects.enableBlur()
@@ -611,7 +612,7 @@ function effects.drawGridOverlay()
     local anyDragging = false
     if (settings.master.gridDimBackground and settings.master.gridDimBackgroundOnDragOnly)
         or (settings.master.gridVisualizationEnabled and settings.master.gridEnabled and settings.master.gridShowOnDragOnly) then
-        anyDragging = core.isAnyWindowDragging() or core.isAnyExternalWindowDragging()
+        anyDragging = core.isAnyWindowDragging() or external.isAnyExternalWindowDragging()
     end
 
     updateDimOverlay(displayWidth, displayHeight, anyDragging)

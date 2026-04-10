@@ -16,6 +16,7 @@
 local settings = require("core/settings")
 local utils = require("modules/utils")
 local core = require("core/core")
+local external = require("core/external")
 local ui = require("ui/ui")
 local effects = require("core/effects")
 local api = require("modules/api")
@@ -126,7 +127,7 @@ registerForEvent("onDraw", function()
 
         popout.drawAll()
 
-        core.updateExternalWindows()
+        external.updateExternalWindows()
         core.processDeferred()
     end
 
@@ -140,7 +141,7 @@ end)
 registerForEvent("onOverlayOpen", function()
     WindowUtils.runtimeData.cetOpen = true
     -- Re-probe external windows that may have become active while overlay was closed
-    core.resetExternalProbes()
+    external.resetExternalProbes()
     if settings.master.blurOnOverlayOpen and not settings.master.blurOnDragOnly then
         effects.enableBlur()
     end
