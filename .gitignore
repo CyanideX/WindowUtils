@@ -1,4 +1,18 @@
-db.sqlite3
-WindowUtils.log
-data/settings.json
+# Generated/runtime files
+*.log
 *.zip
+db.sqlite3
+
+# User data (keep placeholder.vortex only)
+data/*
+!data/placeholder.vortex
+
+# Build/tooling
+*.py
+*.code-workspace
+packManifest.json
+
+# Internal folders
+/_changelogs
+/_ref
+/.kiro
