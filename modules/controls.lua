@@ -77,6 +77,7 @@ local bindPoolSize = 0
 local buttonGroupWidths = {}    -- Cached combined widths for button groups (keyed by groupId)
 local swatchSortCache = {}      -- Cached sort results keyed by grid id
 local swatchSortQuickCheck = {} -- Quick staleness check: id -> {count, hasCategories, cacheKey}
+local pooledWidths = {}         -- Reused by computeElementWidths (consumed before next call)
 
 -- Reused tables for ActionButton (avoids per-frame allocation)
 local actionButtonHoldOpts = { duration = 0, style = "", progressDisplay = "external" }
@@ -428,63 +429,71 @@ end
 ---@return table widths Array of computed widths (one per element)
 local function computeElementWidths(drags, availWidth, spacing)
     local n = #drags
-    if n == 0 then return {} end
+    if n == 0 then
+        -- Clear any stale entry so #pooledWidths returns 0
+        pooledWidths[1] = nil
+        return pooledWidths
+    end
 
     local totalSpacing = (n - 1) * spacing
     local remaining = availWidth - totalSpacing
     local totalWeight = 0
-    local widths = {}
     local padX2 = frameCache.framePaddingX * 2
 
     -- First pass: resolve fixed widths, accumulate weights
     for i = 1, n do
         local el = drags[i]
         if el.width then
-            widths[i] = el.width
+            pooledWidths[i] = el.width
             remaining = remaining - el.width
         elseif el.widthFrom then
             -- Use cached width from a button group
             local w = buttonGroupWidths[el.widthFrom] or 0
-            widths[i] = w
+            pooledWidths[i] = w
             remaining = remaining - w
         elseif el.widthPercent then
             -- Percentage of display width
             local w = math.floor(frameCache.displayWidth * el.widthPercent / 100)
-            widths[i] = w
+            pooledWidths[i] = w
             remaining = remaining - w
         elseif el.fitLabel and el.label then
             -- Fit to label text + frame padding + extra breathing room
             local w = cachedCalcTextSize(el.label) + padX2 + frameCache.charWidth * 2
-            widths[i] = w
+            pooledWidths[i] = w
             remaining = remaining - w
         elseif el.type == "button" then
             if el.weight then
                 -- Weighted button: participates in remaining space distribution
                 totalWeight = totalWeight + el.weight
-                widths[i] = 0
+                pooledWidths[i] = 0
             else
                 local icon = el.icon and resolveIcon(el.icon)
                 local text = icon or el.label or ""
                 local w = cachedCalcTextSize(text) + padX2
-                widths[i] = w
+                pooledWidths[i] = w
                 remaining = remaining - w
             end
         else
             totalWeight = totalWeight + (el.weight or 1)
-            widths[i] = 0
+            pooledWidths[i] = 0
         end
     end
 
     -- Second pass: distribute remaining space by weight
     if totalWeight > 0 and remaining > 0 then
         for i = 1, n do
-            if widths[i] == 0 then
-                widths[i] = math.floor(remaining * (drags[i].weight or 1) / totalWeight)
+            if pooledWidths[i] == 0 then
+                pooledWidths[i] = math.floor(remaining * (drags[i].weight or 1) / totalWeight)
             end
         end
     end
 
-    return widths
+    -- Clear stale entries from previous calls with more elements
+    for i = n + 1, #pooledWidths do
+        pooledWidths[i] = nil
+    end
+
+    return pooledWidths
 end
 
 --- Shared renderer for DragFloatRow and DragIntRow.

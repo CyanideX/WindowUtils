@@ -300,8 +300,8 @@ local gridFade = {
 local GRID_FADE_IN_DURATION = 0.15
 local GRID_FADE_OUT_DURATION = 0.25
 
--- Distance from point to rectangle (0 if inside/within padding).
-local function distanceToRect(px, py, rx, ry, rw, rh, padding)
+-- Squared distance from point to rectangle (0 if inside/within padding).
+local function squaredDistanceToRect(px, py, rx, ry, rw, rh, padding)
     padding = padding or 0
     local left = rx - padding
     local right = rx + rw + padding
@@ -327,7 +327,7 @@ local function distanceToRect(px, py, rx, ry, rw, rh, padding)
         dy = py - bottom
     end
 
-    return math.sqrt(dx * dx + dy * dy)
+    return dx * dx + dy * dy
 end
 
 --- Draw grid lines along one axis with optional feathering.
@@ -345,6 +345,7 @@ end
 ---@param color table {r,g,b} color components
 ---@param thickness number line thickness
 local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSize, useFeather, wb, featherPadding, featherRadius, featherCurve, gridAlpha, color, thickness)
+    local radiusSq = featherRadius * featherRadius
     local pos = gridSize
     while pos < primaryEnd do
         if useFeather and wb then
@@ -357,10 +358,11 @@ local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSiz
                 else
                     px1, py1, px2, py2 = seg, pos, segEnd, pos
                 end
-                local dist1 = distanceToRect(px1, py1, wb.x, wb.y, wb.width, wb.height, featherPadding)
-                local dist2 = distanceToRect(px2, py2, wb.x, wb.y, wb.width, wb.height, featherPadding)
-                local dist = math.min(dist1, dist2)
-                local linearAlpha = math.max(0, 1 - (dist / featherRadius))
+                local dist1Sq = squaredDistanceToRect(px1, py1, wb.x, wb.y, wb.width, wb.height, featherPadding)
+                local dist2Sq = squaredDistanceToRect(px2, py2, wb.x, wb.y, wb.width, wb.height, featherPadding)
+                local distSq = math.min(dist1Sq, dist2Sq)
+                local ratio = distSq / radiusSq
+                local linearAlpha = math.max(0, 1 - math.sqrt(ratio))
                 local featherAlpha = math.pow(linearAlpha, featherCurve)
                 local lineAlpha = gridAlpha * featherAlpha
 

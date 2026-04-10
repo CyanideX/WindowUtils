@@ -94,6 +94,9 @@ settings.windows = {
 
 settings.windowConfigs = {}
 
+-- Incremented on any window override/hidden/ignored change so the browser sort cache can detect staleness
+settings.windowsGeneration = 0
+
 settings.external = nil
 
 settings.KEY_MAP = {
@@ -340,6 +343,7 @@ end
 ---@param value boolean|nil  nil removes the override
 function settings.setWindowOverride(windowName, value)
     settings.windows.overrides[windowName] = value
+    settings.windowsGeneration = settings.windowsGeneration + 1
     settings.saveWindows()
 end
 
@@ -355,6 +359,7 @@ end
 ---@param hidden boolean
 function settings.setWindowHidden(windowName, hidden)
     settings.windows.hidden[windowName] = hidden or nil
+    settings.windowsGeneration = settings.windowsGeneration + 1
     settings.saveWindows()
 end
 
@@ -374,6 +379,7 @@ function settings.setWindowIgnored(windowName, ignored)
         settings.windows.overrides[windowName] = nil
         settings.windows.hidden[windowName] = nil
     end
+    settings.windowsGeneration = settings.windowsGeneration + 1
     settings.saveWindows()
 end
 

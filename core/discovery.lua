@@ -16,6 +16,13 @@ function discovery.invalidateCache()
     currentGeneration = currentGeneration + 1
 end
 
+--- Return the current cache generation counter.
+--- Used by the browser sort cache to detect when discovery data has changed.
+---@return number
+function discovery.getGeneration()
+    return currentGeneration
+end
+
 --------------------------------------------------------------------------------
 -- Plugin Detection
 --------------------------------------------------------------------------------

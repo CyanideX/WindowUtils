@@ -17,6 +17,16 @@ local browser = {}
 local searchState = nil
 local WINDOW_NAME = "Window Browser##WindowUtils"
 
+-- Cached sort results, invalidated when discovery/settings/filter change
+local sortCache = {
+    visible = {},
+    hidden = {},
+    ignored = {},
+    discoveryGen = -1,
+    settingsGen = -1,
+    filter = "",
+}
+
 local function icon(name)
     return utils.resolveIcon(name) or "?"
 end
@@ -130,34 +140,54 @@ function browser.draw()
     search.SearchBar(searchState, { cols = 12 })
 
     local filter = searchState:getQuery():lower()
-    local windows = discovery.getActiveWindows()
-    local visibleWindows = {}
-    local hiddenWindows = {}
-    local ignoredWindows = {}
+    local curDiscoveryGen = discovery.getGeneration()
+    local curSettingsGen = settings.windowsGeneration
 
-    for _, windowInfo in ipairs(windows) do
-        local name = windowInfo.name
-        if name:sub(1, 3) == "###" then goto skipWindow end
-        if filter == "" or name:lower():find(filter, 1, true) then
-            if settings.isWindowIgnored(name) then
-                ignoredWindows[#ignoredWindows + 1] = name
-            elseif settings.isWindowHidden(name) then
-                hiddenWindows[#hiddenWindows + 1] = name
-            else
-                visibleWindows[#visibleWindows + 1] = name
+    -- Rebuild sorted lists only when underlying data or filter has changed
+    if curDiscoveryGen ~= sortCache.discoveryGen
+        or curSettingsGen ~= sortCache.settingsGen
+        or filter ~= sortCache.filter
+    then
+        local windows = discovery.getActiveWindows()
+        local visible = {}
+        local hidden = {}
+        local ignored = {}
+
+        for _, windowInfo in ipairs(windows) do
+            local name = windowInfo.name
+            if name:sub(1, 3) == "###" then goto skipWindow end
+            if filter == "" or name:lower():find(filter, 1, true) then
+                if settings.isWindowIgnored(name) then
+                    ignored[#ignored + 1] = name
+                elseif settings.isWindowHidden(name) then
+                    hidden[#hidden + 1] = name
+                else
+                    visible[#visible + 1] = name
+                end
             end
+            ::skipWindow::
         end
-        ::skipWindow::
+
+        local lowerCache = {}
+        for _, name in ipairs(visible) do lowerCache[name] = name:lower() end
+        for _, name in ipairs(hidden) do lowerCache[name] = name:lower() end
+        for _, name in ipairs(ignored) do lowerCache[name] = name:lower() end
+        local function cmpAlpha(a, b) return lowerCache[a] < lowerCache[b] end
+        table.sort(visible, cmpAlpha)
+        table.sort(hidden, cmpAlpha)
+        table.sort(ignored, cmpAlpha)
+
+        sortCache.visible = visible
+        sortCache.hidden = hidden
+        sortCache.ignored = ignored
+        sortCache.discoveryGen = curDiscoveryGen
+        sortCache.settingsGen = curSettingsGen
+        sortCache.filter = filter
     end
 
-    local lowerCache = {}
-    for _, name in ipairs(visibleWindows) do lowerCache[name] = name:lower() end
-    for _, name in ipairs(hiddenWindows) do lowerCache[name] = name:lower() end
-    for _, name in ipairs(ignoredWindows) do lowerCache[name] = name:lower() end
-    local function cmpAlpha(a, b) return lowerCache[a] < lowerCache[b] end
-    table.sort(visibleWindows, cmpAlpha)
-    table.sort(hiddenWindows, cmpAlpha)
-    table.sort(ignoredWindows, cmpAlpha)
+    local visibleWindows = sortCache.visible
+    local hiddenWindows = sortCache.hidden
+    local ignoredWindows = sortCache.ignored
 
     -- Bulk action header
     controls.Separator(4, 4)
