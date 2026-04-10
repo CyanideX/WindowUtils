@@ -133,6 +133,11 @@ function core.invalidateGridCache(windowName)
     end
 end
 
+-- Auto-invalidate grid cache when per-window config changes
+settings.onWindowConfigChanged = function(windowName)
+    core.invalidateGridCache(windowName)
+end
+
 --------------------------------------------------------------------------------
 -- Easing Functions
 --------------------------------------------------------------------------------

@@ -273,6 +273,11 @@ function settings.configure(settingsObj)
     settings.debugPrint("Configured")
 end
 
+--- Optional callback invoked when per-window config changes.
+--- Registered by core to auto-invalidate the grid cache.
+---@type fun(windowName: string)|nil
+settings.onWindowConfigChanged = nil
+
 --- Set per-window configuration overrides.
 ---@param windowName string Window title
 ---@param config table Key-value pairs to merge into window config
@@ -283,12 +288,18 @@ function settings.setWindowConfig(windowName, config)
     for key, value in pairs(config) do
         settings.windowConfigs[windowName][key] = value
     end
+    if settings.onWindowConfigChanged then
+        settings.onWindowConfigChanged(windowName)
+    end
 end
 
 --- Remove all per-window configuration overrides.
 ---@param windowName string Window title
 function settings.clearWindowConfig(windowName)
     settings.windowConfigs[windowName] = nil
+    if settings.onWindowConfigChanged then
+        settings.onWindowConfigChanged(windowName)
+    end
 end
 
 --- Get valid grid unit values for current display resolution.
