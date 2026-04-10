@@ -152,9 +152,8 @@ The `snapCollapsed` setting (default: `true`) controls whether collapsed windows
 Available easing functions: `linear`, `easeIn`, `easeOut`, `easeInOut`, `bounce`
 
 ```lua
--- Apply easing to a 0-1 value
-local eased = wu.ApplyEasing(t, "My Window")       -- uses window's configured easing
-local eased = wu.ApplyEasingByName(t, "easeOut")    -- use specific easing
+-- Apply easing to a 0-1 value (uses window's configured easing function)
+local eased = wu.ApplyEasing(t, "My Window")
 
 -- Linear interpolation
 local value = wu.Lerp(startVal, endVal, t)
@@ -169,6 +168,8 @@ end
 
 wu.CompleteAnimation("My Window")  -- skip to end
 wu.ResetWindow("My Window")       -- clear all tracking data
+wu.InvalidateGridCache()           -- clear cached grid sizes (e.g. after changing gridUnits)
+wu.InvalidateGridCache("My Window") -- clear for a specific window only
 ```
 
 
@@ -176,125 +177,85 @@ wu.ResetWindow("My Window")       -- clear all tracking data
 
 ## UI Controls
 
-Pre-styled ImGui controls with built-in tooltip support, right-click reset, and a 12-column grid layout system.
+Pre-styled ImGui controls with built-in tooltip support, right-click reset, and a 12-column grid layout system. Most controls accept an `opts` table for optional parameters.
 
 ```lua
-local controls = wu.Controls
+local c = wu.Controls
 ```
 
 ### Layout
 
 ```lua
--- 12-column grid width calculation
-local width = controls.ColWidth(6)              -- half width (6/12)
-local width = controls.ColWidth(4, 8, true)     -- 4 cols, 8px gap, after icon
-local width = controls.RemainingWidth()         -- fill remaining space
-```
-
-### Checkboxes
-
-```lua
-local value, changed = controls.Checkbox(
-    "Grid Enabled",     -- label
-    currentValue,       -- boolean
-    defaultValue,       -- right-click resets to this (optional)
-    "Enable grid snap"  -- tooltip text (optional)
-)
-
--- With icon prefix
-local value, changed = controls.CheckboxWithIcon(
-    IconGlyphs.Grid3x3, "Grid", currentValue, defaultValue, "tooltip"
-)
+local width = c.ColWidth(6)              -- half width (6 of 12 columns)
+local width = c.ColWidth(4, 8, true)     -- 4 cols, 8px gap, after icon
+local width = c.RemainingWidth()         -- fill remaining space
 ```
 
 ### Sliders
 
 ```lua
--- Float slider with icon
-local value, changed = controls.SliderFloat(
-    IconGlyphs.Speedometer,  -- icon
-    "speed",                 -- unique ID
-    currentValue,            -- number
-    0.0, 1.0,               -- min, max
-    "%.2f",                  -- format (optional)
-    nil,                     -- cols (optional, nil = fill width)
-    0.5,                     -- default for right-click reset (optional)
-    "Movement Speed"         -- tooltip (optional)
-)
+local val, changed = c.SliderFloat(IconGlyphs.Reload, "brightness", value, 0.1, 10.0, {
+    format = "%.1f", cols = 8, default = 1.0, tooltip = "Brightness"
+})
 
--- Integer slider
-local value, changed = controls.SliderInt(icon, id, value, min, max, "%d", cols, default, tooltip)
-
--- Disabled slider appearance
-controls.SliderDisabled(IconGlyphs.Lock, "Locked")
+local val, changed = c.SliderInt(IconGlyphs.Grid3x3, "gridSize", value, 1, 10, {
+    default = 2, tooltip = "Grid size"
+})
 ```
 
-### Buttons
+### Checkboxes
 
 ```lua
--- Styled button: "active", "inactive", "danger", "warning", "update", "disabled", "transparent"
-local clicked = controls.Button("Save", "active", width, height)
-
--- Toggle button (auto-switches between active/inactive)
-local clicked = controls.ToggleButton("Feature", isEnabled)
-
--- Full-width button
-local clicked = controls.FullWidthButton("Reset All", "danger")
-
--- Non-clickable disabled button
-controls.DisabledButton("Unavailable")
+local val, changed = c.Checkbox("Show Grid", settings.gridEnabled, {
+    icon = IconGlyphs.Grid, default = true, tooltip = "Toggle grid overlay"
+})
 ```
 
 ### Combo/Dropdown
 
 ```lua
-local newIndex, changed = controls.Combo(
-    IconGlyphs.ChevronDown,  -- icon (optional, nil for no icon)
-    "easing",                -- unique ID
-    currentIndex,            -- 0-based index
-    {"Linear", "Ease Out"},  -- items array
-    nil,                     -- cols (optional)
-    1,                       -- default index for right-click reset (optional)
-    "Easing Function"        -- tooltip (optional)
-)
+local idx, changed = c.Combo(IconGlyphs.ChevronDown, "easing", currentIndex,
+    {"Linear", "Ease Out", "Ease In"}, { default = 1, tooltip = "Easing function" })
+```
+
+### Buttons
+
+```lua
+local clicked = c.Button("Save", "active", width, height)
+local clicked = c.ToggleButton("Feature", isEnabled)
+local clicked = c.FullWidthButton("Reset All", "danger")
+c.DisabledButton("Unavailable")
+-- Styles: "active", "inactive", "danger", "warning", "update", "disabled", "transparent"
 ```
 
 ### Color Picker
 
 ```lua
-local color, changed = controls.ColorEdit4(
-    IconGlyphs.Palette,          -- icon (optional)
-    "gridColor",                 -- unique ID
-    {0.25, 0.95, 0.98, 0.8},    -- current RGBA (0-1)
-    nil,                         -- label (optional)
-    {0.25, 0.95, 0.98, 0.8},    -- default for right-click reset (optional)
-    "Grid Line Color"            -- tooltip (optional)
-)
+local color, changed = c.ColorEdit4(IconGlyphs.Palette, "gridColor",
+    {0.25, 0.95, 0.98, 0.8}, { default = {0.25, 0.95, 0.98, 0.8}, tooltip = "Grid color" })
 ```
 
 ### Input Fields
 
 ```lua
-local text, changed = controls.InputText(icon, "id", currentText, 256, cols, "tooltip")
-local value, changed = controls.InputFloat(icon, "id", currentValue, 0.1, 1.0, "%.2f", cols, "tooltip")
-local value, changed = controls.InputInt(icon, "id", currentValue, 1, 10, cols, "tooltip")
+local text, changed = c.InputText(icon, "id", currentText, { cols = 8, tooltip = "Name" })
+local val, changed  = c.InputFloat(icon, "id", currentValue, { step = 0.1, format = "%.2f" })
+local val, changed  = c.InputInt(icon, "id", currentValue, { step = 1, cols = 6 })
 ```
 
-### Text Display
+### Text and Layout
 
 ```lua
-controls.TextMuted("Greyed out info")
-controls.TextSuccess("Connected!")
-controls.TextDanger("Error occurred")
-controls.TextWarning("Experimental feature")
+c.TextMuted("Greyed out info")
+c.TextSuccess("Connected!")
+c.TextDanger("Error occurred")
+c.TextWarning("Experimental feature")
+
+c.Separator(4, 4)                -- spacing before/after
+c.SectionHeader("Section", 8, 4) -- labeled separator
 ```
 
-### Layout Helpers
-
-```lua
-controls.Separator(4, 4)                -- spacing before/after
-controls.SectionHeader("Section", 8, 4) -- labeled separator
-```
+The Controls module also provides drag controls, hold-to-confirm buttons, swatch grids, bound controls, and more. See [`docs/controls.md`](docs/controls.md) for the full reference.
 
 
 
@@ -383,43 +344,11 @@ styles.PushButton("active")   -- green with black text
 ImGui.Button("Go")
 styles.PopButton("active")
 
--- Available names: "active", "inactive", "danger", "warning", "update", "disabled", "transparent"
-
--- Padded variants (include frame and item spacing)
-styles.PushButtonActivePadded()
--- ...buttons...
-styles.PopButtonActivePadded()
+-- Available names: "active", "inactive", "danger", "warning", "update",
+--   "disabled", "statusbar", "label", "labelOutlined", "transparent", "frameless"
 ```
 
-### Element Styles
-
-```lua
--- Outlined frame (sliders, inputs, progress bars)
-styles.PushOutlined()         -- blue border
-styles.PushOutlinedDanger()   -- red border
-styles.PushOutlinedSuccess()  -- green border
-
--- Text colors
-styles.PushTextMuted()        -- grey
-styles.PushTextSuccess()      -- green
-styles.PushTextDanger()       -- red
-styles.PushTextWarning()      -- yellow
-
--- Slider/Checkbox
-styles.PushSliderDisabled()
-styles.PushCheckboxActive()   -- green checkmark
-```
-
-All Push functions have a matching Pop function.
-
-### Spacing Defaults
-
-```lua
-styles.spacing.framePaddingX  -- 6
-styles.spacing.framePaddingY  -- 6
-styles.spacing.itemSpacingX   -- 6
-styles.spacing.itemSpacingY   -- 8
-```
+Each named style also has a direct Push/Pop pair (e.g., `PushButtonDanger()` / `PopButtonDanger()`). See [`docs/styles.md`](docs/styles.md) for the full API reference including outlined styles, text styles, drag theming, and scrollbar styling.
 
 
 
@@ -430,59 +359,82 @@ Control WindowUtils settings programmatically from another mod:
 
 ```lua
 local api = wu.API
-
--- Master override
-api.Enable()                  -- enable master override
-api.Disable()
-api.IsEnabled()
-api.SetEnabled(true)
-
--- Grid
-api.EnableGrid()
-api.DisableGrid()
-api.ToggleGrid()              -- returns new state
-api.IsGridEnabled()
-api.SetGridUnits(2)           -- grid multiplier
-api.GetGridUnits()
-
--- Animation
-api.EnableAnimation()
-api.DisableAnimation()
-api.ToggleAnimation()         -- returns new state
-api.IsAnimationEnabled()
-api.SetAnimationDuration(0.3)
-api.GetAnimationDuration()
-
--- Tooltips
-api.EnableTooltips()
-api.DisableTooltips()
-api.ToggleTooltips()          -- returns new state
-api.IsTooltipsEnabled()
-api.SetTooltipsEnabled(true)
 ```
 
-### Direct Settings Access
-
-For settings not exposed as dedicated functions:
+### Reading Settings
 
 ```lua
-local s = api.GetSettings()   -- mutable reference to master settings
-s.blurOnOverlayOpen = true
-s.gridDimBackground = true
-s.gridDimBackgroundOpacity = 0.3
-api.SaveSettings()             -- persist to disk
+local s = api.Get()            -- mutable reference to the master settings table
+print(s.gridEnabled)           -- read any setting directly
 
--- Apply multiple settings at once
-api.ApplySettings({
+local defaults = api.GetDefaults()  -- read-only defaults table
+print(defaults.gridUnits)           -- inspect default values
+```
+
+`api.Get()` returns the live settings table. Changes to it take effect immediately, but call `api.Save()` to persist them to disk.
+
+`api.GetDefaults()` returns a frozen table (writes will error). Use it to compare current values against defaults or to supply reset values.
+
+### Changing Settings
+
+```lua
+-- Apply one or more settings at once (validates, persists, triggers side effects)
+api.Set({
     gridEnabled = true,
     animationDuration = 0.15,
     tooltipsEnabled = false
 })
-
--- Reset / Reload
-api.ResetSettings()            -- restore all defaults
-api.ReloadSettings()           -- reload from file
 ```
+
+`api.Set(table)` validates each key, writes valid ones to the master table, saves to disk, and handles side effects (e.g., invalidating the grid cache when `gridUnits` changes). Returns `true` if any setting was applied. Invalid keys or values are skipped with a debug message.
+
+For direct writes to the master table, persist manually:
+
+```lua
+local s = api.Get()
+s.blurOnOverlayOpen = true
+api.Save()                     -- persist to disk
+```
+
+### Reset and Reload
+
+```lua
+api.Reset()                    -- restore all settings to defaults and save
+api.Reload()                   -- reload settings from disk (discards in-memory changes)
+```
+
+Both functions also invalidate the grid cache so the overlay updates immediately.
+
+### Settings Window
+
+```lua
+api.Toggle()                   -- toggle the settings window open/closed
+api.Show()                     -- open the settings window
+api.Hide()                     -- close the settings window
+
+if api.IsVisible() then
+    -- settings window is currently open
+end
+```
+
+### Window Registration
+
+Register windows with metadata so WindowUtils can manage them correctly during external window management. Windows with a close button (pOpen) bypass the empty-shell probe state machine.
+
+```lua
+api.RegisterWindow("My Window###mywin", { hasCloseButton = true })
+api.UnregisterWindow("My Window###mywin")
+```
+
+The window name supports ImGui's `###` stable ID syntax.
+
+### Console Helper
+
+```lua
+api.Info()
+```
+
+Prints all settings keys with current values, defaults, and types to the CET console. Also shows quick-reference examples for `api.Get()` and `api.Set()`.
 
 ### External Settings Integration
 
@@ -550,8 +502,12 @@ wu.SetGlobalDefaults({
 | `animationDuration` | number | 0.2 | Animation duration in seconds |
 | `easeFunction` | string | "easeOut" | Easing function name |
 | `tooltipsEnabled` | boolean | true | Show tooltips |
+| `tooltipMaxWidthPct` | number | 15 | Maximum tooltip width as percentage of display width |
 | `debugOutput` | boolean | false | Print debug messages to console |
 | `overrideAllWindows` | boolean | false | Apply to all CET windows |
+| `overrideStyling` | boolean | false | Apply WindowUtils styling to overridden windows |
+| `showGuiWindow` | boolean | true | Show the WindowUtils GUI window |
+| `windowBrowserOpen` | boolean | false | Window Browser panel is open |
 | `gridFeatherEnabled` | boolean | true | Enable grid feathering |
 | `gridFeatherRadius` | number | 400 | Feather radius in pixels |
 | `gridFeatherPadding` | number | 0 | Feather padding in pixels |
@@ -561,36 +517,59 @@ wu.SetGlobalDefaults({
 | `gridDimBackground` | boolean | true | Dim background behind grid |
 | `gridDimBackgroundOnDragOnly` | boolean | true | Only dim while dragging |
 | `gridDimBackgroundOpacity` | number | 0.2 | Background dim opacity (0-1) |
-| `showSettingsWindow` | boolean | false | Show settings window on load |
 | `blurOnOverlayOpen` | boolean | false | Blur background on CET overlay |
 | `blurOnDragOnly` | boolean | true | Only blur while dragging |
 | `blurIntensity` | number | 0.0028 | Blur intensity (0.0-0.02) |
-| `blurFadeInDuration` | number | 0.25 | Blur fade-in seconds |
-| `blurFadeOutDuration` | number | 0.05 | Blur fade-out seconds |
+| `fadeInDuration` | number | 0.25 | Overlay fade-in duration in seconds |
+| `fadeOutDuration` | number | 0.05 | Overlay fade-out duration in seconds |
+| `quickExit` | boolean | true | Skip fade-out when closing the overlay |
 | `probeInterval` | number | 0.5 | Seconds between window re-probes |
 | `autoRemoveEmptyWindows` | boolean | true | Auto-remove empty window shells |
 | `autoRemoveInterval` | number | 0.5 | Seconds between auto-remove checks |
 | `batchAutoRemove` | boolean | true | Check all windows at once vs round-robin |
-| `excludedWindows` | table | {} | Window names excluded from external management |
-| `windowPOpen` | table | {} | Per-window close button overrides |
+| `autoAdjustOnResize` | boolean | false | Re-snap windows when display resolution changes |
+| `disableScrollbar` | boolean | false | Hide scrollbars in the settings window |
+| `showExperimental` | boolean | false | Show experimental features in settings |
+| `experimentalDisclaimerShown` | boolean | false | Experimental disclaimer has been acknowledged |
 
 
 
 
 ## Right-Click Reset
 
-All Controls module widgets (`Checkbox`, `SliderFloat`, `SliderInt`, `Combo`, `ColorEdit4`) support right-click to reset to a default value. Pass the default as a parameter:
+All Controls module widgets (`Checkbox`, `SliderFloat`, `SliderInt`, `Combo`, `ColorEdit4`) support right-click to reset to a default value. Pass the default in the opts table:
 
 ```lua
-local value, changed = controls.SliderFloat(
-    icon, "id", currentValue, 0, 100, "%.0f",
-    nil,     -- cols
-    50,      -- right-click resets to 50
-    "tooltip"
-)
+local value, changed = c.SliderFloat(icon, "id", currentValue, 0, 100, {
+    default = 50,  -- right-click resets to 50
+    tooltip = "Volume"
+})
 ```
 
 If the user right-clicks the control, `changed` returns `true` and `value` returns the default.
+
+
+
+
+## Module Reference
+
+Detailed per-module documentation lives in the `docs/` directory. Each file covers the full API, usage patterns, and examples for that module.
+
+| Module | Description |
+|--------|-------------|
+| [controls](docs/controls.md) | Grid-based layout, styled buttons, sliders, inputs, hold-to-confirm buttons, bound controls, and layout helpers |
+| [dragdrop](docs/dragdrop.md) | Drag-and-drop reordering for ImGui lists with visual feedback and drop indicators |
+| [expand](docs/expand.md) | Automatic window resizing for toggle panels with sizing modes, drag-to-resize, and position anchoring |
+| [lists](docs/lists.md) | Scrollable list rendering with per-item callbacks, active-index tracking, clipper optimization, and drag-drop reorder |
+| [modal](docs/modal.md) | Centered modal popups with percent-based sizing, button configuration, and hold-to-confirm |
+| [notifications](docs/notifications.md) | Screen-edge toast notifications with level-based styling, auto-dismiss, and fade-out |
+| [popout](docs/popout.md) | Detachable panels that can dock inline or float in a separate window |
+| [search](docs/search.md) | Search and filter system that dims non-matching controls when a query is active |
+| [splitter](docs/splitter.md) | Draggable dividers for two-panel, multi-panel, and collapsible toggle layouts |
+| [styles](docs/styles.md) | Push/pop style helpers for consistent ImGui theming |
+| [tabs](docs/tabs.md) | Styled tab bars with badge indicators, disabled tabs, and programmatic selection |
+| [tooltips](docs/tooltips.md) | Hover tooltips with styling variants, keybind hints, and multi-line support |
+| [utils](docs/utils.md) | Low-level helper functions used across WindowUtils modules |
 
 
 
