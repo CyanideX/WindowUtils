@@ -719,18 +719,45 @@ local function getOrCreateState(id)
     if state then return state end
 
     state = {
-        id          = id,
-        query       = "",
-        category    = nil,
-        filtered    = {},
-        cacheKey    = nil,
-        selected    = nil,
-        onSelect    = nil,
-        searchState = nil,
-        comboIndex  = 0,
+        id            = id,
+        query         = "",
+        category      = nil,
+        filtered      = {},
+        cacheKey      = nil,
+        selected      = nil,
+        selectedGlyph = nil,
+        changed       = false,
+        onSelect      = nil,
+        searchState   = nil,
+        comboIndex    = 0,
     }
     stateRegistry[id] = state
     return state
+end
+
+--- Reset an instance's search, category filter, and selection.
+--- Call with no id to reset all instances.
+---@param id string|nil
+function iconbrowser.reset(id)
+    if not id then
+        for k in pairs(stateRegistry) do
+            iconbrowser.reset(k)
+        end
+        return
+    end
+    local state = stateRegistry[id]
+    if not state then return end
+    state.query = ""
+    state.category = nil
+    state.comboIndex = 0
+    state.cacheKey = nil
+    state.selected = nil
+    state.selectedGlyph = nil
+    state.changed = false
+    state._defaultApplied = nil
+    if state.searchState then
+        state.searchState:clear()
+    end
 end
 
 --- Rebuild filtered list when query or category changes.
@@ -835,6 +862,8 @@ local function renderGrid(state, cellSize)
 
             if clicked then
                 state.selected = entry.name
+                state.selectedGlyph = entry.glyph
+                state.changed = true
                 if state.onSelect then
                     state.onSelect(entry.name, entry.glyph)
                 end
@@ -858,10 +887,12 @@ end
 ---@param selected string|nil
 ---@param onSelect function|nil
 ---@param opts table|nil
----@return string|nil selected
+---@return string|nil selected Icon name
+---@return string|nil glyph Resolved glyph string
+---@return boolean changed True if selection changed this frame
 function iconbrowser.draw(id, selected, onSelect, opts)
     if not indexBuilt then buildIndex() end
-    if not indexBuilt then return selected end
+    if not indexBuilt then return selected, nil, false end
 
     opts = opts or {}
     local cellSize     = opts.cellSize or 28
@@ -877,6 +908,7 @@ function iconbrowser.draw(id, selected, onSelect, opts)
     -- Sync caller's selection into state
     if selected ~= nil then
         state.selected = selected
+        state.selectedGlyph = IconGlyphs and IconGlyphs[selected] or nil
     end
 
     -- Apply defaultCategory on first creation only
@@ -953,7 +985,7 @@ function iconbrowser.draw(id, selected, onSelect, opts)
     if showPreview then
         controls.Panel("iconpreview_" .. id, function()
             if state.selected then
-                local glyph = IconGlyphs and IconGlyphs[state.selected] or "?"
+                local glyph = state.selectedGlyph or "?"
                 local code = "IconGlyphs." .. state.selected
                 local cat = categoryIndex[state.selected] or "Other"
 
@@ -989,7 +1021,10 @@ function iconbrowser.draw(id, selected, onSelect, opts)
         end, { height = "auto" })
     end
 
-    return state.selected
+    local changed = state.changed or false
+    state.changed = false
+
+    return state.selected, state.selectedGlyph, changed
 end
 
 return iconbrowser

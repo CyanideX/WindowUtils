@@ -35,7 +35,28 @@ Render an inline icon browser. Creates/retrieves per-instance state keyed by `id
 | onSelect | function\|nil | nil | Callback: `onSelect(name, glyph)` |
 | opts | table\|nil | nil | Configuration overrides |
 
-**Returns:** `string|nil` - updated selected icon name
+**Returns:** `string|nil, string|nil, boolean` - selected icon name, resolved glyph string, whether selection changed this frame
+
+The three return values let you track selection changes and use the glyph directly:
+
+```lua
+local selected, glyph, changed = iconbrowser.draw("my_picker", selected)
+if changed then
+    myEntry.icon = selected
+    myEntry.glyph = glyph
+    save()
+end
+```
+
+The `onSelect` callback is still available for event-driven usage:
+
+```lua
+iconbrowser.draw("my_picker", selected, function(name, glyph)
+    myEntry.icon = name
+    myEntry.glyph = glyph
+    save()
+end)
+```
 
 ### Options
 
@@ -106,6 +127,24 @@ Get the category for a given icon name.
 
 ```lua
 local cat = iconbrowser.getCategory("AccountCircle")  -- "Account / User"
+```
+
+## Instance Management
+
+### reset(id?)
+
+Reset an instance's search query, category filter, and selection. Call with no argument to reset all instances. Useful when the picker lives inside a modal that opens and closes.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| id | string\|nil | nil | Instance ID, or nil to reset all |
+
+```lua
+-- Reset a specific instance
+iconbrowser.reset("cat_picker")
+
+-- Reset all instances
+iconbrowser.reset()
 ```
 
 ## Categories
