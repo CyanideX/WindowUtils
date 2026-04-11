@@ -753,267 +753,212 @@ Get cached combined width of a button group from a previous `DragFloatRow`/`Drag
 
 ## Bound Controls
 
-### `bind(data, defaults?, onSave?, bindOpts?)`
+The bind system is the easiest way to build a settings UI. Instead of manually reading values, checking for changes, writing them back, and handling right-click reset for every control, you create a "bound context" that does all of that automatically.
 
-Create a bound context that auto-reads values from a data table, auto-resets on right-click from defaults, and auto-saves on change.
+### The Problem bind() Solves
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| data | table | Data table to read/write |
-| defaults | table\|nil | Default values for right-click reset |
-| onSave | function\|nil | Callback after any value change |
-| bindOpts.idPrefix | string | Prefix for ImGui IDs (default "") |
-
-**Returns:** bound context with these methods:
-
-| Method | Signature |
-|--------|-----------|
-| `ctx:SliderFloat` | `(icon, key, min, max, opts?)` |
-| `ctx:SliderInt` | `(icon, key, min, max, opts?)` |
-| `ctx:DragFloat` | `(icon, key, min, max, opts?)` |
-| `ctx:DragInt` | `(icon, key, min, max, opts?)` |
-| `ctx:DragFloatRow` | `(icon, keys, min, max, opts?)` |
-| `ctx:DragIntRow` | `(icon, keys, min, max, opts?)` |
-| `ctx:Checkbox` | `(label, key, opts?)` |
-| `ctx:ColorEdit4` | `(icon, key, opts?)` |
-| `ctx:SwatchGrid` | `(key, colors, opts?)` |
-| `ctx:Combo` | `(icon, key, items, opts?)` |
-| `ctx:InputText` | `(icon, key, opts?)` |
-| `ctx:InputFloat` | `(icon, key, opts?)` |
-| `ctx:InputInt` | `(icon, key, opts?)` |
-| `ctx:ToggleButtonRow` | `(defs, opts?)` |
-
-Bound methods use `key` to read `data[key]`, reset to `defaults[key]` on right-click, and call `onSave()` on change.
+Without bind, every control needs manual plumbing:
 
 ```lua
-local c = wu.Controls
-local ctx = c.bind(settings.master, settings.defaults, settings.save, {
-    idPrefix = "mymod_"
+-- Without bind: lots of repetitive code
+local val, changed = controls.SliderFloat(icon, "brightness", settings.brightness, 0, 10)
+if changed then
+    settings.brightness = val
+    saveSettings()
+end
+-- ...repeat for every single control
+```
+
+With bind, you wire it up once and every control just works:
+
+```lua
+-- With bind: one setup, then just declare controls
+local ctx = controls.bind(settings, defaults, saveSettings)
+ctx:SliderFloat(icon, "brightness", 0, 10)  -- reads, writes, resets, saves automatically
+```
+
+### Basic Example
+
+```lua
+local wu = GetMod("WindowUtils")
+local controls = wu.Controls
+
+-- Your settings table (the data you want to edit)
+local settings = { brightness = 1.0, volume = 50, showHUD = true }
+local defaults = { brightness = 1.0, volume = 50, showHUD = true }
+
+-- Create a bound context (once per frame, or cache it)
+local ctx = controls.bind(settings, defaults, function() saveToFile() end)
+
+-- Now just declare your controls. That's it.
+ctx:SliderFloat(nil, "brightness", 0.1, 10.0)   -- edits settings.brightness
+ctx:SliderInt(nil, "volume", 0, 100)             -- edits settings.volume
+ctx:Checkbox("Show HUD", "showHUD")              -- edits settings.showHUD
+```
+
+Every bound control:
+- Reads its value from `settings[key]`
+- Writes the new value back to `settings[key]` when changed
+- Resets to `defaults[key]` on right-click
+- Calls your save function after any change
+
+### Adding Icons and Tooltips
+
+```lua
+ctx:SliderFloat(IconGlyphs.Brightness6, "brightness", 0.1, 10.0, {
+    format = "%.1f",
+    tooltip = "Screen brightness multiplier",
 })
 
-ctx:SliderFloat(IconGlyphs.Brightness, "brightness", 0.1, 10.0, {
-    format = "%.1f", tooltip = "Light brightness"
-})
-
-ctx:Checkbox("Enable shadows", "shadowsEnabled", {
-    icon = IconGlyphs.Shadow
+ctx:Checkbox("Show HUD", "showHUD", {
+    icon = IconGlyphs.Monitor,
+    tooltip = "Toggle the heads-up display",
 })
 
 ctx:Combo(IconGlyphs.Palette, "colorMode", { "RGB", "HSL", "HSV" })
 ```
 
-#### Transform Option
+### ID Prefix
 
-Bound sliders (`SliderFloat`, `SliderInt`) and `Combo` support a `transform` option for value conversion between display and storage:
+If your mod has multiple bind contexts (e.g., different settings pages), use `idPrefix` to avoid ImGui ID collisions:
 
 ```lua
-ctx:SliderFloat(icon, "gamma", 0, 100, {
-    transform = {
-        read = function(v) return v * 100 end,   -- storage → display
-        write = function(v) return v / 100 end,   -- display → storage
-    },
-    percent = true,  -- show as "50%" format
-})
-
-ctx:Combo(IconGlyphs.Palette, "themeIndex", { "Light", "Dark", "Auto" }, {
-    transform = {
-        read = function(v) return v - 1 end,   -- 1-based storage → 0-based ImGui index
-        write = function(v) return v + 1 end,   -- 0-based ImGui index → 1-based storage
-    },
-})
+local ctx = controls.bind(settings, defaults, save, { idPrefix = "mymod_" })
 ```
 
-| Field | Type | Description |
-|-------|------|-------------|
-| transform.read | function | Converts storage value → display value |
-| transform.write | function | Converts display value → storage value |
+### Available Bound Methods
 
-#### Percent Option
+| Method | What it edits |
+|--------|---------------|
+| `ctx:SliderFloat(icon, key, min, max, opts?)` | Float slider |
+| `ctx:SliderInt(icon, key, min, max, opts?)` | Integer slider |
+| `ctx:DragFloat(icon, key, min, max, opts?)` | Float drag (Shift for precision) |
+| `ctx:DragInt(icon, key, min, max, opts?)` | Integer drag |
+| `ctx:DragFloatRow(icon, keys, min, max, opts?)` | Row of float drags |
+| `ctx:DragIntRow(icon, keys, min, max, opts?)` | Row of integer drags |
+| `ctx:Checkbox(label, key, opts?)` | Boolean checkbox |
+| `ctx:ColorEdit4(icon, key, opts?)` | RGBA color picker |
+| `ctx:SwatchGrid(key, colors, opts?)` | Color swatch grid |
+| `ctx:Combo(icon, key, items, opts?)` | Dropdown selector |
+| `ctx:InputText(icon, key, opts?)` | Text input |
+| `ctx:InputFloat(icon, key, opts?)` | Float input with +/- buttons |
+| `ctx:InputInt(icon, key, opts?)` | Integer input with +/- buttons |
+| `ctx:ToggleButtonRow(defs, opts?)` | Row of boolean toggle buttons |
 
-Bound `SliderFloat` and `SliderInt` support a `percent` option that auto-formats the slider label as a percentage of the slider range:
+All methods use `key` (a string) to look up the value in your data table. The second argument is always the key, except for `Checkbox` where the first argument is the visible label.
 
-```lua
-ctx:SliderFloat(icon, "opacity", 0, 1, {
-    percent = true,  -- displays "50%" when value is 0.5
-})
-```
+### DragFloatRow (Bound)
 
-#### `ctx:DragFloatRow(icon, keys, min, max, opts?)`
-
-Bound version of `DragFloatRow`. Takes a `keys` array instead of a `drags` array. Values are read from `data[key]` for each key, defaults from `defaults[key]`.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| icon | string\|nil | IconGlyph prefix |
-| keys | table | Array of data table keys (e.g. `{"x", "y", "z"}`) |
-| min | number\|nil | Default min for all drags |
-| max | number\|nil | Default max for all drags |
-| opts | table\|nil | Row-level options (same as standalone, plus `drags` for per-key overrides) |
-
-Use `opts.drags` to provide per-key customization (colors, labels, formats, weights). When omitted, all drags use row-level defaults. Use `opts.def` to look up row configuration from the bind system's `defs` table.
-
-In absolute mode, changed values are written back to `data[key]` and `onSave()` is called. In delta mode, `opts.onChange` is called instead of auto-writing.
+The bound version takes a `keys` array instead of a `drags` array. Values are read from `data[key]` for each key.
 
 ```lua
--- Simple bound row (just keys and range)
+-- Simple: just keys and range
 ctx:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000)
 
--- With colors
-ctx:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
-    drags = {
-        { color = c.DragColors.x },
-        { color = c.DragColors.y },
-        { color = c.DragColors.z },
-    },
-})
-
--- With labels that show values on hover
+-- With colored labels that show values on hover
 ctx:DragFloatRow(nil, {"x", "y", "z"}, -2000, 2000, {
     speed = 0.1,
     drags = {
-        { color = c.DragColors.x, label = "X" },
-        { color = c.DragColors.y, label = "Y" },
-        { color = c.DragColors.z, label = "Z" },
-    },
-})
-
--- RGBA color editor
-ctx:DragFloatRow("Palette", {"r", "g", "b", "a"}, 0.0, 1.0, {
-    speed = 0.005,
-    drags = {
-        { color = { 1, 0.3, 0.3, 1 }, label = "R" },
-        { color = { 0.3, 1, 0.3, 1 }, label = "G" },
-        { color = { 0.3, 0.3, 1, 1 }, label = "B" },
-        { color = { 0.7, 0.7, 0.7, 1 }, label = "A" },
-    },
-})
-
--- Width weighting (3 equal-weight + 1 fixed-width)
-ctx:DragFloatRow(nil, {"yaw", "tilt", "roll", "fov"}, nil, nil, {
-    speed = 0.5,
-    drags = {
-        { label = "Yaw", min = -180, max = 180 },
-        { label = "Tilt", min = -90, max = 90 },
-        { label = "Roll", min = -360, max = 360 },
-        { label = "FOV", width = 80, min = 20, max = 130 },
-    },
-})
-
--- Delta mode (camera-relative movement)
-ctx:DragFloatRow(nil, {"x", "y", "z"}, -10000, 10000, {
-    mode = "delta",
-    speed = 0.1,
-    onChange = function(index, delta)
-        local axes = { right, forward, up }
-        local axis = axes[index]
-        pos.x = pos.x + delta * axis.x
-        pos.y = pos.y + delta * axis.y
-        pos.z = pos.z + delta * axis.z
-    end,
-})
-```
-
-#### `ctx:DragIntRow(icon, keys, min, max, opts?)`
-
-Same as `ctx:DragFloatRow` but uses `DragIntRow` internally. Default format: `"%d"`, default speed: `0.5`.
-
-```lua
-ctx:DragIntRow("TuneVariant", {"quality", "priority", "count"}, 0, 100, {
-    drags = {
-        { label = "Quality" },
-        { label = "Priority", width = 60 },
-        { label = "Count", width = 60 },
+        { color = styles.dragColors.x, label = "X" },
+        { color = styles.dragColors.y, label = "Y" },
+        { color = styles.dragColors.z, label = "Z" },
     },
 })
 ```
 
-#### `ctx:ToggleButtonRow(defs, opts?)`
+### ToggleButtonRow (Bound)
 
-Row of toggle buttons bound to boolean keys in data. Left-click toggles, right-click resets to default.
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| def.key | string |  - | Data table key for this toggle |
-| def.icon | string\|nil | nil | Icon glyph (auto-sizes if no label) |
-| def.label | string\|nil | nil | Button text label |
-| def.weight | number | 1 | Flex weight for text buttons |
-| def.width | number\|nil | nil | Fixed width override |
-| def.tooltip | string\|nil | nil | Tooltip text |
-| def.onChange | function\|nil | nil | Callback `(newValue)` after toggle |
-| opts.gap | number | ItemSpacing.x | Gap between buttons |
-| opts.id | string\|nil | nil | ID for min-width caching |
+Row of toggle buttons, each bound to a boolean key. Left-click toggles, right-click resets.
 
 ```lua
 ctx:ToggleButtonRow({
-    { key = "showGrid", icon = IconGlyphs.Grid, tooltip = "Grid" },
-    { key = "showGuides", icon = IconGlyphs.RulerSquare, tooltip = "Guides" },
-    { key = "snapEnabled", icon = IconGlyphs.Magnet, tooltip = "Snap" },
+    { key = "showGrid",    icon = IconGlyphs.Grid,        tooltip = "Grid" },
+    { key = "showGuides",  icon = IconGlyphs.RulerSquare, tooltip = "Guides" },
+    { key = "snapEnabled", icon = IconGlyphs.Magnet,      tooltip = "Snap" },
 })
 ```
 
-#### `ctx:SwatchGrid(key, colors, opts?)`
+### SwatchGrid (Bound)
 
-Bound swatch grid. Reads `data[key]` as the selected hex, writes back on selection. Right-click resets to `defaults[key]`.
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| key | string |  - | Data table key (value is a hex string) |
-| colors | table |  - | Array of Color_Entry tables |
-| opts.config | table\|nil | nil | Swatch_Config overrides |
-| opts.onChange | function\|nil | nil | Callback after selection change |
+Reads `data[key]` as the selected hex string, writes back on click. Right-click resets.
 
 ```lua
-local myColors = {
-    { name = "Sunset Orange", hex = "FD9E51", category = "warm" },
-    { name = "Cherry Red",    hex = "CC2244", category = "warm" },
-    { name = "Ocean Blue",    hex = "2266AA", category = "cool" },
-}
-
 ctx:SwatchGrid("accentColor", myColors, {
     config = { sortMode = "hue" },
     onChange = function() refreshTheme() end,
 })
 ```
 
-#### Search-Aware Helpers
+### Transform Option
 
-These methods integrate with the search system to dim non-matching sections. Requires `search` and `defs` in `bindOpts`. See [search.md](search.md) for full search integration details.
-
-#### `ctx:Header(text, category, iconGlyph?)`
-
-Render a text header that auto-dims when no controls in the category match the search query. Optionally renders a right-justified icon glyph.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| text | string | Header text |
-| category | string | Category key to check against defs |
-| iconGlyph | table\|nil | HeaderIconGlyph opts table |
-
-#### `ctx:SectionHeader(text, category, spacingBefore?, spacingAfter?, iconGlyph?)`
-
-Render a separator + label that auto-dims based on category match. Optionally renders a right-justified icon glyph.
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| text | string | Section title text |
-| category | string | Category key to check against defs |
-| spacingBefore | number\|nil | Vertical spacing before separator |
-| spacingAfter | number\|nil | Vertical spacing after label |
-| iconGlyph | table\|nil | HeaderIconGlyph opts table |
-
-#### `ctx:BeginDim(key)` / `ctx:EndDim(dimmed)`
-
-Manual dimming for non-bound controls. `BeginDim` pushes reduced alpha if the key doesn't match the search query. Returns `true` if dimming was pushed. Pass the return value to `EndDim`.
+Convert between storage format and display format. Useful when your data stores values differently than the slider shows them.
 
 ```lua
-local dimmed = ctx:BeginDim("myKey")
--- render custom controls
+-- Data stores 0.0-1.0, slider shows 0-100%
+ctx:SliderFloat(nil, "opacity", 0, 100, {
+    transform = {
+        read = function(v) return v * 100 end,
+        write = function(v) return v / 100 end,
+    },
+    percent = true,
+})
+
+-- Data stores 1-based index, ImGui combo uses 0-based
+ctx:Combo(nil, "theme", { "Light", "Dark", "Auto" }, {
+    transform = {
+        read = function(v) return v - 1 end,
+        write = function(v) return v + 1 end,
+    },
+})
+```
+
+### Search Integration
+
+When combined with the search module, bound controls automatically dim when they don't match the search query. See [search.md](search.md) for setup details.
+
+```lua
+local searchState = wu.Search.new("my_settings")
+
+local ctx = controls.bind(settings, defaults, save, {
+    search = searchState,
+    defs = {
+        brightness = { label = "Brightness", category = "visuals" },
+        volume     = { label = "Volume",     category = "audio" },
+    },
+})
+
+-- Search bar at the top
+controls.SearchBar(searchState, { cols = 12 })
+
+-- Headers dim when no controls in their category match
+ctx:Header("Visuals", "visuals")
+ctx:SliderFloat(nil, "brightness", 0, 10)
+
+ctx:SectionHeader("Audio", "audio", 10, 0)
+ctx:SliderFloat(nil, "volume", 0, 100)
+```
+
+### `ctx:Header(text, category, iconGlyph?)`
+
+Text header that auto-dims when no controls in the category match the search query.
+
+### `ctx:SectionHeader(text, category, spacingBefore?, spacingAfter?, iconGlyph?)`
+
+Separator + label that auto-dims based on category match.
+
+### `ctx:BeginDim(key)` / `ctx:EndDim(dimmed)`
+
+Manual dimming for custom controls that aren't part of the bind system but should still participate in search filtering.
+
+```lua
+local dimmed = ctx:BeginDim("myCustomKey")
+-- render your custom ImGui controls here
 ctx:EndDim(dimmed)
 ```
 
 ### `unbind(ctx)`
 
-Return a bind context to the internal pool for reuse. Optional - without this, contexts are garbage collected normally.
+Return a bind context to the internal pool for reuse. Optional. Without this, contexts are garbage collected normally.
 
 ## Fill Child
 
