@@ -196,6 +196,17 @@ function uidefs.init()
         windowBrowserOpen = { label = "Window Browser", category = "experimental",
                               searchTerms = "browse discover list",
                               tooltip = "Browse all discovered CET windows" },
+
+        -- Developer
+        iconBrowserOpen  = { label = "Icon Browser", category = "developer",
+                             searchTerms = "icon glyph browse picker MDI",
+                             tooltip = "Open the Icon Glyph Browser window" },
+        showcaseOpen     = { label = "Showcase", category = "developer.testmods",
+                             searchTerms = "showcase demo example sample",
+                             tooltip = "Toggle the WindowUtils Showcase window" },
+        devToolsOpen     = { label = "Dev Tools", category = "developer.testmods",
+                             searchTerms = "style color preview button editor",
+                             tooltip = "Toggle the WindowUtils Dev Tools window" },
     }
 end
 

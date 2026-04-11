@@ -64,7 +64,10 @@ local function createDefaultSettings()
         overrideStyling = false,
         disableScrollbar = false,
         showExperimental = false,
-        experimentalDisclaimerShown = false
+        experimentalDisclaimerShown = false,
+        iconBrowserOpen = false,
+        showcaseOpen = false,
+        devToolsOpen = false,
     }
 end
 

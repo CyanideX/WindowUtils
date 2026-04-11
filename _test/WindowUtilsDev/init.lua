@@ -43,6 +43,9 @@ local pendingButtonsExpand = nil
 -- All editable color sub-keys for every button style
 local BUTTON_COLOR_KEYS = {"bg", "hover", "active", "text", "borderColor"}
 
+-- Icon browser state
+local iconBrowserSelected = nil
+
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
@@ -616,6 +619,20 @@ local function drawButtonStylesTab()
 end
 
 --------------------------------------------------------------------------------
+-- UI: Icon Browser Tab
+--------------------------------------------------------------------------------
+
+local function drawIconBrowserTab()
+    if not wu or not wu.IconBrowser then
+        controls.TextMuted("IconBrowser module not available.")
+        return
+    end
+    iconBrowserSelected = wu.IconBrowser.draw("dev_iconbrowser", iconBrowserSelected, function(name)
+        iconBrowserSelected = name
+    end, { showSearch = true, showCategory = true, showPreview = true })
+end
+
+--------------------------------------------------------------------------------
 -- UI: Footer + Main Window
 --------------------------------------------------------------------------------
 
@@ -671,6 +688,7 @@ local function drawWindow()
         tabs.bar("scp_tabs", {
             { label = "Color Presets",  content = drawColorPresetsTab },
             { label = "Button Styles",  content = drawButtonStylesTab },
+            { label = "Icon Browser",   content = drawIconBrowserTab },
         })
 
         drawFooter()
@@ -706,7 +724,18 @@ registerHotkey("ToggleStyleColorPreview", "Toggle Style Color Preview", function
 end)
 
 registerForEvent("onDraw", function()
-    if not wu or not isOpen or not isOverlayOpen then return end
+    if not wu or not isOverlayOpen then return end
+
+    -- WU settings toggle takes priority; hotkey is a fallback
+    local wuOpen = wu.isDevToolsOpen()
+    if wuOpen and not isOpen then
+        isOpen = true
+        if not hasSnapshot then captureSnapshot() end
+    elseif not wuOpen and isOpen then
+        isOpen = false
+    end
+
+    if not isOpen then return end
     controls.cacheFrameState()
     drawWindow()
 end)
@@ -720,3 +749,5 @@ registerForEvent("onOverlayClose", function()
     isOpen = false
     isOverlayOpen = false
 end)
+
+return {}

@@ -33,6 +33,7 @@
 --   controls.ButtonRow(defs, opts)
 --   controls.bind(data, defaults, onSave, bindOpts) / unbind(ctx)
 --   controls.PanelGroup(id, opts)
+--   controls.Panel(id, contentFn, opts)
 ------------------------------------------------------
 -- See controls.md docs for more information
 ------------------------------------------------------
@@ -72,6 +73,7 @@ local HOLD_OVERLAY_COLOR = nil  -- Cached overlay color for HoldButton
 local fillChildBgState = {}     -- BeginFillChild bg push tracking
 local columnAutoCache = {}      -- Column auto-size cache: [columnId][childIndex] = height
 local panelHoverState = {}      -- Panel hover state for borderOnHover
+local panelResizeState = {}     -- Panel resize state: [id] = {height, dragging, dragStartH, dragStartY}
 local bindPool = {}             -- Reusable bind context pool
 local bindPoolSize = 0
 local buttonGroupWidths = {}    -- Cached combined widths for button groups (keyed by groupId)
@@ -2839,10 +2841,27 @@ end
 -- Cache for auto-height panels (measured on previous frame)
 local panelAutoHeight = {}
 
---- Render a child window panel with default styling (opts: bg, border, width, height, flags)
+--- Get the cached auto-height for a panel (measured on previous frame).
+--- Returns nil if the panel hasn't been drawn yet or doesn't use height="auto".
+---@param id string Panel ID
+---@return number|nil height Cached content height in pixels
+function controls.getPanelAutoHeight(id)
+    return panelAutoHeight[id]
+end
+
+-- Resize handle constants
+local RESIZE_HANDLE_HEIGHT = 6
+local RESIZE_HANDLE_COLOR = { 0.5, 0.5, 0.5, 0.0 }
+local RESIZE_HANDLE_HOVER_COLOR = { 0.5, 0.7, 1.0, 0.4 }
+local RESIZE_HANDLE_DRAG_COLOR = { 0.4, 0.8, 1.0, 0.6 }
+
+--- Render a child window panel with default styling.
+--- opts.resizable adds a drag handle at the bottom edge for vertical resizing.
+--- When resizable, opts.height sets the initial height (default 200), and
+--- opts.minHeight / opts.maxHeight set clamp bounds.
 ---@param id string Unique panel ID (## prefix added automatically if missing)
 ---@param contentFn? function Callback that renders panel content
----@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?}
+---@param opts? table {bg?, border?, borderOnHover?, width?, height?, flags?, resizable?, minHeight?, maxHeight?}
 ---@return nil
 function controls.Panel(id, contentFn, opts)
     opts = opts or {}
@@ -2852,11 +2871,25 @@ function controls.Panel(id, contentFn, opts)
     if bg == nil then bg = PANEL_DEFAULT_BG end
     local width = opts.width or 0
     local height = opts.height or 0
+    local resizable = opts.resizable or false
     local flags = ImGuiWindowFlags.AlwaysUseWindowPadding + (opts.flags or 0)
 
-    -- Auto-height: use cached content height from previous frame
-    if height == "auto" then
+    -- Auto-height: use cached content height from previous frame (not compatible with resizable)
+    if height == "auto" and not resizable then
         height = panelAutoHeight[id] or 100
+    end
+
+    -- Resizable: use persisted height from drag state
+    if resizable then
+        local rs = panelResizeState[id]
+        if rs then
+            height = rs.height
+        else
+            -- Initialize with provided height or a sensible default
+            local initH = (type(opts.height) == "number" and opts.height > 0) and opts.height or 200
+            panelResizeState[id] = { height = initH, dragging = false }
+            height = initH
+        end
     end
 
     local showBorder = border
@@ -2874,8 +2907,7 @@ function controls.Panel(id, contentFn, opts)
     if contentFn then contentFn() end
 
     -- Measure content height for auto-sizing on next frame
-    -- Add bottom window padding so content isn't clipped
-    if opts.height == "auto" then
+    if opts.height == "auto" and not resizable then
         local padY = ImGui.GetStyle().WindowPadding.y
         local spacingY = ImGui.GetStyle().ItemSpacing.y
         panelAutoHeight[id] = ImGui.GetCursorPosY() + padY - spacingY
@@ -2885,6 +2917,57 @@ function controls.Panel(id, contentFn, opts)
 
     if borderOnHover then
         panelHoverState[id] = ImGui.IsItemHovered()
+    end
+
+    -- Resize handle: invisible button below the panel that drags to resize
+    if resizable then
+        local rs = panelResizeState[id]
+        local minH = opts.minHeight or 50
+        local maxH = opts.maxHeight or 2000
+
+        -- Draw the handle as a full-width invisible region
+        local availW = ImGui.GetContentRegionAvail()
+        local handleH = Scaled(RESIZE_HANDLE_HEIGHT)
+
+        -- Reduce spacing between panel and handle so they feel connected
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 0, 0)
+
+        local handleColor = RESIZE_HANDLE_COLOR
+        if rs.dragging then
+            handleColor = RESIZE_HANDLE_DRAG_COLOR
+        elseif rs.hovering then
+            handleColor = RESIZE_HANDLE_HOVER_COLOR
+        end
+
+        ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(handleColor[1], handleColor[2], handleColor[3], handleColor[4]))
+        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, ImGui.GetColorU32(RESIZE_HANDLE_HOVER_COLOR[1], RESIZE_HANDLE_HOVER_COLOR[2], RESIZE_HANDLE_HOVER_COLOR[3], RESIZE_HANDLE_HOVER_COLOR[4]))
+        ImGui.PushStyleColor(ImGuiCol.ButtonActive, ImGui.GetColorU32(RESIZE_HANDLE_DRAG_COLOR[1], RESIZE_HANDLE_DRAG_COLOR[2], RESIZE_HANDLE_DRAG_COLOR[3], RESIZE_HANDLE_DRAG_COLOR[4]))
+        ImGui.Button("##resize_" .. id, availW, handleH)
+        ImGui.PopStyleColor(3)
+
+        rs.hovering = ImGui.IsItemHovered()
+
+        if rs.hovering and ImGui.IsMouseDragging(0, 0) and not rs.dragging then
+            rs.dragging = true
+            rs.dragStartH = rs.height
+            rs.dragStartY = select(2, ImGui.GetMousePos())
+        end
+
+        if rs.dragging then
+            if ImGui.IsMouseDragging(0, 0) then
+                local _, mouseY = ImGui.GetMousePos()
+                local delta = mouseY - rs.dragStartY
+                rs.height = math.max(minH, math.min(maxH, rs.dragStartH + delta))
+            else
+                rs.dragging = false
+            end
+        end
+
+        if rs.hovering or rs.dragging then
+            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeNS)
+        end
+
+        ImGui.PopStyleVar()
     end
 end
 

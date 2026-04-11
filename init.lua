@@ -32,6 +32,7 @@ local search = require("modules/search")
 local modal = require("modules/modal")
 local lists = require("modules/lists")
 local popout = require("modules/popout")
+local iconbrowser = require("modules/iconbrowser")
 
 ---@class WindowUtils
 ---@field runtimeData {cetOpen: boolean}
@@ -90,6 +91,11 @@ WindowUtils.Search = search
 WindowUtils.Modal = modal
 WindowUtils.Lists = lists
 WindowUtils.Popout = popout
+WindowUtils.IconBrowser = iconbrowser
+
+-- Developer tool visibility (driven by settings, read by test mods)
+function WindowUtils.isShowcaseOpen() return settings.master.showcaseOpen end
+function WindowUtils.isDevToolsOpen() return settings.master.devToolsOpen end
 
 registerHotkey("ToggleWindowUtilsGUI", "Toggle Window Utils GUI", function()
     ui.toggle()

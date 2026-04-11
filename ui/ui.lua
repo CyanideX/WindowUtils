@@ -291,7 +291,33 @@ local function drawBackgroundSection()
 end
 
 --------------------------------------------------------------------------------
--- Section 5: Experimental (bottom edge toggle)
+-- Section 5: Developer
+--------------------------------------------------------------------------------
+
+local function drawDeveloperSection()
+    c:Header("Developer Tools", "developer")
+    ImGui.Dummy(0, 0)
+    c:Checkbox("Icon Browser", "iconBrowserOpen")
+
+    -- Detect and toggle test mods
+    local showcase = GetMod("WindowUtilsShowcase")
+    local devTools = GetMod("WindowUtilsDev")
+
+    if showcase or devTools then
+        c:SectionHeader("Test Mods", "developer.testmods", 10, 0)
+    end
+
+    if showcase then
+        c:Checkbox("Showcase", "showcaseOpen")
+    end
+
+    if devTools then
+        c:Checkbox("Dev Tools", "devToolsOpen")
+    end
+end
+
+--------------------------------------------------------------------------------
+-- Section 6: Experimental (bottom edge toggle)
 --------------------------------------------------------------------------------
 
 local function drawExperimentalSection()
@@ -347,6 +373,7 @@ end
 --------------------------------------------------------------------------------
 
 local windowBrowser = require("ui/browser")
+local iconwindow = require("ui/iconwindow")
 
 --------------------------------------------------------------------------------
 -- Sidebar Navigation
@@ -381,6 +408,8 @@ local function drawContentPanel()
             drawVisualsSection()
         elseif ui.selectedSection == 4 then
             drawBackgroundSection()
+        elseif ui.selectedSection == 5 then
+            drawDeveloperSection()
         end
     end
     controls.EndFillChild("gui_section_scroll")
@@ -399,6 +428,7 @@ function ui.init()
         { label = "Grid",       icon = ic.Grid        or "?", page = 2, category = "grid" },
         { label = "Visuals",    icon = ic.Eye         or "?", page = 3, category = "visuals" },
         { label = "Background", icon = ic.Brightness6 or "?", page = 4, category = "background" },
+        { label = "Developer",  icon = ic.CodeBraces  or "?", page = 5, category = "developer" },
     }
     ui.searchState = search.new("wu_settings")
     ui.defs = uidefs.init()
@@ -507,6 +537,7 @@ function ui.drawWindow()
     ImGui.End()
 
     windowBrowser.draw()
+    iconwindow.draw()
 end
 
 function ui.show()
@@ -536,6 +567,7 @@ end
 function ui.onOverlayClose()
     if ui.searchState then ui.searchState:clear() end
     windowBrowser.clearSearch()
+    iconwindow.clearSearch()
 end
 
 return ui

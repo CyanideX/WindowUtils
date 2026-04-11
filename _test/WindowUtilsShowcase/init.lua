@@ -5,7 +5,6 @@
 ------------------------------------------------------
 
 local wu = nil
-local visible = false
 local overlayOpen = false
 local DEMO_WINDOW_NAME = "Window Utils Showcase"
 local resW, resH = 1920, 1080
@@ -2890,6 +2889,53 @@ local function drawColorControlsDemo()
 end
 
 --------------------------------------------------------------------------------
+-- Tab 18: Icon Browser Demo
+--------------------------------------------------------------------------------
+
+local iconDemoSelected = nil
+local iconDemoInlineSelected = nil
+local iconDemoCatSelected = nil
+
+local function drawIconBrowserDemo()
+    local controls = wu.Controls
+    local ib = wu.IconBrowser
+
+    if not ib then
+        controls.TextMuted("IconBrowser module not available.")
+        return
+    end
+
+    controls.TextMuted("Full icon browser with search, category filter, and preview:")
+    ImGui.Dummy(0, 4)
+
+    iconDemoSelected = ib.draw("showcase_full", iconDemoSelected, function(name)
+        iconDemoSelected = name
+    end, { showSearch = true, showCategory = true, showPreview = true, showCount = true, layout = "fixed" })
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Inline embed with callback (no preview, compact):")
+    ImGui.Dummy(0, 4)
+
+    iconDemoInlineSelected = ib.draw("showcase_inline", iconDemoInlineSelected, function(name)
+        iconDemoInlineSelected = name
+    end, { showSearch = true, showCategory = false, showPreview = false, cellSize = 24, layout = "fixed", gridHeight = 200 })
+
+    if iconDemoInlineSelected then
+        ImGui.Text("Selected: " .. iconDemoInlineSelected)
+    end
+
+    controls.Separator(8, 8)
+
+    controls.TextMuted("Category-filtered (Weather only):")
+    ImGui.Dummy(0, 4)
+
+    iconDemoCatSelected = ib.draw("showcase_cat", iconDemoCatSelected, function(name)
+        iconDemoCatSelected = name
+    end, { showSearch = false, showCategory = false, showPreview = false, defaultCategory = "Weather", layout = "fixed", gridHeight = 150 })
+end
+
+--------------------------------------------------------------------------------
 -- Tab 17: Popout Panels Demo
 --------------------------------------------------------------------------------
 
@@ -3065,12 +3111,8 @@ registerForEvent("onInit", function()
     }
 end)
 
-registerHotkey("ToggleShowcase", "Toggle Window Utils Showcase", function()
-    visible = not visible
-end)
-
 registerForEvent("onDraw", function()
-    if not wu or not visible or not overlayOpen then return end
+    if not wu or not wu.isShowcaseOpen() or not overlayOpen then return end
 
     local tabs = wu.Tabs
 
@@ -3120,6 +3162,7 @@ registerForEvent("onDraw", function()
             { label = "Lists",      content = drawListsDemo },
             { label = "Echo",       content = drawEchoDemo },
             { label = "Colors",     content = drawColorControlsDemo, noScroll = true },
+            { label = "Icons",      content = drawIconBrowserDemo },
             { label = "Popout",     content = drawPopoutDemo },
         })
 
@@ -3140,3 +3183,5 @@ end)
 registerForEvent("onOverlayClose", function()
     overlayOpen = false
 end)
+
+return {}
