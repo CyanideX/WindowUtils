@@ -2521,9 +2521,14 @@ local function drawHoldProgressDemo()
 
     ImGui.Dummy(0, 4)
 
-    -- Shared progress target using getFirstActiveHoldProgress
+    -- Shared progress target using style map (each source gets its own bar color)
     local sourceIds = { "hp_src_a", "hp_src_b", "hp_src_c" }
-    if not controls.ShowFirstActiveHoldProgress(sourceIds, -1, "danger") then
+    local sourceStyles = {
+        hp_src_a = "success",
+        hp_src_b = "default",
+        hp_src_c = "danger",
+    }
+    if not controls.ShowFirstActiveHoldProgress(sourceIds, -1, sourceStyles) then
         controls.TextMuted("  ^ Hold any button above to see progress here")
     end
 
