@@ -439,6 +439,10 @@ function ui.init()
 end
 
 function ui.drawWindow()
+    -- Independent windows always draw regardless of settings window visibility
+    windowBrowser.draw()
+    iconwindow.draw()
+
     if not ui.state.showWindow then return end
 
     local displayW, displayH = GetDisplayResolution()
@@ -516,7 +520,6 @@ function ui.drawWindow()
         windowName = GUI_WINDOW_NAME,
         normalConstraintPct = 50,
         toggleOnClick = true,
-        persist = "auto",
     })
 
     expand.applyWindowSize(GUI_WINDOW_NAME)
@@ -536,10 +539,6 @@ function ui.drawWindow()
 
     ImGui.End()
     end
-
-    -- Independent windows (drawn regardless of main window collapsed state)
-    windowBrowser.draw()
-    iconwindow.draw()
 end
 
 function ui.show()
