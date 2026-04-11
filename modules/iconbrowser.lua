@@ -11,10 +11,7 @@ local search   = require("modules/search")
 local iconbrowser = {}
 
 --------------------------------------------------------------------------------
--- Static prefix-to-category mapping (based on official MDI categories)
--- Sorted by prefix length descending at load time so the first match is
--- always the most specific (e.g. "AccountMultiple" before "Account").
--- Each prefix appears exactly once; the most specific category wins.
+-- Prefix-to-category mapping (sorted longest-first at load time)
 --------------------------------------------------------------------------------
 
 local PREFIX_MAP = {
@@ -610,26 +607,24 @@ local PREFIX_MAP = {
     { prefix = "Flag",               category = "Edit / Modify" },
 }
 
--- Guarantee longest-prefix-first ordering regardless of how the table is authored
+-- Sort longest-prefix-first
 table.sort(PREFIX_MAP, function(a, b) return #a.prefix > #b.prefix end)
 
--- Pre-compute prefix lengths to avoid repeated #string calls during matching
+-- Pre-compute prefix lengths
 for _, entry in ipairs(PREFIX_MAP) do
     entry.len = #entry.prefix
 end
 
 --------------------------------------------------------------------------------
--- Category Index (built once, cached for session)
+-- Category Index
 --------------------------------------------------------------------------------
 
-local masterList    = {}    -- sorted array of {name, nameLower, glyph, category}
-local categoryIndex = {}    -- iconName -> categoryName
-local categoryNames = {}    -- sorted array of category name strings
-local comboItems    = {}    -- {"All", ...categoryNames} cached for combo dropdown
+local masterList    = {}
+local categoryIndex = {}
+local categoryNames = {}
+local comboItems    = {}
 local indexBuilt    = false
 
---- Match an icon name against PREFIX_MAP.
---- Pre-sorted by length so the first hit is the most specific match.
 ---@param name string PascalCase icon name
 ---@return string category
 local function matchCategory(name)
@@ -641,8 +636,7 @@ local function matchCategory(name)
     return "Other"
 end
 
---- Build the category index from the IconGlyphs global table.
---- Single pass over all keys, then sort once.
+--- Build the category index from IconGlyphs.
 local function buildIndex()
     if indexBuilt then return end
     indexBuilt = true
@@ -685,43 +679,40 @@ local function buildIndex()
     table.sort(names)
     categoryNames = names
 
-    -- Cache the combo items array so we don't rebuild it every frame
+    -- Cache combo items
     comboItems = { "All" }
     for i = 1, #categoryNames do
         comboItems[i + 1] = categoryNames[i]
     end
 end
 
--- Try building at require time; if IconGlyphs isn't ready, first draw will retry
+-- Build at require time; first draw retries if IconGlyphs isn't ready
 buildIndex()
 
 --------------------------------------------------------------------------------
--- Public: Category queries
+-- Category Queries
 --------------------------------------------------------------------------------
 
---- Get sorted list of all category names.
----@return table categories Sorted array of category name strings
+---@return table categories
 function iconbrowser.getCategories()
     if not indexBuilt then buildIndex() end
     return categoryNames
 end
 
---- Get the category for a given icon name.
----@param name string Icon name (PascalCase key from IconGlyphs)
----@return string category Category name, or "Other" if unknown
+---@param name string
+---@return string category
 function iconbrowser.getCategory(name)
     if not indexBuilt then buildIndex() end
     return categoryIndex[name] or "Other"
 end
 
 --------------------------------------------------------------------------------
--- Per-instance filter state
+-- Per-Instance Filter State
 --------------------------------------------------------------------------------
 
 local stateRegistry = {}
 
---- Create or retrieve per-instance filter state.
----@param id string Unique instance ID
+---@param id string
 ---@return table state
 local function getOrCreateState(id)
     local state = stateRegistry[id]
@@ -742,8 +733,7 @@ local function getOrCreateState(id)
     return state
 end
 
---- Rebuild the filtered list when the composite cache key changes.
---- Single pass: checks category match and case-insensitive substring on nameLower.
+--- Rebuild filtered list when query or category changes.
 ---@param state table
 local function rebuildFiltered(state)
     local key = state.query .. "|" .. (state.category or "")
@@ -773,14 +763,14 @@ local function rebuildFiltered(state)
 end
 
 --------------------------------------------------------------------------------
--- Grid renderer
+-- Grid Renderer
 --------------------------------------------------------------------------------
 
 local Scaled = controls.Scaled
 
---- Render the icon grid with manual row-skipping for 7000+ icon performance.
----@param state table Filter state with .filtered and .selected
----@param cellSize number Base cell size (pre-Scaled 1080p pixels)
+--- Render the icon grid with row-skipping for performance.
+---@param state table
+---@param cellSize number Base cell size (1080p pixels)
 local function renderGrid(state, cellSize)
     local filtered = state.filtered
     if #filtered == 0 then
@@ -861,18 +851,14 @@ local function renderGrid(state, cellSize)
 end
 
 --------------------------------------------------------------------------------
--- Public draw API
+-- Public Draw API
 --------------------------------------------------------------------------------
 
---- Render an inline icon browser.
---- Creates/retrieves per-instance state keyed by id. The caller owns the
---- selected value; pass it in each frame and use the return value (or the
---- onSelect callback) to track changes.
----@param id string           Unique instance ID
----@param selected string|nil Currently selected icon name
----@param onSelect function|nil Callback: onSelect(name, glyph)
----@param opts table|nil      Configuration overrides
----@return string|nil selected Updated selected icon name
+---@param id string
+---@param selected string|nil
+---@param onSelect function|nil
+---@param opts table|nil
+---@return string|nil selected
 function iconbrowser.draw(id, selected, onSelect, opts)
     if not indexBuilt then buildIndex() end
     if not indexBuilt then return selected end
@@ -888,8 +874,7 @@ function iconbrowser.draw(id, selected, onSelect, opts)
     local state = getOrCreateState(id)
     state.onSelect = onSelect
 
-    -- Sync caller's selected value into state only if the caller is driving selection.
-    -- When selected is nil and state already has a selection from a click, keep it.
+    -- Sync caller's selection into state
     if selected ~= nil then
         state.selected = selected
     end
@@ -906,7 +891,7 @@ function iconbrowser.draw(id, selected, onSelect, opts)
         end
     end
 
-    -- Toolbar: search bar + category combo + count (all on one line)
+    -- Toolbar
     if showSearch then
         if not state.searchState then
             state.searchState = search.new("iconbrowser_" .. id)
@@ -936,7 +921,6 @@ function iconbrowser.draw(id, selected, onSelect, opts)
         end
     end
 
-    -- Update query from search state
     state.query = state.searchState and state.searchState:getQuery():lower() or ""
 
     rebuildFiltered(state)
@@ -949,12 +933,10 @@ function iconbrowser.draw(id, selected, onSelect, opts)
 
     -- Grid
     if layout == "fixed" then
-        -- Fixed/resizable panel for embedded contexts (showcase, dev mod)
         controls.Panel("icongrid_" .. id, function()
             renderGrid(state, cellSize)
         end, { resizable = true, height = opts.gridHeight or 300, minHeight = 80 })
     else
-        -- Fill remaining space, reserving room for preview below
         local previewFooter = 0
         if showPreview then
             local spacingY = ImGui.GetStyle().ItemSpacing.y
@@ -967,7 +949,7 @@ function iconbrowser.draw(id, selected, onSelect, opts)
         controls.EndFillChild("icongrid_" .. id)
     end
 
-    -- Preview area
+    -- Preview
     if showPreview then
         controls.Panel("iconpreview_" .. id, function()
             if state.selected then
@@ -975,21 +957,18 @@ function iconbrowser.draw(id, selected, onSelect, opts)
                 local code = "IconGlyphs." .. state.selected
                 local cat = categoryIndex[state.selected] or "Other"
 
-                -- Icon button height = 3 rows of frame-height buttons + 2 spacing gaps
+                -- Size icon to span 3 rows
                 local frameH = ImGui.GetFrameHeight()
                 local spacingY = ImGui.GetStyle().ItemSpacing.y
                 local iconH = frameH * 3 + spacingY * 2
                 local iconW = iconH
 
-                -- Left: icon button spanning 3 rows
                 controls.Button(glyph .. "##preview_" .. id, "label", iconW, iconH)
 
-                -- Middle-click to copy code
                 if ImGui.IsItemClicked(2) then
                     ImGui.SetClipboardText(code)
                 end
 
-                -- Right-click context menu
                 if ImGui.BeginPopupContextItem("##iconpreview_ctx_" .. id) then
                     if ImGui.MenuItem("Copy code to clipboard") then
                         ImGui.SetClipboardText(code)
@@ -999,7 +978,6 @@ function iconbrowser.draw(id, selected, onSelect, opts)
 
                 ImGui.SameLine()
 
-                -- Right: 3 label buttons stacked (name, code, category)
                 ImGui.BeginGroup()
                 controls.Button(state.selected .. "##name_" .. id, "label", -1)
                 controls.Button(code .. "##code_" .. id, "label", -1)
