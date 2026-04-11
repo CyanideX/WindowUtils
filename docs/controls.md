@@ -960,6 +960,118 @@ ctx:EndDim(dimmed)
 
 Return a bind context to the internal pool for reuse. Optional. Without this, contexts are garbage collected normally.
 
+### Advanced: Def-Driven Controls
+
+When you pass `defs` to the bind context, controls can pull their configuration (icon, min, max, tooltip, format, items) from the defs table instead of passing them inline. This keeps your draw code minimal and your configuration centralized.
+
+```lua
+local defs = {
+    brightness = {
+        label = "Brightness",
+        icon = "Brightness6",
+        min = 0.1, max = 10.0,
+        format = "%.1f",
+        tooltip = "Screen brightness multiplier",
+        category = "visuals",
+    },
+    quality = {
+        label = "Quality",
+        icon = "TuneVariant",
+        items = { "Low", "Medium", "High", "Ultra" },
+        tooltip = "Rendering quality preset",
+        category = "visuals",
+    },
+}
+
+local ctx = controls.bind(settings, defaults, save, {
+    defs = defs,
+    search = searchState,  -- optional: enables auto-dimming
+})
+
+-- These pull icon, min, max, format, tooltip from defs automatically.
+-- You only need to specify the key.
+ctx:SliderFloat(nil, "brightness")
+ctx:Combo(nil, "quality")
+```
+
+Any value you pass inline overrides the def. So `ctx:SliderFloat(nil, "brightness", 0, 5)` would use min=0, max=5 instead of the def's 0.1 and 10.0.
+
+### Advanced: Per-Control onChange
+
+Every bound method supports an `onChange` callback in opts that fires after the value is written. Useful for triggering side effects without polling.
+
+```lua
+ctx:Checkbox("Enable Grid", "gridEnabled", {
+    onChange = function(newValue, key)
+        if newValue then showGrid() else hideGrid() end
+    end,
+})
+
+ctx:SliderFloat(nil, "volume", 0, 100, {
+    onChange = function(newValue, key)
+        setAudioVolume(newValue)
+    end,
+})
+```
+
+You can also put `onChange` in the defs table so it fires regardless of where the control is rendered.
+
+### Advanced: Delta Mode DragRows
+
+Normal drag rows read and write absolute values. Delta mode is for controls where you want to apply relative changes (like moving a camera). The drags always display 0 and report the delta on each frame.
+
+```lua
+ctx:DragFloatRow(nil, {"x", "y", "z"}, -10000, 10000, {
+    mode = "delta",
+    speed = 0.1,
+    drags = {
+        { color = styles.dragColors.x, label = "X" },
+        { color = styles.dragColors.y, label = "Y" },
+        { color = styles.dragColors.z, label = "Z" },
+    },
+    onChange = function(values, keys)
+        -- values[1], values[2], values[3] are the deltas this frame
+        entity:Move(values[1], values[2], values[3])
+    end,
+})
+```
+
+In delta mode, right-click calls `onReset` instead of writing a default value, since there's no absolute value to reset.
+
+### Advanced: Cross-Element Progress Bars
+
+Buttons and drags in a DragRow can show a progress bar from another element's hold state. This lets you replace a control with a visual progress indicator while a hold-to-confirm action is in progress. This uses the standalone `controls.DragFloatRow` (not the bound version) since it supports mixed drag + button elements.
+
+```lua
+controls.DragFloatRow(nil, "pos", {
+    { value = pos.x, color = styles.dragColors.x, label = "X", progressFrom = "reset_pos" },
+    { value = pos.y, color = styles.dragColors.y, label = "Y", progressFrom = "reset_pos" },
+    { value = pos.z, color = styles.dragColors.z, label = "Z", progressFrom = "reset_pos" },
+    { type = "button", icon = "Refresh", holdDuration = 1.0, id = "reset_pos",
+      onClick = function() resetPosition() end },
+}, { speed = 0.1 })
+```
+
+When the user holds the reset button, all three drag inputs are replaced by a single progress bar spanning their combined width.
+
+### Advanced: Width Weighting in DragRows
+
+Elements in a DragRow share available space by weight. Fixed-width elements are subtracted first, then remaining space is divided proportionally.
+
+```lua
+ctx:DragFloatRow(nil, {"yaw", "tilt", "roll", "fov"}, nil, nil, {
+    speed = 0.5,
+    drags = {
+        { label = "Yaw",  min = -180, max = 180 },              -- weight 1 (default)
+        { label = "Tilt", min = -90,  max = 90 },               -- weight 1
+        { label = "Roll", min = -360, max = 360 },              -- weight 1
+        { label = "FOV",  min = 20,   max = 130, width = 80 },  -- fixed 80px
+    },
+})
+```
+
+Other width options: `weight = 2` (double share), `widthPercent = 5` (5% of screen), `fitLabel = true` (auto-size to label text).
+
 ## Fill Child
 
 ### `BeginFillChild(id, opts?)`
