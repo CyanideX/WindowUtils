@@ -1079,7 +1079,6 @@ function core.getSavedPanelState(windowName, panelId)
 end
 
 --- Save the base (collapsed) window dimensions into the cache.
---- Used to override ImGui .ini on reload when panels don't auto-restore.
 ---@param windowName string The window name
 ---@param baseW number Base width without expand panels
 ---@param baseH number Base height without expand panels
@@ -1139,6 +1138,8 @@ function core.applySessionRestore(windowName)
     -- No panels auto-restoring: override with base (collapsed) size
     local baseW, baseH = core.getWindowCacheBase(windowName)
     if baseW and baseH then
+        baseW = core.snapToGrid(baseW, windowName)
+        baseH = core.snapToGrid(baseH, windowName)
         ImGui.SetNextWindowSize(baseW, baseH, ImGuiCond.Always)
     end
 end

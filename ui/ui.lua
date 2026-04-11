@@ -517,6 +517,7 @@ function ui.drawWindow()
         windowName = GUI_WINDOW_NAME,
         normalConstraintPct = 50,
         toggleOnClick = true,
+        persist = "auto",
     })
 
     expand.applyWindowSize(GUI_WINDOW_NAME)
