@@ -501,7 +501,7 @@ function ui.drawWindow()
                     controls.Column("gui_right", {
                         { auto = true, content = function()
                             controls.Panel("gui_search", function()
-                                search.SearchBar(ui.searchState, { cols = 12 })
+                                controls.SearchBar(ui.searchState, { cols = 12 })
                             end, { height = "auto" })
                         end },
                         { flex = 1, content = function()

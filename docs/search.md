@@ -27,7 +27,7 @@ local c = controls.bind(data, defaults, onSave, {
 })
 
 -- 4. Render search bar + controls (in onDraw)
-search.SearchBar(searchState, { cols = 12 })
+controls.SearchBar(searchState, { cols = 12 })
 c:Checkbox("Show Subtitles", "subtitles")
 c:SliderFloat(nil, "fov")  -- icon, min, max, format from defs
 ```
@@ -72,8 +72,10 @@ All fields are optional. Only include what you need.
 
 ## Search Bar
 
+SearchBar and SearchBarPlain have moved to the controls module. They are now available as `controls.SearchBar()` and `controls.SearchBarPlain()`. See [controls.md](controls.md) for the full controls API.
+
 ```lua
-search.SearchBar(searchState, { cols = 12 })
+controls.SearchBar(searchState, { cols = 12 })
 ```
 
 | Option | Type | Default | Description |
@@ -171,7 +173,7 @@ end)
 A variant without the magnifying glass icon. Uses `InputTextWithHint` to show placeholder text inside the input that disappears when the user starts typing.
 
 ```lua
-search.SearchBarPlain(searchState, {
+controls.SearchBarPlain(searchState, {
     cols = 12,
     placeholder = "Search vehicles...",
 })
@@ -187,7 +189,7 @@ search.SearchBarPlain(searchState, {
 With `clearIcon = true`, a close button appears to the left of the input when the query is non-empty:
 
 ```lua
-search.SearchBarPlain(searchState, {
+controls.SearchBarPlain(searchState, {
     placeholder = "Filter items...",
     clearIcon = true,
 })
@@ -196,6 +198,8 @@ search.SearchBarPlain(searchState, {
 Both variants drive the same `SearchState`, so all dimming, caching, and category matching work identically.
 
 ## API Reference
+
+The search module exports only state management. SearchBar and SearchBarPlain rendering has moved to the controls module (`controls.SearchBar()` and `controls.SearchBarPlain()`).
 
 ### `search.new(id, opts?)`
 
@@ -210,13 +214,7 @@ Create a new search state.
 
 Retrieve an existing search state by id, or nil.
 
-### `search.SearchBar(state, opts?)`
-
-Render a search input with magnifying glass icon that drives a search state. Returns the current query string.
-
-### `search.SearchBarPlain(state, opts?)`
-
-Render a search input with placeholder hint text (no icon) that drives a search state. Returns the current query string. Supports optional `clearIcon` to show a close button when query is active.
+### SearchState Methods
 
 ### `state:matches(key, terms)`
 

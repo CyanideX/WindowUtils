@@ -42,7 +42,7 @@ function library.draw(project)
     ImGui.SetNextWindowSize(280, 500, ImGuiCond.FirstUseEver)
     if ImGui.Begin("Element Library") then
         -- Search bar
-        searchMod.SearchBar(searchState, { cols = 12 })
+        controls.SearchBar(searchState, { cols = 12 })
 
         ImGui.Spacing()
 

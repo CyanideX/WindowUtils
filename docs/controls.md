@@ -2,6 +2,27 @@
 
 Grid-based layout, styled buttons, sliders, inputs, hold-to-confirm buttons, bound controls, and layout helpers.
 
+## Architecture
+
+The controls module is split into focused sub-modules under `modules/controls/`:
+
+| Sub-Module | Contents |
+|------------|----------|
+| `core.lua` | Shared foundation: frameCache, Scaled, ColWidth, IconButton, helpers |
+| `display.lua` | ProgressBar, ColorEdit4, SwatchGrid, Text*, Separator, SectionHeader |
+| `buttons.lua` | Button, ToggleButton, FullWidthButton, DisabledButton, StatusBar, DynamicButton, ButtonRow |
+| `sliders.lua` | SliderFloat, SliderInt, SliderDisabled |
+| `holdbuttons.lua` | HoldButton, ActionButton, hold progress helpers |
+| `inputs.lua` | InputText, InputFloat, InputInt, Checkbox, Combo, SearchBar, SearchBarPlain |
+| `drags.lua` | DragFloat, DragInt, DragFloatRow, DragIntRow |
+| `layout.lua` | Row, MultiRow, Column, BeginFillChild, EndFillChild |
+| `panels.lua` | PanelGroup, Panel |
+| `bind.lua` | bind/unbind, bindMethods |
+
+A thin aggregator at `modules/controls.lua` re-exports all sub-module APIs into a single `controls` table. No API changes for consumers: all `controls.*` calls work identically.
+
+SearchBar and SearchBarPlain (previously in `search.lua`) are now part of the controls system in `inputs.lua`. See [search.md](search.md) for the updated search module scope.
+
 ## Quick Start
 
 ```lua

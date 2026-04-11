@@ -2118,7 +2118,7 @@ local function drawSearchDemo()
     ImGui.Dummy(0, 4)
 
     controls.SectionHeader("SearchBar (icon variant)", 0, 4)
-    search.SearchBar(searchDemoState, { cols = 12 })
+    controls.SearchBar(searchDemoState, { cols = 12 })
     ImGui.Dummy(0, 4)
 
     -- Group A: headers and controls dim automatically via category
@@ -2158,13 +2158,13 @@ local function drawSearchDemo()
 
     ImGui.Dummy(0, 4)
     controls.TextMuted("Default placeholder:")
-    search.SearchBarPlain(searchPlainState, { cols = 12 })
+    controls.SearchBarPlain(searchPlainState, { cols = 12 })
     ImGui.Dummy(0, 2)
     controls.TextMuted("Query: \"" .. searchPlainState:getQuery() .. "\"")
 
     ImGui.Dummy(0, 8)
     controls.TextMuted("Custom placeholder + clear icon:")
-    search.SearchBarPlain(searchPlainClearState, {
+    controls.SearchBarPlain(searchPlainClearState, {
         cols = 12,
         placeholder = "Filter vehicles...",
         clearIcon = true,

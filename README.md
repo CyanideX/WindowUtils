@@ -36,12 +36,23 @@ WindowUtils/
 │   └── settings.lua      # Configuration and persistence
 ├── modules/
 │   ├── api.lua           # External mod API
-│   ├── controls.lua      # ImGui control helpers (sliders, buttons, inputs)
+│   ├── controls.lua      # Aggregator: re-exports all controls sub-modules
+│   ├── controls/
+│   │   ├── core.lua      # Shared foundation: frameCache, Scaled, ColWidth, IconButton, helpers
+│   │   ├── display.lua   # ProgressBar, ColorEdit4, SwatchGrid, Text*, Separator, SectionHeader
+│   │   ├── buttons.lua   # Button, ToggleButton, FullWidthButton, DisabledButton, StatusBar, DynamicButton, ButtonRow
+│   │   ├── sliders.lua   # SliderFloat, SliderInt, SliderDisabled
+│   │   ├── holdbuttons.lua # HoldButton, ActionButton, hold progress helpers
+│   │   ├── inputs.lua    # InputText, InputFloat, InputInt, Checkbox, Combo, SearchBar, SearchBarPlain
+│   │   ├── drags.lua     # DragFloat, DragInt, DragFloatRow, DragIntRow
+│   │   ├── layout.lua    # Row, MultiRow, Column, BeginFillChild, EndFillChild
+│   │   ├── panels.lua    # PanelGroup, Panel
+│   │   └── bind.lua      # bind/unbind, bindMethods
 │   ├── dragdrop.lua      # Drag and drop utilities
 │   ├── expand.lua        # Automatic window resizing for toggle panels
 │   ├── modal.lua         # Modal dialog utilities
 │   ├── notifications.lua # Toast notification system
-│   ├── search.lua        # Search utilities
+│   ├── search.lua        # Search state management (SearchState, new, get)
 │   ├── splitter.lua      # Draggable panel dividers
 │   ├── styles.lua        # ImGui style helpers
 │   ├── tabs.lua          # Tab bar utilities

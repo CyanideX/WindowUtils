@@ -6,6 +6,7 @@
 local settings = require("core/settings")
 local controls = require("modules/controls")
 local styles   = require("modules/styles")
+local tooltips = require("modules/tooltips")
 local search   = require("modules/search")
 
 local iconbrowser = {}
@@ -619,11 +620,12 @@ end
 -- Category Index
 --------------------------------------------------------------------------------
 
-local masterList    = {}
-local categoryIndex = {}
-local categoryNames = {}
-local comboItems    = {}
-local indexBuilt    = false
+local masterList      = {}
+local categoryIndex   = {}
+local categoryNames   = {}
+local comboItems      = {}
+local comboFitWidth   = nil   -- Computed lazily on first draw (needs ImGui context)
+local indexBuilt      = false
 
 ---@param name string PascalCase icon name
 ---@return string category
@@ -854,11 +856,7 @@ local function renderGrid(state, cellSize)
             ImGui.PopStyleVar(1)
             ImGui.PopStyleColor(4)
 
-            if ImGui.IsItemHovered() then
-                ImGui.BeginTooltip()
-                ImGui.Text(entry.name)
-                ImGui.EndTooltip()
-            end
+            tooltips.ShowTitled(entry.name, entry.category)
 
             if clicked then
                 state.selected = entry.name
@@ -899,7 +897,6 @@ function iconbrowser.draw(id, selected, onSelect, opts)
     local showSearch   = opts.showSearch ~= false
     local showCategory = opts.showCategory ~= false
     local showPreview  = opts.showPreview or false
-    local showCount    = opts.showCount ~= false
     local layout       = opts.layout or "fill"
 
     local state = getOrCreateState(id)
@@ -924,21 +921,47 @@ function iconbrowser.draw(id, selected, onSelect, opts)
     end
 
     -- Toolbar
+
+    -- Compute combo fit width lazily (needs ImGui context for CalcTextSize)
+    if showCategory and not comboFitWidth then
+        local maxW = 0
+        local padX = ImGui.GetStyle().FramePadding.x * 2 + ImGui.GetFrameHeight()
+        for _, item in ipairs(comboItems) do
+            local w = ImGui.CalcTextSize(item)
+            if w > maxW then maxW = w end
+        end
+        comboFitWidth = maxW + padX
+    end
+
     if showSearch then
         if not state.searchState then
             state.searchState = search.new("iconbrowser_" .. id)
         end
-        search.SearchBarPlain(state.searchState, { placeholder = "Search icons...", clearIcon = true })
-        if showCategory or showCount then
+
+        local searchCols = showCategory and 8 or 12
+        controls.SearchBarPlain(state.searchState, {
+            placeholder = "Search icons...",
+            clearIcon = true,
+            cols = searchCols,
+        })
+        if showCategory then
             ImGui.SameLine()
         end
     end
 
     if showCategory then
         local comboIdx = state.comboIndex or 0
-        ImGui.SetNextItemWidth(Scaled(140))
+        local comboHeight = opts.comboHeight or 10
+        ImGui.SetNextItemWidth(ImGui.GetContentRegionAvail())
+        -- Ensure the dropdown popup is wide enough to show the longest category name
+        -- but let heightInItems control the vertical size
+        if comboFitWidth then
+            local itemH = ImGui.GetTextLineHeightWithSpacing()
+            local maxH = itemH * comboHeight + ImGui.GetStyle().WindowPadding.y * 2
+            ImGui.SetNextWindowSizeConstraints(comboFitWidth, 0, 10000, maxH)
+        end
         styles.PushOutlined()
-        local newIdx, changed = ImGui.Combo("##iconcat_" .. id, comboIdx, comboItems, #comboItems)
+        local newIdx, changed = ImGui.Combo("##iconcat_" .. id, comboIdx, comboItems, #comboItems, comboHeight)
         styles.PopOutlined()
 
         if changed then
@@ -946,22 +969,12 @@ function iconbrowser.draw(id, selected, onSelect, opts)
         end
 
         local idx = state.comboIndex or 0
-        state.category = idx > 0 and comboItems[idx + 1] or nil
-
-        if showCount then
-            ImGui.SameLine()
-        end
+        state.category = idx > 0 and categoryNames[idx] or nil
     end
 
     state.query = state.searchState and state.searchState:getQuery():lower() or ""
 
     rebuildFiltered(state)
-
-    if showCount then
-        styles.PushTextMuted()
-        ImGui.Text(#state.filtered .. " icons")
-        styles.PopTextMuted()
-    end
 
     -- Grid
     if layout == "fixed" then

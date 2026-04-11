@@ -137,7 +137,7 @@ function browser.draw()
     if not searchState then
         searchState = search.new("wb_search")
     end
-    search.SearchBar(searchState, { cols = 12 })
+    controls.SearchBar(searchState, { cols = 12 })
 
     local filter = searchState:getQuery():lower()
     local curDiscoveryGen = discovery.getGeneration()

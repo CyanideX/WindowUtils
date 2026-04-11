@@ -1,12 +1,9 @@
 ------------------------------------------------------
 -- WindowUtils - Search
--- Multi-word search with caching and UI helpers
+-- Multi-word search with caching and state management
 ------------------------------------------------------
 
 local settings = require("core/settings")
-local controls = require("modules/controls")
-local tooltips = require("modules/tooltips")
-local styles   = require("modules/styles")
 
 local search = {}
 
@@ -177,107 +174,6 @@ end
 function search.get(id)
     if not id then return nil end
     return registry[id]
-end
-
---------------------------------------------------------------------------------
--- SearchBar Control
---------------------------------------------------------------------------------
-
---- Render a search bar that drives a search state.
---- Icon changes to MagnifyClose when query is active (click to clear).
---- Right-click the input to clear.
----@param state table|nil SearchState (no-op if nil)
----@param opts? table {cols?: number, placeholder?: string}
----@return string query Current query text
-function search.SearchBar(state, opts)
-    if not state then return "" end
-    opts = opts or {}
-    local hasQuery = not state:isEmpty()
-    local ic = IconGlyphs or {}
-
-    -- Icon: clickable clear button when query is active
-    local icon = hasQuery and (ic.MagnifyClose or "X") or (ic.Magnify or "?")
-    ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
-    local clicked = controls.IconButton(icon, hasQuery)
-    if hasQuery then
-        tooltips.Show("Clear search")
-    else
-        tooltips.Show("Search settings")
-    end
-    ImGui.SameLine()
-    ImGui.PopStyleVar()
-
-    if clicked and hasQuery then
-        state:clear()
-    end
-
-    -- Input field
-    local w = controls.ColWidth(opts.cols or 12, nil, true)
-    ImGui.SetNextItemWidth(w)
-    styles.PushOutlined()
-    local newText, changed = ImGui.InputText("##search_" .. state.id, state:getQuery(), 256)
-    styles.PopOutlined()
-
-    -- Right-click to clear
-    if ImGui.IsItemClicked(1) then
-        state:clear()
-        newText = ""
-        changed = true
-    end
-
-    if changed then
-        state:setQuery(newText)
-    end
-    return state:getQuery()
-end
-
---- Render a search bar with placeholder text instead of an icon.
---- Uses InputTextWithHint for inline placeholder that disappears on focus.
---- Right-click the input to clear. No icon prefix, full-width input.
----@param state table|nil SearchState (no-op if nil)
----@param opts? table {cols?: number, placeholder?: string, maxLength?: number, clearIcon?: boolean}
----@return string query Current query text
-function search.SearchBarPlain(state, opts)
-    if not state then return "" end
-    opts = opts or {}
-    local placeholder = opts.placeholder or "Search..."
-    local maxLength = opts.maxLength or 256
-    local hasQuery = not state:isEmpty()
-
-    -- Optional clear icon when query is active
-    local hasIcon = false
-    if opts.clearIcon and hasQuery then
-        local ic = IconGlyphs or {}
-        local icon = ic.Close or "X"
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, 4, ImGui.GetStyle().ItemSpacing.y)
-        local clicked = controls.IconButton(icon, true)
-        if clicked then state:clear() end
-        tooltips.Show("Clear search")
-        ImGui.SameLine()
-        ImGui.PopStyleVar()
-        hasIcon = true
-    end
-
-    -- Input field with hint
-    local w = controls.ColWidth(opts.cols or 12, nil, hasIcon)
-    ImGui.SetNextItemWidth(w)
-    styles.PushOutlined()
-    local newText, changed = ImGui.InputTextWithHint(
-        "##search_" .. state.id, placeholder, state:getQuery(), maxLength
-    )
-    styles.PopOutlined()
-
-    -- Right-click to clear
-    if ImGui.IsItemClicked(1) then
-        state:clear()
-        newText = ""
-        changed = true
-    end
-
-    if changed then
-        state:setQuery(newText)
-    end
-    return state:getQuery()
 end
 
 return search
