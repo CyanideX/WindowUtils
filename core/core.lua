@@ -723,6 +723,18 @@ function core.update(windowName, options)
                     if snapGrid then
                         local sizeX = isCollapsed and (state.expandedSizeX or currentSizeX) or currentSizeX
                         local sizeY = isCollapsed and (state.expandedSizeY or currentSizeY) or currentSizeY
+
+                        -- Determine if this was a shrink (panel closing) to avoid rounding drift.
+                        -- On shrink, floor the size to prevent the window from growing each cycle.
+                        local wasShrink = cAnim.target and cAnim.startValue and cAnim.target < cAnim.startValue
+                        if wasShrink then
+                            local gridSize = getGridSize(windowName)
+                            if gridSize and gridSize > 0 then
+                                sizeX = math.floor(sizeX / gridSize) * gridSize
+                                sizeY = math.floor(sizeY / gridSize) * gridSize
+                            end
+                        end
+
                         handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
 
                         local snapAnim = options.animationEnabled
@@ -1135,12 +1147,10 @@ function core.applySessionRestore(windowName)
     -- If any panel will auto-restore open, the expanded .ini size is correct
     if core.hasAutoRestorePanels(windowName) then return end
 
-    -- No panels auto-restoring: override with base (collapsed) size
-    local baseW, baseH = core.getWindowCacheBase(windowName)
-    if baseW and baseH then
-        baseW = core.snapToGrid(baseW, windowName)
-        baseH = core.snapToGrid(baseH, windowName)
-        ImGui.SetNextWindowSize(baseW, baseH, ImGuiCond.Always)
+    -- No panels auto-restoring: override with cached window size (already grid-aligned from last snap)
+    local entry = windowCache[windowName]
+    if entry and entry.width and entry.height then
+        ImGui.SetNextWindowSize(entry.width, entry.height, ImGuiCond.Always)
     end
 end
 
