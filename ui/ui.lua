@@ -299,20 +299,16 @@ local function drawDeveloperSection()
     ImGui.Dummy(0, 0)
     c:Checkbox("Icon Browser", "iconBrowserOpen")
 
+    if GetMod("WindowUtilsDev") then
+        c:Checkbox("Style Editor", "devToolsOpen")
+    end
+
     -- Detect and toggle test mods
     local showcase = GetMod("WindowUtilsShowcase")
-    local devTools = GetMod("WindowUtilsDev")
-
-    if showcase or devTools then
-        c:SectionHeader("Test Mods", "developer.testmods", 10, 0)
-    end
 
     if showcase then
+        c:SectionHeader("Test Mods", "developer.testmods", 10, 0)
         c:Checkbox("Showcase", "showcaseOpen")
-    end
-
-    if devTools then
-        c:Checkbox("Dev Tools", "devToolsOpen")
     end
 end
 

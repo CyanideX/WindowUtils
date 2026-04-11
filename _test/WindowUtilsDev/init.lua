@@ -43,9 +43,6 @@ local pendingButtonsExpand = nil
 -- All editable color sub-keys for every button style
 local BUTTON_COLOR_KEYS = {"bg", "hover", "active", "text", "borderColor"}
 
--- Icon browser state
-local iconBrowserSelected = nil
-
 --------------------------------------------------------------------------------
 -- Helpers
 --------------------------------------------------------------------------------
@@ -619,20 +616,6 @@ local function drawButtonStylesTab()
 end
 
 --------------------------------------------------------------------------------
--- UI: Icon Browser Tab
---------------------------------------------------------------------------------
-
-local function drawIconBrowserTab()
-    if not wu or not wu.IconBrowser then
-        controls.TextMuted("IconBrowser module not available.")
-        return
-    end
-    iconBrowserSelected = wu.IconBrowser.draw("dev_iconbrowser", iconBrowserSelected, function(name)
-        iconBrowserSelected = name
-    end, { showSearch = true, showCategory = true, showPreview = true })
-end
-
---------------------------------------------------------------------------------
 -- UI: Footer + Main Window
 --------------------------------------------------------------------------------
 
@@ -688,7 +671,6 @@ local function drawWindow()
         tabs.bar("scp_tabs", {
             { label = "Color Presets",  content = drawColorPresetsTab },
             { label = "Button Styles",  content = drawButtonStylesTab },
-            { label = "Icon Browser",   content = drawIconBrowserTab },
         })
 
         drawFooter()

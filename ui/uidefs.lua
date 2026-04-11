@@ -204,9 +204,9 @@ function uidefs.init()
         showcaseOpen     = { label = "Showcase", category = "developer.testmods",
                              searchTerms = "showcase demo example sample",
                              tooltip = "Toggle the WindowUtils Showcase window" },
-        devToolsOpen     = { label = "Dev Tools", category = "developer.testmods",
-                             searchTerms = "style color preview button editor",
-                             tooltip = "Toggle the WindowUtils Dev Tools window" },
+        devToolsOpen     = { label = "Style Color Preview", category = "developer",
+                             searchTerms = "style color preview button editor dev tools",
+                             tooltip = "Toggle the Style Editor window" },
     }
 end
 
