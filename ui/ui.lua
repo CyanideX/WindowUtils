@@ -474,8 +474,7 @@ function ui.drawWindow()
             treatAllDragsAsWindowDrag = true
         })
         ImGui.End()
-        return
-    end
+    else
 
     local sidebarMaxW = math.floor(displayW * 0.15)
 
@@ -536,7 +535,9 @@ function ui.drawWindow()
     })
 
     ImGui.End()
+    end
 
+    -- Independent windows (drawn regardless of main window collapsed state)
     windowBrowser.draw()
     iconwindow.draw()
 end
