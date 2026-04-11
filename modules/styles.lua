@@ -267,6 +267,7 @@ end
 --------------------------------------------------------------------------------
 
 function styles.PushOutlined()
+    pushColor(ImGuiCol.PlotHistogram, styles.colors.blueHover)
     pushColor(ImGuiCol.FrameBg, styles.colors.frameBg)
     pushColor(ImGuiCol.Border, styles.colors.frameBorder)
     ImGui.PushStyleVar(ImGuiStyleVar.FrameBorderSize, 2.0)
@@ -274,7 +275,7 @@ end
 
 function styles.PopOutlined()
     ImGui.PopStyleVar(1)
-    ImGui.PopStyleColor(2)
+    ImGui.PopStyleColor(3)
 end
 
 function styles.PushOutlinedDanger()

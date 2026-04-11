@@ -27,6 +27,15 @@ local sortCache = {
     filter = "",
 }
 
+-- Reused tables for bulk action hold buttons (avoids per-frame allocation)
+local bulkHoldIds = { "wb_toggle_all", "wb_ignore_all", "wb_hide_all" }
+local bulkHoldOpts = { duration = 0.66, style = "inactive", progressDisplay = "external" }
+local bulkProgressStyles = {
+    wb_toggle_all = "success",
+    wb_ignore_all = "danger",
+    wb_hide_all   = "default",
+}
+
 local function icon(name)
     return utils.resolveIcon(name) or "?"
 end
@@ -200,7 +209,10 @@ function browser.draw()
     for _, name in ipairs(hiddenWindows) do allVisible[#allVisible + 1] = name end
     for _, name in ipairs(ignoredWindows) do allVisible[#allVisible + 1] = name end
 
-    if controls.Button(icon("ToggleSwitchOffOutline") .. "##wb_toggle_all", "inactive", btnW) then
+    bulkHoldOpts.width = btnW
+
+    local toggleTriggered = controls.HoldButton("wb_toggle_all", icon("ToggleSwitchOffOutline"), bulkHoldOpts)
+    if toggleTriggered then
         for _, name in ipairs(allVisible) do
             local override = settings.windows.overrides[name]
             if not override and not settings.isWindowIgnored(name) and not settings.isWindowHidden(name) then
@@ -208,22 +220,24 @@ function browser.draw()
             end
         end
     end
-    tooltips.Show("Toggle All\nEnable Close Button on all visible windows")
+    tooltips.Show("Toggle All (hold)\nEnable Close Button on all visible windows")
 
     ImGui.SameLine()
 
-    if controls.Button(icon("CircleOffOutline") .. "##wb_ignore_all", "inactive", btnW) then
+    local ignoreTriggered = controls.HoldButton("wb_ignore_all", icon("CircleOffOutline"), bulkHoldOpts)
+    if ignoreTriggered then
         for _, name in ipairs(allVisible) do
             if not settings.isWindowIgnored(name) then
                 settings.setWindowIgnored(name, true)
             end
         end
     end
-    tooltips.Show("Ignore All\nIgnore all listed windows")
+    tooltips.Show("Ignore All (hold)\nIgnore all listed windows")
 
     ImGui.SameLine()
 
-    if controls.Button(icon("EyeOff") .. "##wb_hide_all", "inactive", btnW) then
+    local hideTriggered = controls.HoldButton("wb_hide_all", icon("EyeOff"), bulkHoldOpts)
+    if hideTriggered then
         for _, name in ipairs(allVisible) do
             if not settings.isWindowIgnored(name) and not settings.isWindowHidden(name) then
                 settings.setWindowOverride(name, nil)
@@ -231,13 +245,15 @@ function browser.draw()
             end
         end
     end
-    tooltips.Show("Hide All\nHide all listed windows")
+    tooltips.Show("Hide All (hold)\nHide all listed windows")
 
     ImGui.SameLine()
 
-    styles.PushTextMuted()
-    ImGui.Text("Window Name")
-    styles.PopTextMuted()
+    if not controls.ShowFirstActiveHoldProgress(bulkHoldIds, nil, bulkProgressStyles) then
+        styles.PushTextMuted()
+        ImGui.Text("Window Name")
+        styles.PopTextMuted()
+    end
 
     ImGui.Dummy(0, 2)
 

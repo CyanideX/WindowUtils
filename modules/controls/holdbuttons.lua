@@ -195,15 +195,20 @@ end
 --- Render a progress bar for the first active hold source, or return false.
 ---@param ids string[] Array of button IDs to check
 ---@param width? number Bar width in pixels (default fills available)
----@param progressStyle? string Style name (default "danger")
+---@param progressStyle? string|table Style name (default "danger"), or a table mapping source IDs to style names
 ---@return boolean shown True if a progress bar was rendered
 function M.ShowFirstActiveHoldProgress(ids, width, progressStyle)
-    local progress = M.getFirstActiveHoldProgress(ids)
+    local progress, sourceId = M.getFirstActiveHoldProgress(ids)
     if not progress then return false end
 
     width = width or ImGui.GetContentRegionAvail()
-    progressStyle = progressStyle or "danger"
-    display.ProgressBar(progress, width, 0, "", progressStyle)
+    local style
+    if type(progressStyle) == "table" then
+        style = progressStyle[sourceId] or "danger"
+    else
+        style = progressStyle or "danger"
+    end
+    display.ProgressBar(progress, width, 0, "", style)
     return true
 end
 
