@@ -2,6 +2,58 @@
 
 Grid-based layout, styled buttons, sliders, inputs, hold-to-confirm buttons, bound controls, and layout helpers.
 
+## Controls Reference
+
+All controls are accessed via `controls.*` (or `wu.Controls.*` from external mods).
+
+| Control | Description |
+|---------|-------------|
+| `controls.Button(label, style?, width?, height?)` | Styled button |
+| `controls.ToggleButton(label, isActive, width?, height?)` | Active/inactive toggle button |
+| `controls.FullWidthButton(label, style?)` | Button filling available width |
+| `controls.DisabledButton(label, width?, height?)` | Non-interactive greyed-out button |
+| `controls.DynamicButton(label, icon, opts?)` | Adaptive button (text, truncated, or icon) |
+| `controls.StatusBar(label, value?, opts?)` | Non-interactive status display |
+| `controls.ButtonRow(defs, opts?)` | Row of buttons with auto width distribution |
+| `controls.SliderFloat(icon, id, value, min, max, opts?)` | Float slider with icon |
+| `controls.SliderInt(icon, id, value, min, max, opts?)` | Integer slider with icon |
+| `controls.SliderDisabled(icon?, label)` | Greyed-out slider placeholder |
+| `controls.DragFloat(icon, id, value, min, max, opts?)` | Float drag with Shift precision |
+| `controls.DragInt(icon, id, value, min, max, opts?)` | Integer drag with Shift precision |
+| `controls.DragFloatRow(icon, id, drags, opts?)` | Multi-drag float row with theming |
+| `controls.DragIntRow(icon, id, drags, opts?)` | Multi-drag integer row with theming |
+| `controls.InputText(icon, id, text, opts?)` | Text input with icon |
+| `controls.InputFloat(icon, id, value, opts?)` | Float input with step buttons |
+| `controls.InputInt(icon, id, value, opts?)` | Integer input with step buttons |
+| `controls.Checkbox(label, value, opts?)` | Checkbox with icon and reset |
+| `controls.Combo(icon, id, index, items, opts?)` | Dropdown with icon |
+| `controls.SearchBar(state, opts?)` | Search input with magnify/clear icon |
+| `controls.SearchBarPlain(state, opts?)` | Search input with placeholder text |
+| `controls.ProgressBar(fraction, width?, height?, overlay?, style?)` | Styled progress bar |
+| `controls.ColorEdit4(icon, id, color, opts?)` | Color picker with icon |
+| `controls.SwatchGrid(id, colors, selectedHex, onSelect, config?)` | Color swatch grid |
+| `controls.HoldButton(id, label, opts?)` | Hold-to-confirm button |
+| `controls.ActionButton(id, label, opts?)` | Primary click + secondary hold button |
+| `controls.Panel(id, contentFn, opts?)` | Styled child window panel |
+| `controls.PanelGroup(id, contentFn, opts?)` | Group-based panel (no nested scroll) |
+| `controls.BeginFillChild(id, opts?)` | Fill remaining vertical space |
+| `controls.EndFillChild(id)` | End fill child region |
+| `controls.Row(id, defs, opts?)` | Horizontal child window layout |
+| `controls.MultiRow(id, rows, defs, opts?)` | Multi-row cell layout |
+| `controls.Column(id, defs, opts?)` | Vertical child window layout |
+| `controls.Separator(spacingBefore?, spacingAfter?)` | Horizontal separator |
+| `controls.SectionHeader(label, spacingBefore?, spacingAfter?, iconGlyph?)` | Separator + label |
+| `controls.HeaderIconGlyph(opts)` | Right-justified icon on current line |
+| `controls.TextMuted(text)` | Grey text |
+| `controls.TextSuccess(text)` | Green text |
+| `controls.TextDanger(text)` | Red text |
+| `controls.TextWarning(text)` | Yellow text |
+| `controls.bind(data, defaults?, onSave?, opts?)` | Create bound control context |
+| `controls.unbind(ctx)` | Return bind context to pool |
+| `controls.ColWidth(cols, gap?, hasIcon?)` | Column grid width calculator |
+| `controls.RemainingWidth(offset?)` | Remaining available width |
+| `controls.Scaled(value)` | Scale 1080p value to current resolution |
+
 ## Architecture
 
 The controls module is split into focused sub-modules under `modules/controls/`:
