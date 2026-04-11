@@ -81,7 +81,7 @@ controls.SearchBar(searchState, { cols = 12 })
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | cols | number | 12 | Column width (1-12 grid) |
-| placeholder | string | nil | Placeholder text when empty |
+| width | number | nil | Explicit pixel width (overrides cols) |
 
 ## Bind Context Options
 
@@ -185,6 +185,7 @@ controls.SearchBarPlain(searchState, {
 | placeholder | string | "Search..." | Hint text shown when input is empty |
 | maxLength | number | 256 | Maximum input length |
 | clearIcon | boolean | false | Show a clear (X) icon when query is active |
+| width | number | nil | Explicit pixel width (overrides cols) |
 
 With `clearIcon = true`, a close button appears to the left of the input when the query is non-empty:
 
