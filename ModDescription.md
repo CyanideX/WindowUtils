@@ -1,4 +1,4 @@
-Window Utils is a universal library and settings overlay for managing ImGui windows in Cyber Engine Tweaks. It gives every CET mod window grid snapping, smooth animations, and a polished feel without requiring mod authors to write any of the plumbing themselves. For end users, it provides a settings panel to customize how all CET windows look and behave.
+Window Utils is a shared UI library and settings overlay for CET mod windows. It started because I got tired of copying the same styling code, collapsible panels, and button-hold logic between my mods. The collapsible control panels from LUT Switcher, the hold-to-confirm buttons from Shift, and other bits and pieces from my other projects all ended up here in one reusable library. I'm migrating my other mods to use it, and it makes UI code way cleaner since Window Utils handles most of the plumbing automatically. Thanks to Spirit's Window Manager plugin, other mods' windows can pick up grid snapping and animations too (with some caveats). For end users, there's a settings panel to customize how all CET windows look and behave.
 
 
 
@@ -49,35 +49,111 @@ Integrate Window Utils into your mod with a single function call:
 
 [quote]local wu = GetMod("WindowUtils")
 
--- Inside your onDraw callback, after ImGui.Begin/End:
-if ImGui.Begin("My Window") then
--- your content here
-wu.Update("My Window")
+-- Inside your onDraw callback, call Update after your content:
+if not ImGui.Begin("My Window") then
+    if wu then wu.Update("My Window") end
+    ImGui.End()
+    return
 end
+
+-- your content here
+
+wu.Update("My Window")
 ImGui.End()[/quote]
 
-That's all you need for grid snapping and smooth animations.
+That's all you need for grid snapping and smooth animations. The early-return pattern handles collapsed windows correctly and works with AlwaysAutoResize.
 
-For styled controls, use the Controls and Styles modules:
+[b]Controls[/b] - A full set of styled ImGui controls with built-in tooltip support and right-click reset to default:
 
-[quote]local wu = GetMod("WindowUtils")
-local c = wu.Controls
-local styles = wu.Styles
+[quote]local c = wu.Controls
 
--- Styled button
+-- Styled buttons (active, inactive, danger, warning, disabled, label, transparent, etc.)
 if c.Button("Save", "active", -1) then save() end
 
--- Slider with icon, right-click reset
+-- Sliders, checkboxes, combos, color pickers, inputs, drags
 local val, changed = c.SliderFloat(IconGlyphs.Brightness, "brightness", value, 0, 100, {
-format = "%.1f", default = 50, tooltip = "Brightness"
+    format = "%.1f", default = 50, tooltip = "Brightness"
 })
+c.Checkbox("Enable Feature", enabled)
+c.Combo(IconGlyphs.Palette, "theme", selectedIndex, {"Dark", "Light"})
+c.InputText(IconGlyphs.Pencil, "name", text)
+c.DragFloat(IconGlyphs.Resize, "scale", value, 0.1, 10.0)
 
--- Bound controls (auto-read, auto-save, auto-reset)
+-- Bound controls (auto-read, auto-save, auto-reset from defaults)
 local ctx = c.bind(settings, defaults, save)
 ctx:Checkbox("Enable Feature", "enabled")
-ctx:SliderFloat(IconGlyphs.Timer, "duration", 0.1, 5.0)[/quote]
+ctx:SliderFloat(IconGlyphs.Timer, "duration", 0.1, 5.0)
 
-For splitters, tabs, drag-drop, notifications, and the full API, see the [b]WindowUtils.md[/b] documentation included with the mod.
+-- Layout: 12-column grid, rows, columns, fill-height children
+c.Row("myRow", {
+    { width = 100, content = function() ... end },
+    { content = function() ... end },  -- flex fill
+})
+c.Column("myCol", {
+    { flex = 1, content = function() ... end },
+    { auto = true, content = function() ... end },
+})
+
+-- Display: styled text, separators, section headers, progress bars
+c.TextMuted("Greyed out")
+c.TextSuccess("Done!")
+c.SectionHeader("Settings")
+c.ProgressBar(0.75, -1, 0, "75%", "active")
+
+-- Panels with optional background
+c.Panel("myPanel", function() ... end)
+
+-- Hold-to-confirm buttons with progress overlay
+c.HoldButton("reset", "Reset All", { holdDuration = 1.5, style = "danger" })
+
+-- Button rows with weighted layout
+c.ButtonRow({
+    { label = "Cancel", style = "inactive" },
+    { label = "Confirm", style = "active", onClick = function() ... end },
+})[/quote]
+
+[b]Styles[/b] - Push/Pop style pairs for buttons, text, sliders, outlines, scrollbars, and drag controls. Eleven button style families (active, inactive, danger, warning, update, disabled, statusbar, label, labelOutlined, transparent, frameless) with hover and active states. Color presets for greens, blues, reds, yellows, oranges, and greys.
+
+[b]Tooltips[/b] - Drop-in tooltip helpers that respect a global enable/disable toggle. Variants include basic, titled, colored, muted, success, danger, warning, help, keybind, multi-line, bullet list, and color swatch tooltips.
+
+[b]Splitter Layouts[/b] - Draggable panel dividers for two-panel (horizontal/vertical), multi-panel, and collapsible toggle layouts. Supports double-click collapse, Ctrl+drag snapping, Shift+drag proportional scaling, edge toggle panels with animated open/close, and expand mode with drag-to-resize. Panel state can persist across sessions.
+
+[b]Expand Panels[/b] - Automatic window resizing when toggle panels open or close. Three sizing modes (fixed, flex, auto) with constraint animation, drag-to-resize, and position anchoring for left/top panels.
+
+[b]Tab Bars[/b] - Styled tab bars with badge indicators (numeric counts and dot markers), disabled tab support, tooltip support, and programmatic tab selection.
+
+[b]Drag-and-Drop Lists[/b] - Reorderable lists with visual drop indicators, drag handles, and automatic array mutation. Both a convenience API (dragdrop.list) and a manual advanced API (createState, handleDrag, getItemContext).
+
+[b]Toast Notifications[/b] - Screen-edge toast notifications with level-based styling (info, success, warn, error), auto-dismiss, configurable position and timing, and smooth fade-out.
+
+[quote]wu.Notify.success("Settings saved!")
+wu.Notify.error("Failed to load config", { ttl = 5 })[/quote]
+
+[b]Modal Dialogs[/b] - Centered popup dialogs with confirm, alert, info, and styled variants. Supports hold-to-confirm buttons, custom content callbacks, and a changelog preset with version sidebar.
+
+[quote]wu.Modal.confirm("resetAll", {
+    title = "Reset Settings",
+    body = "This will reset all settings to defaults.",
+    onConfirm = function() resetAll() end,
+})
+wu.Modal.changelog("changelog", { versions = versionData })[/quote]
+
+[b]Search[/b] - Multi-word search with caching and visual dimming for non-matching items. Create search states, test items against queries, and auto-dim unmatched controls.
+
+[b]Popout Panels[/b] - Detachable panels that can switch between docked (inline) and floating (separate window) modes. Supports auto-fit height, side handles, custom placeholders, and grid-snapped floating windows.
+
+[b]Icon Browser[/b] - Browsable, searchable icon picker for CET mods. Displays all IconGlyphs organized by category with grid layout, search filtering, and selection callback.
+
+[b]Lists[/b] - Scrollable list renderer with keyboard navigation, active item highlighting, and configurable selection behavior.
+
+[b]Settings API[/b] - Programmatic access to all Window Utils settings. Get, set, reset, and reload settings from other mods.
+
+[quote]wu.API.Set({ gridEnabled = false, animationDuration = 0.5 })
+wu.API.RegisterWindow("My Window", { hasCloseButton = true })[/quote]
+
+[b]Utility Functions[/b] - Color conversion (HexToRGB, RGBToHex, RGBToHSL), icon resolution, text truncation, size spec parsing, modifier key detection, and grid-snap helpers.
+
+For the full API reference, see the [b]WindowUtils.md[/b] documentation and per-module docs in the [b]docs/[/b] folder included with the mod.
 
 [color=#f1c232][size=5][b]Window Manager Plugin (RedCetWM)[/b][/size][/color]
 
