@@ -30,6 +30,24 @@ local controls
 
 local bindMethods = {}
 
+--- Build search terms string from a def and optional label.
+--- Shared by applyDefAndSearch, bindDragRow, and BeginDim.
+---@param def table|nil Setting definition
+---@param searchLabel string|nil Explicit label text (included in matching)
+---@param searchTooltips boolean Whether to include tooltip text
+---@return string terms Space-separated search terms (empty if nothing to match)
+local function buildSearchTerms(def, searchLabel, searchTooltips)
+    local terms = ""
+    if searchLabel then terms = searchLabel end
+    if def then
+        if def.searchTerms then terms = terms .. " " .. def.searchTerms end
+        if def.tooltip and (searchTooltips or not searchLabel) then
+            terms = terms .. " " .. def.tooltip
+        end
+    end
+    return terms
+end
+
 --- Apply def defaults to opts and handle search dimming.
 --- label is included in search matching so localized text is searchable.
 --- Returns opts (possibly modified) and whether dimming was pushed.
@@ -47,16 +65,7 @@ local function applyDefAndSearch(self, key, opts, label)
     local dimmed = false
     if self.search and not self.search:isEmpty() then
         local searchLabel = label or (def and def.label)
-        local terms = ""
-        if searchLabel then terms = searchLabel end
-        if def then
-            if def.searchTerms then terms = terms .. " " .. def.searchTerms end
-            -- Include tooltip when explicitly opted in, or when there's no text label
-            -- (icon-only controls like sliders need tooltip as their searchable text)
-            if def.tooltip and (self.searchTooltips or not searchLabel) then
-                terms = terms .. " " .. def.tooltip
-            end
-        end
+        local terms = buildSearchTerms(def, searchLabel, self.searchTooltips)
         if terms ~= "" then
             local matched = self.search:matches(key, terms)
             if not matched then
@@ -218,14 +227,7 @@ local function bindDragRow(self, icon, keys, min, max, opts, controlFn)
     local dimmed = false
     if self.search and not self.search:isEmpty() then
         local def = self.defs and self.defs[keys[1]]
-        local terms = ""
-        if def then
-            if def.label then terms = def.label end
-            if def.searchTerms then terms = terms .. " " .. def.searchTerms end
-            if def.tooltip and (self.searchTooltips or not def.label) then
-                terms = terms .. " " .. def.tooltip
-            end
-        end
+        local terms = buildSearchTerms(def, def and def.label, self.searchTooltips)
         if terms ~= "" and not self.search:matches(keys[1], terms) then
             ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
             dimmed = true
@@ -272,6 +274,16 @@ local function bindDragRow(self, icon, keys, min, max, opts, controlFn)
     local cachedDrags = drs[dragsKey]
     local keyCount = #keys
     local needsRebuild = not cachedDrags or #cachedDrags ~= keyCount
+
+    -- Also rebuild if the keys themselves changed (same count, different keys)
+    if not needsRebuild and cachedDrags then
+        for i, key in ipairs(keys) do
+            if cachedDrags[i].key ~= key then
+                needsRebuild = true
+                break
+            end
+        end
+    end
 
     if needsRebuild then
         cachedDrags = {}
@@ -529,13 +541,7 @@ function bindMethods:BeginDim(key)
     if not self.search or self.search:isEmpty() then return false end
     local def = self.defs and self.defs[key]
     if not def then return false end
-    local searchLabel = def.label
-    local terms = ""
-    if searchLabel then terms = searchLabel end
-    if def.searchTerms then terms = terms .. " " .. def.searchTerms end
-    if def.tooltip and (self.searchTooltips or not searchLabel) then
-        terms = terms .. " " .. def.tooltip
-    end
+    local terms = buildSearchTerms(def, def.label, self.searchTooltips)
     if terms ~= "" and not self.search:matches(key, terms) then
         ImGui.PushStyleVar(ImGuiStyleVar.Alpha, self.search.dimAlpha)
         return true

@@ -359,7 +359,7 @@ function split.multi(id, panels, opts)
     local grabW = ms.grabWidth
     local minGap = ms.minGap
 
-    local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+    local noScroll = core.NO_SCROLL_FLAGS
 
     local availW, availH = ImGui.GetContentRegionAvail()
     local totalAvail = isVertical and availH or availW

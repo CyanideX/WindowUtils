@@ -158,6 +158,9 @@ M.getGrabIconV = getGrabIconV
 local BAR_FLAGS = ImGuiWindowFlags.NoMove + ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
 M.BAR_FLAGS = BAR_FLAGS
 
+local NO_SCROLL_FLAGS = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+M.NO_SCROLL_FLAGS = NO_SCROLL_FLAGS
+
 local function drawBar(childId, barWidth, icon, bgColor, iconColor, isVertical)
     ImGui.PushStyleColor(ImGuiCol.ChildBg, ImGui.GetColorU32(bgColor[1], bgColor[2], bgColor[3], bgColor[4]))
     ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, 0, 0)

@@ -120,7 +120,7 @@ function toggle.toggle(id, panels, opts)
     end
     splitterMinSizes[id] = panelSize + barW + flexMinPx
 
-    local noScroll = ImGuiWindowFlags.NoScrollbar + ImGuiWindowFlags.NoScrollWithMouse
+    local noScroll = core.NO_SCROLL_FLAGS
 
     local function renderFixed()
         if panelSize > 0 then

@@ -67,6 +67,14 @@ local gridSizeCache = {}
 -- Drag Helper Functions
 --------------------------------------------------------------------------------
 
+local function decrementDraggingCount(context)
+    draggingCount = draggingCount - 1
+    if draggingCount < 0 then
+        settings.debugPrint("draggingCount went negative (" .. context .. ")")
+        draggingCount = 0
+    end
+end
+
 local function applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
     if shiftHeld then
         axisLock.active = true
@@ -409,11 +417,7 @@ local function handleDragDetection(state, windowName, currentPosX, currentPosY, 
 
         state.pendingDragCheck = false
         if state.isDragging then
-            draggingCount = draggingCount - 1
-            if draggingCount < 0 then
-                settings.debugPrint("draggingCount went negative on release")
-                draggingCount = 0
-            end
+            decrementDraggingCount("release")
         end
         state.isDragging = false
         axisLock.active = false
@@ -429,11 +433,7 @@ local function handleDragDetection(state, windowName, currentPosX, currentPosY, 
         -- Focus lost mid-drag - reset to prevent stuck state
         state.pendingDragCheck = false
         if state.isDragging then
-            draggingCount = draggingCount - 1
-            if draggingCount < 0 then
-                settings.debugPrint("draggingCount went negative on focus loss")
-                draggingCount = 0
-            end
+            decrementDraggingCount("focus loss")
         end
         state.isDragging = false
         axisLock.active = false
@@ -816,11 +816,7 @@ end
 function core.resetWindow(windowName)
     local state = windowStates[windowName]
     if state and state.isDragging then
-        draggingCount = draggingCount - 1
-        if draggingCount < 0 then
-            settings.debugPrint("draggingCount went negative in resetWindow")
-            draggingCount = 0
-        end
+        decrementDraggingCount("resetWindow")
     end
     windowStates[windowName] = nil
 
@@ -1212,11 +1208,7 @@ end
 ---@param state table Window state entry from windowStates
 function core.clearDraggingState(state)
     if state.isDragging then
-        draggingCount = draggingCount - 1
-        if draggingCount < 0 then
-            settings.debugPrint("draggingCount went negative in clearDraggingState")
-            draggingCount = 0
-        end
+        decrementDraggingCount("clearDraggingState")
     end
     state.isDragging = false
     draggingWindowBoundsValid = false

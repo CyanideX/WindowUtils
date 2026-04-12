@@ -311,6 +311,16 @@ local gridFade = {
 local GRID_FADE_IN_DURATION = 0.15
 local GRID_FADE_OUT_DURATION = 0.25
 
+local function resetGridFade()
+    gridFade.opacity = 0
+    gridFade.wasDragging = false
+    gridFade.wasActive = false
+    gridFade.wasFeathering = false
+    gridFade.lastBounds = nil
+    gridFade.lastGridSize = nil
+    gridFade.lastWindowName = nil
+end
+
 -- Squared distance from point to axis-aligned rectangle (0 if inside/within padding).
 local function squaredDistToRect(px, py, rx, ry, rw, rh, pad)
     local left = rx - pad
@@ -486,13 +496,7 @@ end
 ---@param anyDragging boolean true when any window is being dragged
 local function drawGrid(displayWidth, displayHeight, anyDragging)
     if not settings.master.gridVisualizationEnabled then
-        gridFade.opacity = 0
-        gridFade.wasDragging = false
-        gridFade.wasActive = false
-        gridFade.wasFeathering = false
-        gridFade.lastBounds = nil
-        gridFade.lastGridSize = nil
-        gridFade.lastWindowName = nil
+        resetGridFade()
         core.clearDraggingWindowBounds()
         return
     end
@@ -641,13 +645,7 @@ function effects.drawGridOverlay()
         dimFade.opacity = 0
         dimFade.wasDragging = false
         dimFade.overlayCloseFadeOut = false
-        gridFade.opacity = 0
-        gridFade.wasDragging = false
-        gridFade.wasActive = false
-        gridFade.wasFeathering = false
-        gridFade.lastBounds = nil
-        gridFade.lastGridSize = nil
-        gridFade.lastWindowName = nil
+        resetGridFade()
         core.clearDraggingWindowBounds()
         return
     end
