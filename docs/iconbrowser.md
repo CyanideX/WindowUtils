@@ -147,6 +147,14 @@ iconbrowser.reset("cat_picker")
 iconbrowser.reset()
 ```
 
+### destroy(id)
+
+Remove all internal state for an icon browser instance, including its nested search state. Call when dynamically created browsers are no longer needed.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Instance ID to clean up |
+
 ## Categories
 
 Icons are categorized by prefix matching against a built-in map of ~60 categories. Categories include:

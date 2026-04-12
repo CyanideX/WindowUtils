@@ -253,6 +253,14 @@ Get the current animated constraint value for an expand-mode toggle. Call before
 
 **Returns:** `number|nil`  - animated constraint percentage
 
+#### `destroy(id)`
+
+Remove all internal state for a splitter ID. Call when dynamically created splitters are no longer needed to prevent unbounded state growth. Cleans up two-panel, multi-panel, and toggle state (including derived edge-toggle keys).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Splitter identifier to clean up |
+
 ## Interaction
 
 ### Grab Bar

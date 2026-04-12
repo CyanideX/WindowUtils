@@ -61,6 +61,10 @@ Get the currently selected tab index.
 
 **Returns:** `number`  - 1-based index, or 1 if not initialized
 
+### `destroy(id)`
+
+Remove internal state for a tab bar ID. Call when dynamically created tab bars are no longer needed.
+
 ## Examples
 
 ### Tabs with Badges and Disabled State

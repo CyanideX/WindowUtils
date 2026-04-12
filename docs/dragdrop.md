@@ -122,6 +122,10 @@ Set hand cursor when dragging over a valid target. Call once after the list loop
 
 Move an element in an array from one index to another (mutates in-place).
 
+### `destroy(id)`
+
+Remove internal state for a drag-drop list ID. Call when dynamically created lists are no longer needed.
+
 ## Examples
 
 ### Advanced Manual Control

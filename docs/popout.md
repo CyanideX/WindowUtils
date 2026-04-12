@@ -103,6 +103,10 @@ Returns a `controls.ButtonRow`-compatible button definition wired to `toggle(id)
 
 **Returns:** `table` - `{ type = "button", icon, tooltip, onClick }`
 
+### `destroy(id)`
+
+Remove internal state for a popout ID. Call when dynamically created popouts are no longer needed.
+
 ## Examples
 
 ### Panel with Placeholder

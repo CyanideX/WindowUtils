@@ -215,6 +215,10 @@ Create a new search state.
 
 Retrieve an existing search state by id, or nil.
 
+### `search.destroy(id)`
+
+Remove a search state from the registry. Call when dynamically created search states are no longer needed.
+
 ### SearchState Methods
 
 ### `state:matches(key, terms)`
