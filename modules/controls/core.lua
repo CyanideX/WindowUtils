@@ -100,7 +100,7 @@ function core.ColWidth(cols, gap, hasIcon)
     if hasIcon then
         targetWidth = targetWidth - iconWidth - gap
     end
-    return math.max(targetWidth, 20)
+    return math.max(targetWidth, Scaled(20))
 end
 
 --- Get remaining width after current cursor position

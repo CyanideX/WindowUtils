@@ -106,8 +106,10 @@ local function computeFadeOpacity(isActive, fadeState, fadeInDuration, fadeOutDu
 
     local elapsed = now - fadeState.startTime
     if isActive then
+        if fadeInDuration <= 0 then return 1 end
         return math.min(1, elapsed / fadeInDuration)
     else
+        if fadeOutDuration <= 0 then return 0 end
         return math.max(0, 1 - (elapsed / fadeOutDuration))
     end
 end
@@ -265,7 +267,7 @@ function effects.updateDimAnimation()
     if dimFade.opacity <= 0 then return end
 
     local now = frameContext.get().clock
-    local dt = dimFade.lastFrameTime and (now - dimFade.lastFrameTime) or 0
+    local dt = dimFade.lastFrameTime and math.min(now - dimFade.lastFrameTime, 0.05) or 0
     dimFade.lastFrameTime = now
     if dt <= 0 then return end
 
@@ -449,12 +451,11 @@ local function updateDimOverlay(displayWidth, displayHeight, anyDragging)
 
     -- Overlay is open, so clear the overlay-close flag and seed timing
     dimFade.overlayCloseFadeOut = false
-    if not dimFade.lastFrameTime then
-        dimFade.lastFrameTime = frameContext.get().clock
-    end
 
     local now = frameContext.get().clock
-    local dt = now - dimFade.lastFrameTime
+    -- Cap dt to prevent instant jump when reopening after a pause
+    -- (lastFrameTime goes stale while overlay is closed and opacity is 0)
+    local dt = dimFade.lastFrameTime and math.min(now - dimFade.lastFrameTime, 0.05) or 0
     dimFade.lastFrameTime = now
 
     if dt > 0 and maxOpacity > 0 then

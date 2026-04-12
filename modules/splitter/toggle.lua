@@ -122,7 +122,10 @@ function toggle.toggle(id, panels, opts)
 
     local noScroll = core.NO_SCROLL_FLAGS
 
-    local function renderFixed()
+    styles.PushScrollbar()
+
+    if fixedFirst then
+        -- Fixed panel
         if panelSize > 0 then
             local cw = isVert and availW or panelSize
             local ch = isVert and panelSize or 0
@@ -134,31 +137,39 @@ function toggle.toggle(id, panels, opts)
                 if animating then ImGui.PopStyleVar() end
             end
             ImGui.EndChild()
+            cancelSpacing(isVert, spacing)
         end
-    end
-
-    local function renderFlex()
+        drawToggleBar(id, state, side)
+        cancelSpacing(isVert, spacing)
+        -- Flex panel
         local cw = isVert and availW or flexSize
         local ch = isVert and flexSize or 0
         ImGui.BeginChild("##toggle_flex_" .. id, cw, ch, false)
         if flexPanel.content then flexPanel.content() end
         ImGui.EndChild()
-    end
-
-    styles.PushScrollbar()
-
-    if fixedFirst then
-        renderFixed()
-        if panelSize > 0 then cancelSpacing(isVert, spacing) end
-        drawToggleBar(id, state, side)
-        cancelSpacing(isVert, spacing)
-        renderFlex()
     else
-        renderFlex()
+        -- Flex panel
+        local cw = isVert and availW or flexSize
+        local ch = isVert and flexSize or 0
+        ImGui.BeginChild("##toggle_flex_" .. id, cw, ch, false)
+        if flexPanel.content then flexPanel.content() end
+        ImGui.EndChild()
         cancelSpacing(isVert, spacing)
         drawToggleBar(id, state, side)
-        if panelSize > 0 then cancelSpacing(isVert, spacing) end
-        renderFixed()
+        -- Fixed panel
+        if panelSize > 0 then
+            cancelSpacing(isVert, spacing)
+            local fw = isVert and availW or panelSize
+            local fh = isVert and panelSize or 0
+            ImGui.BeginChild("##toggle_fixed_" .. id, fw, fh, false, noScroll)
+            if panelSize > state.barWidth and fixedPanel.content then
+                local animating = state.animProgress > 0 and state.animProgress < 1
+                if animating then ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 0) end
+                fixedPanel.content()
+                if animating then ImGui.PopStyleVar() end
+            end
+            ImGui.EndChild()
+        end
     end
 
     styles.PopScrollbar()
