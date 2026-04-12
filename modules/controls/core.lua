@@ -3,6 +3,7 @@
 -- Shared foundation: frameCache, scaling, grid, icon helpers
 ------------------------------------------------------
 
+local frameContext = require("core/frameContext")
 local styles = require("modules/styles")
 local tooltips = require("modules/tooltips")
 local utils = require("modules/utils")
@@ -67,7 +68,9 @@ function core.cacheFrameState()
     frameCache.minIconButtonWidth = utils.minIconButtonWidth(style.FramePadding.x)
     frameCache.charWidth = ImGui.CalcTextSize("M")
     frameCache.ellipsisWidth = ImGui.CalcTextSize("...")
-    frameCache.displayWidth, frameCache.displayHeight = GetDisplayResolution()
+    local ctx = frameContext.get()
+    frameCache.displayWidth = ctx.displayWidth
+    frameCache.displayHeight = ctx.displayHeight
 end
 
 ---@return table frameCache Cached style values for the current frame
@@ -170,5 +173,33 @@ local function cachedTruncateText(label, innerWidth)
 end
 
 core.cachedTruncateText = cachedTruncateText
+
+--------------------------------------------------------------------------------
+-- Shared icon control render sequence (used by sliders, drags, inputs, combo)
+--------------------------------------------------------------------------------
+
+--- Execute the full 6-step icon control sequence using varargs (zero closures).
+--- 1. iconPrefix  2. SetNextItemWidth  3. PushOutlined
+--- 4. imguiFn("##"..id, ...)  5. PopOutlined  6. right-click reset
+---@param icon string|nil Icon glyph
+---@param id string ImGui ID suffix (## prepended automatically)
+---@param opts table|nil {tooltip?, cols?, default?, alwaysShowTooltip?} (nil-safe)
+---@param imguiFn function The ImGui control function (e.g. ImGui.SliderFloat)
+---@param ... any Arguments to pass after the ImGui ID
+---@return any newValue
+---@return boolean changed
+function core.renderIconControl(icon, id, opts, imguiFn, ...)
+    local alwaysShow = not opts or opts.alwaysShowTooltip ~= false
+    local hasIcon = iconPrefix(icon, opts and opts.tooltip, alwaysShow)
+    ImGui.SetNextItemWidth(calcControlWidth(opts and opts.cols, hasIcon))
+    styles.PushOutlined()
+    local newValue, changed = imguiFn("##" .. id, ...)
+    styles.PopOutlined()
+    if opts and opts.default ~= nil and ImGui.IsItemClicked(1) then
+        newValue = opts.default
+        changed = true
+    end
+    return newValue, changed
+end
 
 return core

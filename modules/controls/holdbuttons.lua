@@ -7,6 +7,7 @@ local styles = require("modules/styles")
 local tooltips = require("modules/tooltips")
 local core = require("modules/controls/core")
 local display = require("modules/controls/display")
+local frameContext = require("core/frameContext")
 
 local frameCache = core.frameCache
 local cachedCalcTextSize = core.cachedCalcTextSize
@@ -53,13 +54,13 @@ function M.HoldButton(id, label, opts)
             startTime = 0,
             holdDuration = duration,
             progress = 0,
-            lastTime = os.clock(),
+            lastTime = frameContext.get().clock,
             displayLabel = label .. "##hold_" .. id,
         }
     end
     local state = holdStates[id]
     state.holdDuration = duration
-    local now = os.clock()
+    local now = frameContext.get().clock
     local dt = now - state.lastTime
     state.lastTime = now
 
@@ -161,7 +162,7 @@ end
 function M.getHoldProgress(id)
     local state = holdStates[id]
     if not state or not state.holding then return nil end
-    return math.min((os.clock() - state.startTime) / state.holdDuration, 1.0)
+    return math.min((frameContext.get().clock - state.startTime) / state.holdDuration, 1.0)
 end
 
 --- Display a progress bar showing another button's hold progress

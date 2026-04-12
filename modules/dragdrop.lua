@@ -268,4 +268,11 @@ function dragdrop.list(id, items, renderFn, onReorder, opts)
 
     dragdrop.updateCursor(state)
 end
+
+--- Remove internal state for a list ID.
+---@param id string List ID to clean up
+function dragdrop.destroy(id)
+    listStates[id] = nil
+end
+
 return dragdrop

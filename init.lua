@@ -13,6 +13,7 @@
 -- https://next.nexusmods.com/profile/theCyanideX/mods
 --------------------------------------------------------------------------------
 
+local frameContext = require("core/frameContext")
 local settings = require("core/settings")
 local utils = require("modules/utils")
 local core = require("core/core")
@@ -108,11 +109,13 @@ registerForEvent("onInit", function()
     tooltips.setDefaultWidthPct(settings.master.tooltipMaxWidthPct)
     ui.init()
     effects.setRuntimeData(WindowUtils.runtimeData)
+    external.setStyleCallbacks(styles.PushExternalWindow, styles.PopExternalWindow)
 
     settings.debugPrint("Initialized!", true)
 end)
 
 registerForEvent("onDraw", function()
+    frameContext.update()
     controls.cacheFrameState()
 
     -- Runs even when overlay is closing (fade-out needs to complete)

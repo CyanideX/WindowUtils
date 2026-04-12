@@ -6,9 +6,6 @@
 local styles = require("modules/styles")
 local core = require("modules/controls/core")
 
-local iconPrefix = core.iconPrefix
-local calcControlWidth = core.calcControlWidth
-
 local M = {}
 
 --------------------------------------------------------------------------------
@@ -25,18 +22,8 @@ local M = {}
 ---@return number newValue Updated value
 ---@return boolean changed True if the value was modified
 function M.SliderFloat(icon, id, value, min, max, opts)
-    opts = opts or {}
-    local format = opts.format or "%.2f"
-    local hasIcon = iconPrefix(icon, opts.tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newValue, changed = ImGui.SliderFloat("##" .. id, value, min, max, format)
-    styles.PopOutlined()
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        newValue = opts.default
-        changed = true
-    end
-    return newValue, changed
+    local fmt = opts and opts.format or "%.2f"
+    return core.renderIconControl(icon, id, opts, ImGui.SliderFloat, value, min, max, fmt)
 end
 
 --- Create an integer slider (icon, id, value, min, max, opts)
@@ -49,18 +36,8 @@ end
 ---@return integer newValue Updated value
 ---@return boolean changed True if the value was modified
 function M.SliderInt(icon, id, value, min, max, opts)
-    opts = opts or {}
-    local format = opts.format or "%d"
-    local hasIcon = iconPrefix(icon, opts.tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newValue, changed = ImGui.SliderInt("##" .. id, value, min, max, format)
-    styles.PopOutlined()
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        newValue = opts.default
-        changed = true
-    end
-    return newValue, changed
+    local fmt = opts and opts.format or "%d"
+    return core.renderIconControl(icon, id, opts, ImGui.SliderInt, value, min, max, fmt)
 end
 
 --- Create a disabled slider appearance (greyed out)

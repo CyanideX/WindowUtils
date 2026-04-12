@@ -176,4 +176,10 @@ function search.get(id)
     return registry[id]
 end
 
+--- Remove a search state from the registry.
+---@param id string
+function search.destroy(id)
+    registry[id] = nil
+end
+
 return search

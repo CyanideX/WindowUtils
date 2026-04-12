@@ -7,10 +7,6 @@ local core = require("modules/controls/core")
 local styles = require("modules/styles")
 local tooltips = require("modules/tooltips")
 
-local frameCache = core.frameCache
-local iconPrefix = core.iconPrefix
-local calcControlWidth = core.calcControlWidth
-
 local M = {}
 
 --------------------------------------------------------------------------------
@@ -28,7 +24,7 @@ function M.Checkbox(label, value, opts)
     local hasIcon = false
     if opts.icon then
         hasIcon = true
-        iconPrefix(opts.icon, opts.tooltip, opts.alwaysShowTooltip)
+        core.iconPrefix(opts.icon, opts.tooltip, opts.alwaysShowTooltip)
     end
 
     local newValue, changed = ImGui.Checkbox(label, value)
@@ -62,17 +58,7 @@ end
 ---@return integer newIndex Updated selected index
 ---@return boolean changed True if the selection changed
 function M.Combo(icon, id, currentIndex, items, opts)
-    opts = opts or {}
-    local hasIcon = iconPrefix(icon, opts.tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newIndex, changed = ImGui.Combo("##" .. id, currentIndex, items, #items)
-    styles.PopOutlined()
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        newIndex = opts.default
-        changed = true
-    end
-    return newIndex, changed
+    return core.renderIconControl(icon, id, opts, ImGui.Combo, currentIndex, items, #items)
 end
 
 --------------------------------------------------------------------------------
@@ -87,14 +73,8 @@ end
 ---@return string newText Updated text value
 ---@return boolean changed True if the text was modified
 function M.InputText(icon, id, text, opts)
-    opts = opts or {}
-    local maxLength = opts.maxLength or 256
-    local hasIcon = iconPrefix(icon, opts.tooltip, opts.alwaysShowTooltip)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newText, changed = ImGui.InputText("##" .. id, text, maxLength)
-    styles.PopOutlined()
-    return newText, changed
+    local maxLength = opts and opts.maxLength or 256
+    return core.renderIconControl(icon, id, opts, ImGui.InputText, text, maxLength)
 end
 
 --- Create an input float field (icon, id, value, opts)
@@ -105,16 +85,10 @@ end
 ---@return number newValue Updated float value
 ---@return boolean changed True if the value was modified
 function M.InputFloat(icon, id, value, opts)
-    opts = opts or {}
-    local step = opts.step or 0.1
-    local stepFast = opts.stepFast or 1.0
-    local format = opts.format or "%.2f"
-    local hasIcon = iconPrefix(icon, opts.tooltip, opts.alwaysShowTooltip)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newValue, changed = ImGui.InputFloat("##" .. id, value, step, stepFast, format)
-    styles.PopOutlined()
-    return newValue, changed
+    local step = opts and opts.step or 0.1
+    local stepFast = opts and opts.stepFast or 1.0
+    local fmt = opts and opts.format or "%.2f"
+    return core.renderIconControl(icon, id, opts, ImGui.InputFloat, value, step, stepFast, fmt)
 end
 
 --- Create an input int field (icon, id, value, opts)
@@ -125,15 +99,9 @@ end
 ---@return integer newValue Updated integer value
 ---@return boolean changed True if the value was modified
 function M.InputInt(icon, id, value, opts)
-    opts = opts or {}
-    local step = opts.step or 1
-    local stepFast = opts.stepFast or 10
-    local hasIcon = iconPrefix(icon, opts.tooltip, opts.alwaysShowTooltip)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newValue, changed = ImGui.InputInt("##" .. id, value, step, stepFast)
-    styles.PopOutlined()
-    return newValue, changed
+    local step = opts and opts.step or 1
+    local stepFast = opts and opts.stepFast or 10
+    return core.renderIconControl(icon, id, opts, ImGui.InputInt, value, step, stepFast)
 end
 
 --------------------------------------------------------------------------------

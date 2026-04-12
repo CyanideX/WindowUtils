@@ -7,6 +7,7 @@ local controls = require("modules/controls")
 local styles = require("modules/styles")
 local dragdrop = require("modules/dragdrop")
 local utils = require("modules/utils")
+local frameContext = require("core/frameContext")
 
 local lists = {}
 
@@ -56,8 +57,8 @@ local function updateActiveTracking(state, frameHovered, frameDragActive, delay,
         state._hoverExitTime = nil
     elseif state.activeIndex ~= nil then
         if state._hoverExitTime == nil then
-            state._hoverExitTime = os.clock()
-        elseif os.clock() - state._hoverExitTime >= delay then
+            state._hoverExitTime = frameContext.get().clock
+        elseif frameContext.get().clock - state._hoverExitTime >= delay then
             state.activeIndex = nil
             state._hoverExitTime = nil
         end

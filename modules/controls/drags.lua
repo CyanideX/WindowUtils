@@ -14,7 +14,6 @@ local display = require("modules/controls/display")
 
 local frameCache = core.frameCache
 local iconPrefix = core.iconPrefix
-local calcControlWidth = core.calcControlWidth
 local cachedCalcTextSize = core.cachedCalcTextSize
 local resolveIcon = core.resolveIcon
 local buttonGroupWidths = core.buttonGroupWidths
@@ -444,18 +443,9 @@ end
 ---@return boolean changed True if the value was modified
 function M.DragFloat(icon, id, value, min, max, opts)
     opts = opts or {}
-    local baseSpeed = opts.speed or ((max - min) / 200)
-    local format = opts.format or "%.2f"
-    local hasIcon = iconPrefix(icon, opts.tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newValue, changed = ImGui.DragFloat("##" .. id, value, getDragSpeed(baseSpeed, opts), min, max, format)
-    styles.PopOutlined()
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        newValue = opts.default
-        changed = true
-    end
-    return newValue, changed
+    local fmt = opts.format or "%.2f"
+    local speed = getDragSpeed(opts.speed or ((max - min) / 200), opts)
+    return core.renderIconControl(icon, id, opts, ImGui.DragFloat, value, speed, min, max, fmt)
 end
 
 --- Create an integer drag control with Shift precision (icon, id, value, min, max, opts)
@@ -469,18 +459,9 @@ end
 ---@return boolean changed True if the value was modified
 function M.DragInt(icon, id, value, min, max, opts)
     opts = opts or {}
-    local baseSpeed = opts.speed or 0.5
-    local format = opts.format or "%d"
-    local hasIcon = iconPrefix(icon, opts.tooltip, true)
-    ImGui.SetNextItemWidth(calcControlWidth(opts.cols, hasIcon))
-    styles.PushOutlined()
-    local newValue, changed = ImGui.DragInt("##" .. id, value, getDragSpeed(baseSpeed, opts), min, max, format)
-    styles.PopOutlined()
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        newValue = opts.default
-        changed = true
-    end
-    return newValue, changed
+    local fmt = opts.format or "%d"
+    local speed = getDragSpeed(opts.speed or 0.5, opts)
+    return core.renderIconControl(icon, id, opts, ImGui.DragInt, value, speed, min, max, fmt)
 end
 
 --- Create a row of float drag inputs with color theming, width weighting, and Shift precision.

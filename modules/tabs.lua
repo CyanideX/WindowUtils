@@ -172,4 +172,10 @@ function tabs.getSelected(id)
     return state and state.selected or 1
 end
 
+--- Remove all internal state for a tab bar.
+---@param id string Tab bar ID
+function tabs.destroy(id)
+    tabStates[id] = nil
+end
+
 return tabs

@@ -5,7 +5,7 @@
 
 local settings = require("core/settings")
 local discovery = require("core/discovery")
-local utils = require("modules/utils")
+local frameContext = require("core/frameContext")
 
 ---@class WindowUtilsUpdateOptions
 ---@field gridEnabled? boolean Override grid snapping
@@ -51,6 +51,7 @@ end
 local draggingWindowBounds = { x = 0, y = 0, width = 0, height = 0 }
 local draggingWindowBoundsValid = false
 local draggingWindowName = nil
+local draggingCount = 0
 
 local axisLock = {
     active = false,
@@ -168,7 +169,9 @@ local easeFunctions = {
 -- Expose easeInOut for modules that need smooth interpolation
 core.easeInOut = easeFunctions.easeInOut
 
-local isShiftHeld = utils.isShiftHeld
+local function isShiftHeld()
+    return ImGui.IsKeyDown(ImGuiKey.LeftShift) or ImGui.IsKeyDown(ImGuiKey.RightShift)
+end
 
 --------------------------------------------------------------------------------
 -- Utility Functions
@@ -307,7 +310,7 @@ local function getWindowState(windowName)
     return windowStates[windowName]
 end
 
-local function handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, skipSize)
+local function handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, skipSize, animationEnabled)
     state.animating = false
     state.startPosX, state.startPosY = currentPosX, currentPosY
     state.targetPosX = core.snapToGrid(currentPosX, windowName)
@@ -327,7 +330,7 @@ local function handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowN
         state.expandedSizeY = state.targetSizeY
     end
 
-    if not settings.getConfig(windowName, "animationEnabled") then
+    if not animationEnabled then
         ImGui.SetWindowPos(windowName, state.targetPosX, state.targetPosY)
         if not skipSize then
             ImGui.SetWindowSize(windowName, state.targetSizeX, state.targetSizeY)
@@ -335,10 +338,10 @@ local function handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowN
     end
 end
 
-local function calculateAnimationFrame(state, windowName, duration)
-    local elapsedTime = os.clock() - state.animationStartTime
+local function calculateAnimationFrame(state, windowName, duration, easeFunction)
+    local elapsedTime = frameContext.get().clock - state.animationStartTime
     local t = math.min(elapsedTime / duration, 1)
-    t = core.applyEasing(t, windowName)
+    t = core.applyEasingByName(t, easeFunction)
 
     local newPosX = core.lerp(state.startPosX, state.targetPosX, t)
     local newPosY = core.lerp(state.startPosY, state.targetPosY, t)
@@ -352,8 +355,8 @@ local function calculateAnimationFrame(state, windowName, duration)
     return t, newPosX, newPosY, newSizeX, newSizeY
 end
 
-local function animate(state, windowName, duration, isCollapsed)
-    local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration)
+local function animate(state, windowName, duration, isCollapsed, easeFunction)
+    local t, newPosX, newPosY, newSizeX, newSizeY = calculateAnimationFrame(state, windowName, duration, easeFunction)
 
     ImGui.SetWindowPos(windowName, newPosX, newPosY)
 
@@ -389,6 +392,9 @@ local function handleDragDetection(state, windowName, currentPosX, currentPosY, 
         local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
 
         if treatAllDrags or posChanged or sizeChanged then
+            if not state.isDragging then
+                draggingCount = draggingCount + 1
+            end
             state.isDragging = true
             state.animating = false
             currentPosX, currentPosY = applyAxisLock(windowName, currentPosX, currentPosY, shiftHeld)
@@ -402,6 +408,13 @@ local function handleDragDetection(state, windowName, currentPosX, currentPosY, 
         local sizeChanged = currentSizeX ~= state.dragCheckSizeX or currentSizeY ~= state.dragCheckSizeY
 
         state.pendingDragCheck = false
+        if state.isDragging then
+            draggingCount = draggingCount - 1
+            if draggingCount < 0 then
+                settings.debugPrint("draggingCount went negative on release")
+                draggingCount = 0
+            end
+        end
         state.isDragging = false
         axisLock.active = false
         axisLock.axis = nil
@@ -415,6 +428,13 @@ local function handleDragDetection(state, windowName, currentPosX, currentPosY, 
     elseif state.pendingDragCheck and not isFocused then
         -- Focus lost mid-drag - reset to prevent stuck state
         state.pendingDragCheck = false
+        if state.isDragging then
+            draggingCount = draggingCount - 1
+            if draggingCount < 0 then
+                settings.debugPrint("draggingCount went negative on focus loss")
+                draggingCount = 0
+            end
+        end
         state.isDragging = false
         axisLock.active = false
         axisLock.axis = nil
@@ -547,7 +567,7 @@ local function processWindowFrame(p)
         -- 5. Set up animation or apply immediately
         if useAnimation then
             state.animating = true
-            state.animationStartTime = os.clock()
+            state.animationStartTime = frameContext.get().clock
             state.startPosX = currentPosX
             state.startPosY = currentPosY
             state.targetPosX = targetPosX
@@ -619,7 +639,21 @@ local updateFrameParams = {
 function core.update(windowName, options)
     options = options or {}
 
-    -- Resolve settings with constraint animation bypass
+    -- Resolve config once at entry (5 getConfig calls)
+    local cfg_gridEnabled = options.gridEnabled
+    if cfg_gridEnabled == nil then cfg_gridEnabled = settings.getConfig(windowName, "gridEnabled") end
+
+    local cfg_animationEnabled = options.animationEnabled
+    if cfg_animationEnabled == nil then cfg_animationEnabled = settings.getConfig(windowName, "animationEnabled") end
+
+    local cfg_animationDuration = options.animationDuration
+        or settings.getConfig(windowName, "animationDuration")
+
+    local cfg_easeFunction = settings.getConfig(windowName, "easeFunction")
+
+    local cfg_snapCollapsed = settings.getConfig(windowName, "snapCollapsed")
+
+    -- Constraint animation bypass
     local constraintAnimActive = core.isConstraintAnimatingForWindow(windowName)
 
     -- Sweep stale constraint animations that were never driven by updateConstraintAnimation.
@@ -628,7 +662,7 @@ function core.update(windowName, options)
     if constraintAnimActive then
         local byWindow = constraintAnimByWindow[windowName]
         if byWindow then
-            local now = os.clock()
+            local now = frameContext.get().clock
             for property in pairs(byWindow) do
                 local anim = constraintAnimations[property]
                 if anim and anim.active and (now - anim.startTime) >= anim.duration then
@@ -650,23 +684,13 @@ function core.update(windowName, options)
         end
     end
 
-    local useGrid = options.gridEnabled
-    if useGrid == nil then
-        useGrid = settings.getConfig(windowName, "gridEnabled")
-    end
+    -- Constraint animations bypass grid and animation for smooth interpolation
+    local useGrid = cfg_gridEnabled
+    local useAnimation = cfg_animationEnabled
     if constraintAnimActive then
         useGrid = false
-    end
-
-    local useAnimation = options.animationEnabled
-    if useAnimation == nil then
-        useAnimation = settings.getConfig(windowName, "animationEnabled")
-    end
-    if constraintAnimActive then
         useAnimation = false
     end
-
-    local duration = options.animationDuration or settings.getConfig(windowName, "animationDuration")
 
     -- Build params from ImGui state
     local state = getWindowState(windowName)
@@ -689,8 +713,8 @@ function core.update(windowName, options)
     p.treatAllDrags = options.treatAllDragsAsWindowDrag or false
     p.useGrid = useGrid
     p.useAnimation = useAnimation
-    p.duration = duration
-    p.snapCollapsed = settings.getConfig(windowName, "snapCollapsed")
+    p.duration = cfg_animationDuration
+    p.snapCollapsed = cfg_snapCollapsed
     p.canSetWindowPos = true
     p.canSetWindowSize = true
 
@@ -707,12 +731,8 @@ function core.update(windowName, options)
     if not constraintAnimActive then
         local pending = snapPendingByWindow[windowName]
         if pending then
-            -- Re-resolve useGrid without constraint bypass for snap-after-constraint
-            local snapGrid = options.gridEnabled
-            if snapGrid == nil then
-                snapGrid = settings.getConfig(windowName, "gridEnabled")
-            end
-            if isCollapsed and not p.snapCollapsed then
+            local snapGrid = cfg_gridEnabled
+            if isCollapsed and not cfg_snapCollapsed then
                 snapGrid = false
             end
 
@@ -735,15 +755,11 @@ function core.update(windowName, options)
                             end
                         end
 
-                        handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed)
+                        handleSnap(state, currentPosX, currentPosY, sizeX, sizeY, windowName, isCollapsed, cfg_animationEnabled)
 
-                        local snapAnim = options.animationEnabled
-                        if snapAnim == nil then
-                            snapAnim = settings.getConfig(windowName, "animationEnabled")
-                        end
-                        if snapAnim then
+                        if cfg_animationEnabled then
                             state.animating = true
-                            state.animationStartTime = os.clock()
+                            state.animationStartTime = frameContext.get().clock
                         end
                     end
                 end
@@ -753,12 +769,8 @@ function core.update(windowName, options)
     end
 
     if state.animating and not constraintAnimActive then
-        local animEnabled = options.animationEnabled
-        if animEnabled == nil then
-            animEnabled = settings.getConfig(windowName, "animationEnabled")
-        end
-        if animEnabled then
-            animate(state, windowName, duration, isCollapsed)
+        if cfg_animationEnabled then
+            animate(state, windowName, cfg_animationDuration, isCollapsed, cfg_easeFunction)
         end
     end
 end
@@ -802,6 +814,14 @@ end
 ---Reset window state (clears tracking data).
 ---@param windowName string Window title
 function core.resetWindow(windowName)
+    local state = windowStates[windowName]
+    if state and state.isDragging then
+        draggingCount = draggingCount - 1
+        if draggingCount < 0 then
+            settings.debugPrint("draggingCount went negative in resetWindow")
+            draggingCount = 0
+        end
+    end
     windowStates[windowName] = nil
 end
 
@@ -816,12 +836,7 @@ end
 ---Check if any tracked window is being dragged.
 ---@return boolean anyDragging
 function core.isAnyWindowDragging()
-    for _, state in pairs(windowStates) do
-        if state.isDragging then
-            return true
-        end
-    end
-    return false
+    return draggingCount > 0
 end
 
 ---Get the bounds of the currently dragging window.
@@ -917,7 +932,7 @@ function core.startConstraintAnimation(windowName, property, targetValue, option
     anim.active = true
     anim.target = targetValue
     anim.windowName = windowName
-    anim.startTime = os.clock()
+    anim.startTime = frameContext.get().clock
     anim.startValue = anim.current
     anim.duration = options.duration or 0.3
     anim.easing = options.easing or "easeOut"
@@ -951,7 +966,7 @@ function core.updateConstraintAnimation(property, normalValue, expandedValue, is
         return anim.current
     end
 
-    local elapsed = os.clock() - anim.startTime
+    local elapsed = frameContext.get().clock - anim.startTime
     local t = math.min(elapsed / anim.duration, 1)
     t = core.applyEasingByName(t, anim.easing)
 
@@ -1179,6 +1194,13 @@ end
 ---Clear dragging state on a window and invalidate shared dragging bounds.
 ---@param state table Window state entry from windowStates
 function core.clearDraggingState(state)
+    if state.isDragging then
+        draggingCount = draggingCount - 1
+        if draggingCount < 0 then
+            settings.debugPrint("draggingCount went negative in clearDraggingState")
+            draggingCount = 0
+        end
+    end
     state.isDragging = false
     draggingWindowBoundsValid = false
     draggingWindowName = nil

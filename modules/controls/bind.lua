@@ -232,27 +232,6 @@ local function bindDragRow(self, icon, keys, min, max, opts, controlFn)
         end
     end
 
-    -- Build drags array from keys
-    local drags = {}
-    local optsDrags = opts.drags
-    for i, key in ipairs(keys) do
-        local drag = {
-            value = isDelta and 0 or (self.data[key] or 0),
-            min = min,
-            max = max,
-            key = key,
-        }
-        if self.defaults and self.defaults[key] ~= nil then
-            drag.default = self.defaults[key]
-        end
-        if optsDrags and optsDrags[i] then
-            for k, v in pairs(optsDrags[i]) do
-                drag[k] = v
-            end
-        end
-        drags[i] = drag
-    end
-
     -- Delta mode reset callback (cached on context)
     if isDelta and self.defaults then
         if not self._dragRowOnReset then
@@ -269,6 +248,7 @@ local function bindDragRow(self, icon, keys, min, max, opts, controlFn)
         opts.onReset = self._dragRowOnReset
     end
 
+    local optsDrags = opts.drags
     opts.drags = nil
 
     -- Per-row state lives on the data table (persists across frames regardless of bind context lifetime)
@@ -287,7 +267,40 @@ local function bindDragRow(self, icon, keys, min, max, opts, controlFn)
     if not drs[rowId] then drs[rowId] = {} end
     opts._state = drs[rowId]
 
-    local values, anyChanged = controlFn(icon, rowId, drags, opts)
+    -- Cache drags array on _drs keyed by row ID; update in-place on subsequent frames
+    local dragsKey = rowId .. "_drags"
+    local cachedDrags = drs[dragsKey]
+    local keyCount = #keys
+    local needsRebuild = not cachedDrags or #cachedDrags ~= keyCount
+
+    if needsRebuild then
+        cachedDrags = {}
+        for i, key in ipairs(keys) do
+            local drag = {
+                value = isDelta and 0 or (self.data[key] or 0),
+                min = min, max = max, key = key,
+            }
+            if self.defaults and self.defaults[key] ~= nil then
+                drag.default = self.defaults[key]
+            end
+            if optsDrags and optsDrags[i] then
+                for k, v in pairs(optsDrags[i]) do drag[k] = v end
+            end
+            cachedDrags[i] = drag
+        end
+        drs[dragsKey] = cachedDrags
+    else
+        for i, key in ipairs(keys) do
+            cachedDrags[i].value = isDelta and 0 or (self.data[key] or 0)
+            cachedDrags[i].min = min
+            cachedDrags[i].max = max
+            if self.defaults and self.defaults[key] ~= nil then
+                cachedDrags[i].default = self.defaults[key]
+            end
+        end
+    end
+
+    local values, anyChanged = controlFn(icon, rowId, cachedDrags, opts)
 
     if anyChanged then
         if isDelta then

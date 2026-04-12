@@ -381,4 +381,10 @@ function popout.toggleButton(id, opts)
     }
 end
 
+--- Remove all internal state for the given popout ID.
+---@param id string
+function popout.destroy(id)
+    popoutStates[id] = nil
+end
+
 return popout

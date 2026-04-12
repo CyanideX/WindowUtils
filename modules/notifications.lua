@@ -4,6 +4,7 @@
 ------------------------------------------------------
 
 local styles = require("modules/styles")
+local frameContext = require("core/frameContext")
 
 local notifications = {}
 
@@ -128,7 +129,7 @@ function notifications.show(message, level, opts)
         id = nextId,
         message = message,
         level = level or "info",
-        spawnTime = os.clock(),
+        spawnTime = frameContext.get().clock,
         ttl = opts.ttl or config.ttl,
         fadeOut = opts.fadeOut or config.fadeOut,
     }
@@ -146,7 +147,7 @@ function notifications.draw()
 
     ensureIcons()
 
-    local now = os.clock()
+    local now = frameContext.get().clock
     local visibleIndex = 0
     local yOffset = 0
     local defaultToastH = ImGui.GetTextLineHeightWithSpacing() + config.toastPadding * 2

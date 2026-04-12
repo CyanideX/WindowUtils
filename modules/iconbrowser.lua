@@ -1040,4 +1040,20 @@ function iconbrowser.draw(id, selected, onSelect, opts)
     return state.selected, state.selectedGlyph, changed
 end
 
+--------------------------------------------------------------------------------
+-- Cleanup
+--------------------------------------------------------------------------------
+
+--- Remove all internal state for the given icon browser instance.
+---@param id string
+function iconbrowser.destroy(id)
+    local state = stateRegistry[id]
+    if state then
+        if state.searchState then
+            search.destroy("iconbrowser_" .. id)
+        end
+        stateRegistry[id] = nil
+    end
+end
+
 return iconbrowser

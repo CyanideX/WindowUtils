@@ -8,18 +8,29 @@ local core = require("core/core")
 local settings = require("core/settings")
 local discovery = require("core/discovery")
 local registry = require("core/registry")
-local styles = require("modules/styles")
-local utils = require("modules/utils")
+local frameContext = require("core/frameContext")
 
 ---@class WindowUtilsExternal
 local external = {}
+
+local externalDraggingCount = 0
+
+local pushExternalWindowFn = nil
+local popExternalWindowFn = nil
+
+--- Inject style push/pop callbacks to avoid requiring modules/styles from core.
+---@param pushFn function styles.PushExternalWindow
+---@param popFn function styles.PopExternalWindow
+function external.setStyleCallbacks(pushFn, popFn)
+    pushExternalWindowFn = pushFn
+    popExternalWindowFn = popFn
+end
 
 local externalWindowStates = {}
 
 local blockedReprobeTimer = 0
 local activeReprobeTimer = 0
 local activeReprobeIndex = 0
-local lastFrameTime = 0
 
 -- Windows at 9000+ are hidden by other mods
 local OFFSCREEN_THRESHOLD = 9000
@@ -29,7 +40,23 @@ local coreExcludedWindows = {
     ["Debug##Default"] = true,
 }
 
-local isShiftHeld = utils.isShiftHeld
+local function isShiftHeld()
+    return ImGui.IsKeyDown(ImGuiKey.LeftShift) or ImGui.IsKeyDown(ImGuiKey.RightShift)
+end
+
+--- Increment externalDraggingCount when an external window starts dragging.
+local function incrementExternalDragging()
+    externalDraggingCount = externalDraggingCount + 1
+end
+
+--- Decrement externalDraggingCount when an external window stops dragging.
+local function decrementExternalDragging()
+    externalDraggingCount = externalDraggingCount - 1
+    if externalDraggingCount < 0 then
+        settings.debugPrint("externalDraggingCount went negative")
+        externalDraggingCount = 0
+    end
+end
 
 --------------------------------------------------------------------------------
 -- Probe Constants
@@ -224,6 +251,7 @@ local function manageExternalWindow(windowName, state, windowInfo)
     -- Skip offscreen windows (likely hidden by another mod)
     if currentPosX >= OFFSCREEN_THRESHOLD or currentPosY >= OFFSCREEN_THRESHOLD then
         if state.isDragging then
+            decrementExternalDragging()
             core.clearDraggingState(state)
         end
         state.animating = false
@@ -246,6 +274,7 @@ local function manageExternalWindow(windowName, state, windowInfo)
 
     local isFocused = ImGui.IsWindowFocused()
     local wasDragging = state.isDragging or state.pendingDragCheck
+    local wasDraggingExact = state.isDragging
 
     -- Delegate expanded tracking, collapsed restore, drag detection, snap, animation
     local p = externalFrameParams
@@ -269,6 +298,13 @@ local function manageExternalWindow(windowName, state, windowInfo)
     p.canSetWindowSize = false
 
     local result = core.processWindowFrame(p)
+
+    -- Track isDragging transitions that happened inside processWindowFrame
+    if not wasDraggingExact and state.isDragging then
+        incrementExternalDragging()
+    elseif wasDraggingExact and not state.isDragging then
+        decrementExternalDragging()
+    end
 
     -- Clear dragging bounds when drag ended without a snap animation
     if wasDragging and not state.isDragging and not state.pendingDragCheck and not state.animating then
@@ -308,10 +344,13 @@ function external.updateExternalWindows()
     discovery.invalidateCache()
     local windows = discovery.getActiveWindows()
 
-    local extVars, extColors = styles.PushExternalWindow(
-        settings.master.overrideStyling,
-        settings.master.disableScrollbar
-    )
+    local extVars, extColors = 0, 0
+    if pushExternalWindowFn then
+        extVars, extColors = pushExternalWindowFn(
+            settings.master.overrideStyling,
+            settings.master.disableScrollbar
+        )
+    end
 
     for _, windowInfo in ipairs(windows) do
         local windowName = windowInfo.name
@@ -365,6 +404,7 @@ function external.updateExternalWindows()
 
                     -- Clean up drag state
                     if state.isDragging then
+                        decrementExternalDragging()
                         core.clearDraggingState(state)
                     end
                     state.pendingDragCheck = false
@@ -389,6 +429,7 @@ function external.updateExternalWindows()
             local staleState = externalWindowStates[windowName]
             if staleState then
                 if staleState.isDragging then
+                    decrementExternalDragging()
                     core.clearDraggingState(staleState)
                 end
                 externalWindowStates[windowName] = nil
@@ -396,7 +437,9 @@ function external.updateExternalWindows()
         end
     end
 
-    styles.PopExternalWindow(extVars, extColors)
+    if popExternalWindowFn then
+        popExternalWindowFn(extVars, extColors)
+    end
 
     -- Collapsed pOpen windows: core.update() can't detect drags for collapsed
     -- windows (CET's ImGui returns stale position and unfocused state).
@@ -505,9 +548,8 @@ function external.updateExternalWindows()
     end
 
     -- Timekeeping
-    local now = os.clock()
-    local deltaTime = lastFrameTime > 0 and (now - lastFrameTime) or 0
-    lastFrameTime = now
+    local fc = frameContext.get()
+    local deltaTime = fc.deltaTime
 
     local interval = settings.master.probeInterval or 0.5
 
@@ -600,18 +642,12 @@ function external.resetExternalProbes()
     blockedReprobeTimer = 0
     activeReprobeTimer = 0
     activeReprobeIndex = 0
-    lastFrameTime = 0
 end
 
 --- Check if any external window is being dragged.
 ---@return boolean
 function external.isAnyExternalWindowDragging()
-    for _, state in pairs(externalWindowStates) do
-        if state.isDragging then
-            return true
-        end
-    end
-    return false
+    return externalDraggingCount > 0
 end
 
 --------------------------------------------------------------------------------
@@ -643,7 +679,7 @@ function external.snapAllWindows()
                 local state = extState or intState
                 if settings.master.animationEnabled then
                     state.animating = true
-                    state.animationStartTime = os.clock()
+                    state.animationStartTime = frameContext.get().clock
                     state.startPosX = windowInfo.posX
                     state.startPosY = windowInfo.posY
                     state.targetPosX = targetX

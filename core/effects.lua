@@ -6,7 +6,7 @@
 local settings = require("core/settings")
 local core = require("core/core")
 local external = require("core/external")
-local controls = require("modules/controls")
+local frameContext = require("core/frameContext")
 
 local effects = {}
 
@@ -78,12 +78,12 @@ local easeInOut = core.easeInOut
 --- Compute eased fade progress from a start time and duration.
 --- Returns a raw 0-1 progress and its eased value. Shared by blur and
 --- any other animation that needs timing + easing without state tracking.
----@param startTime number os.clock() timestamp when the animation began
+---@param startTime number frameContext clock timestamp when the animation began
 ---@param duration number seconds for the full transition
 ---@return number progress raw linear progress clamped to [0, 1]
 ---@return number easedProgress easeInOut-transformed progress
 local function computeFadeProgress(startTime, duration)
-    local elapsed = os.clock() - startTime
+    local elapsed = frameContext.get().clock - startTime
     local progress = math.min(elapsed / duration, 1.0)
     return progress, easeInOut(progress)
 end
@@ -96,7 +96,7 @@ end
 ---@param fadeOutDuration number seconds for 1->0 fade
 ---@return number opacity in [0, 1]
 local function computeFadeOpacity(isActive, fadeState, fadeInDuration, fadeOutDuration)
-    local now = os.clock()
+    local now = frameContext.get().clock
     if isActive and not fadeState.wasActive then
         fadeState.startTime = now
     elseif not isActive and fadeState.wasActive then
@@ -128,11 +128,17 @@ function effects.enableBlur()
         effects.blur.originalRadius = service:GetBlurAreaCircularBlurRadius()
     end
 
-    service:SetEnable(true)
+    -- pcall to detect stale service references retained across fade-out
+    local ok, err = pcall(service.SetEnable, service, true)
+    if not ok then
+        effects.blur.service = nil
+        settings.debugPrint("Blur service stale, will re-acquire: " .. tostring(err))
+        return
+    end
 
     effects.blur.isAnimating = true
     effects.blur.animationType = "fade_in"
-    effects.blur.startTime = os.clock()
+    effects.blur.startTime = frameContext.get().clock
     effects.blur.targetRadius = settings.master.blurIntensity
     -- Start from current radius for smooth transition if already animating
     if not effects.blur.isActive then
@@ -159,7 +165,7 @@ function effects.disableBlur(isOverlayClose)
     effects.blur.isAnimating = true
     effects.blur.animationType = "fade_out"
     effects.blur.isOverlayClose = isOverlayClose or false
-    effects.blur.startTime = os.clock()
+    effects.blur.startTime = frameContext.get().clock
 end
 
 --- Advance the blur fade-in/fade-out animation by one tick. Call every frame.
@@ -197,7 +203,7 @@ function effects.updateBlurAnimation()
             service:SetBlurAreaCircularBlurRadius(0.0)
             service:SetEnable(false)
             effects.blur.isActive = false
-            effects.blur.service = nil
+            -- Service reference retained for reuse on next enable
         end
     end
 end
@@ -258,7 +264,7 @@ function effects.updateDimAnimation()
     if isOverlayOpen() then return end
     if dimFade.opacity <= 0 then return end
 
-    local now = os.clock()
+    local now = frameContext.get().clock
     local dt = dimFade.lastFrameTime and (now - dimFade.lastFrameTime) or 0
     dimFade.lastFrameTime = now
     if dt <= 0 then return end
@@ -275,7 +281,7 @@ function effects.updateDimAnimation()
     dimFade.opacity = math.max(0, dimFade.opacity - step)
 
     if dimFade.opacity > 0.001 then
-        local fc = controls.getFrameCache()
+        local fc = frameContext.get()
         local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
         local drawList = ImGui.GetBackgroundDrawList()
         local bgColor = ImGui.GetColorU32(0, 0, 0, dimFade.opacity)
@@ -305,37 +311,25 @@ local gridFade = {
 local GRID_FADE_IN_DURATION = 0.15
 local GRID_FADE_OUT_DURATION = 0.25
 
--- Squared distance from point to rectangle (0 if inside/within padding).
-local function squaredDistanceToRect(px, py, rx, ry, rw, rh, padding)
-    padding = padding or 0
-    local left = rx - padding
-    local right = rx + rw + padding
-    local top = ry - padding
-    local bottom = ry + rh + padding
-
-    if px >= left and px <= right and py >= top and py <= bottom then
-        return 0
-    end
-
-    local dx = 0
-    local dy = 0
-
-    if px < left then
-        dx = left - px
-    elseif px > right then
-        dx = px - right
-    end
-
-    if py < top then
-        dy = top - py
-    elseif py > bottom then
-        dy = py - bottom
-    end
-
+-- Squared distance from point to axis-aligned rectangle (0 if inside/within padding).
+local function squaredDistToRect(px, py, rx, ry, rw, rh, pad)
+    local left = rx - pad
+    local right = rx + rw + pad
+    local top = ry - pad
+    local bottom = ry + rh + pad
+    local dx, dy = 0, 0
+    if px < left then dx = left - px
+    elseif px > right then dx = px - right end
+    if py < top then dy = top - py
+    elseif py > bottom then dy = py - bottom end
     return dx * dx + dy * dy
 end
 
 --- Draw grid lines along one axis with optional feathering.
+--- Uses perpendicular distance to skip lines entirely outside the feather
+--- radius (O(lines) check). Lines within the radius use per-segment distance
+--- for correct 2D falloff. A prevAlpha cache avoids redundant GetColorU32
+--- calls for consecutive segments with the same alpha.
 ---@param drawList userdata ImGui draw list
 ---@param isVert boolean true = vertical lines (iterate X, segments along Y)
 ---@param primaryEnd number extent of primary axis (displayWidth or displayHeight)
@@ -350,52 +344,78 @@ end
 ---@param color table {r,g,b} color components
 ---@param thickness number line thickness
 local function drawGridLines(drawList, isVert, primaryEnd, secondaryEnd, gridSize, useFeather, wb, featherPadding, featherRadius, featherCurve, gridAlpha, color, thickness)
-    local radiusSq = featherRadius * featherRadius
-    -- Precompute full-alpha color and track previous alpha to skip redundant GetColorU32 calls
     local fullAlphaColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
+
+    local radiusSq
+    -- Track previous alpha to skip redundant GetColorU32 calls for consecutive
+    -- segments with the same computed alpha (common along a single line).
     local prevAlpha = gridAlpha
     local prevColor = fullAlphaColor
+    if useFeather and wb then
+        radiusSq = featherRadius * featherRadius
+    end
+
     local pos = gridSize
     while pos < primaryEnd do
         if useFeather and wb then
-            local seg = 0
-            while seg < secondaryEnd do
-                local segEnd = math.min(seg + gridSize, secondaryEnd)
-                local px1, py1, px2, py2
-                if isVert then
-                    px1, py1, px2, py2 = pos, seg, pos, segEnd
-                else
-                    px1, py1, px2, py2 = seg, pos, segEnd, pos
-                end
-                local dist1Sq = squaredDistanceToRect(px1, py1, wb.x, wb.y, wb.width, wb.height, featherPadding)
-                local dist2Sq = squaredDistanceToRect(px2, py2, wb.x, wb.y, wb.width, wb.height, featherPadding)
-                local distSq = math.min(dist1Sq, dist2Sq)
-                local ratio = distSq / radiusSq
-                local linearAlpha = math.max(0, 1 - math.sqrt(ratio))
-                local featherAlpha = math.pow(linearAlpha, featherCurve)
-                local lineAlpha = gridAlpha * featherAlpha
+            -- Quick perpendicular check: skip lines entirely outside the radius.
+            -- Vertical lines only check horizontal distance, horizontal only vertical.
+            local perpDistSq
+            if isVert then
+                local left = wb.x - featherPadding
+                local right = wb.x + wb.width + featherPadding
+                if pos < left then local dx = left - pos; perpDistSq = dx * dx
+                elseif pos > right then local dx = pos - right; perpDistSq = dx * dx
+                else perpDistSq = 0 end
+            else
+                local top = wb.y - featherPadding
+                local bottom = wb.y + wb.height + featherPadding
+                if pos < top then local dy = top - pos; perpDistSq = dy * dy
+                elseif pos > bottom then local dy = pos - bottom; perpDistSq = dy * dy
+                else perpDistSq = 0 end
+            end
 
-                if lineAlpha > 0.001 then
-                    local lineColor
-                    if lineAlpha == gridAlpha then
-                        lineColor = fullAlphaColor
-                    elseif lineAlpha == prevAlpha then
-                        lineColor = prevColor
+            if perpDistSq < radiusSq then
+                -- Line is within feather radius: per-segment rendering for correct 2D falloff
+                local seg = 0
+                while seg < secondaryEnd do
+                    local segEnd = math.min(seg + gridSize, secondaryEnd)
+                    local px1, py1, px2, py2
+                    if isVert then
+                        px1, py1, px2, py2 = pos, seg, pos, segEnd
                     else
-                        lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
-                        prevAlpha = lineAlpha
-                        prevColor = lineColor
+                        px1, py1, px2, py2 = seg, pos, segEnd, pos
                     end
-                    ImGui.ImDrawListAddLine(drawList, px1, py1, px2, py2, lineColor, thickness)
+                    local dist1Sq = squaredDistToRect(px1, py1, wb.x, wb.y, wb.width, wb.height, featherPadding)
+                    local dist2Sq = squaredDistToRect(px2, py2, wb.x, wb.y, wb.width, wb.height, featherPadding)
+                    local distSq = math.min(dist1Sq, dist2Sq)
+
+                    if distSq < radiusSq then
+                        local ratio = distSq / radiusSq
+                        local linearAlpha = math.max(0, 1 - math.sqrt(ratio))
+                        local featherAlpha = math.pow(linearAlpha, featherCurve)
+                        local lineAlpha = gridAlpha * featherAlpha
+
+                        if lineAlpha > 0.001 then
+                            local lineColor
+                            if lineAlpha == prevAlpha then
+                                lineColor = prevColor
+                            else
+                                lineColor = ImGui.GetColorU32(color[1], color[2], color[3], lineAlpha)
+                                prevAlpha = lineAlpha
+                                prevColor = lineColor
+                            end
+                            ImGui.ImDrawListAddLine(drawList, px1, py1, px2, py2, lineColor, thickness)
+                        end
+                    end
+                    seg = segEnd
                 end
-                seg = segEnd
             end
         else
-            local lineColor = ImGui.GetColorU32(color[1], color[2], color[3], gridAlpha)
             if isVert then
-                ImGui.ImDrawListAddLine(drawList, pos, 0, pos, secondaryEnd, lineColor, thickness)
+                ImGui.ImDrawListAddLine(drawList, pos, 0, pos, secondaryEnd, fullAlphaColor, thickness)
             else
-                ImGui.ImDrawListAddLine(drawList, 0, pos, secondaryEnd, pos, lineColor, thickness)
+                ImGui.ImDrawListAddLine(drawList, 0, pos, secondaryEnd, pos, fullAlphaColor, thickness)
             end
         end
         pos = pos + gridSize
@@ -420,10 +440,10 @@ local function updateDimOverlay(displayWidth, displayHeight, anyDragging)
     -- Overlay is open, so clear the overlay-close flag and seed timing
     dimFade.overlayCloseFadeOut = false
     if not dimFade.lastFrameTime then
-        dimFade.lastFrameTime = os.clock()
+        dimFade.lastFrameTime = frameContext.get().clock
     end
 
-    local now = os.clock()
+    local now = frameContext.get().clock
     local dt = now - dimFade.lastFrameTime
     dimFade.lastFrameTime = now
 
@@ -633,7 +653,7 @@ function effects.drawGridOverlay()
     end
 
     -- Compute shared state once
-    local fc = controls.getFrameCache()
+    local fc = frameContext.get()
     local displayWidth, displayHeight = fc.displayWidth, fc.displayHeight
 
     local anyDragging = false
