@@ -270,6 +270,14 @@ Programmatically open or close an expand panel. Triggers the same constraint ani
 | id | string | Panel identifier |
 | isOpen | boolean | Desired state |
 
+#### `destroy(id)`
+
+Remove all internal state for an expand panel. Also removes the panel from its window's panel index. If the last panel on a window is destroyed, the window's base dimensions are also cleaned up.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| id | string | Panel identifier |
+
 ## Interaction
 
 ### Double-Click Toggle

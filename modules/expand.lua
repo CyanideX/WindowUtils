@@ -581,4 +581,28 @@ function expand.setOpen(id, isOpen)
     expand.onToggle(id, isOpen)
 end
 
+--- Remove all internal state for an expand panel.
+--- Also removes the panel from its window's panel index.
+---@param id string Panel identifier
+function expand.destroy(id)
+    local s = expandStates[id]
+    if s then
+        -- Remove from per-window panel index
+        local ids = windowPanels[s.windowName]
+        if ids then
+            for i = #ids, 1, -1 do
+                if ids[i] == id then
+                    table.remove(ids, i)
+                    break
+                end
+            end
+            if #ids == 0 then
+                windowPanels[s.windowName] = nil
+                windowBases[s.windowName] = nil
+            end
+        end
+        expandStates[id] = nil
+    end
+end
+
 return expand

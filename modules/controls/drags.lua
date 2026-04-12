@@ -200,7 +200,8 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
         end
     end
 
-    local values = {}
+    local values = state and state._values or {}
+    if state then state._values = values end
     local anyChanged = false
     local dragIndex = 0
     local skipUntil = 0
@@ -427,6 +428,11 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
 
     if customSpacing then
         ImGui.PopStyleVar()
+    end
+
+    -- Clear stale entries from previous frames with more drag elements
+    for i = dragIndex + 1, #values do
+        values[i] = nil
     end
 
     return values, anyChanged

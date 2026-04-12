@@ -473,7 +473,7 @@ function split.multi(id, panels, opts)
         ms.dirty = false
     end
 
-    local sizes = {}
+    local sizes = ms.sizes
     local consumed = 0
     for i = 1, coreN do
         local startFrac = (i == 1) and 0 or effectiveBps[i - 1]

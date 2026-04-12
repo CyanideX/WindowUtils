@@ -823,6 +823,23 @@ function core.resetWindow(windowName)
         end
     end
     windowStates[windowName] = nil
+
+    -- Clean up constraint animations associated with this window
+    local byWindow = constraintAnimByWindow[windowName]
+    if byWindow then
+        for property in pairs(byWindow) do
+            constraintAnimations[property] = nil
+        end
+        constraintAnimByWindow[windowName] = nil
+    end
+    -- Also clean up completed/inert entries that reference this window
+    local pending = snapPendingByWindow[windowName]
+    if pending then
+        for property in pairs(pending) do
+            constraintAnimations[property] = nil
+        end
+        snapPendingByWindow[windowName] = nil
+    end
 end
 
 ---Check if a specific window is being dragged.

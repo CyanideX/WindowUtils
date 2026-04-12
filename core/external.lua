@@ -447,18 +447,18 @@ function external.updateExternalWindows()
     if settings.master.enabled and settings.master.gridEnabled
         and settings.master.snapCollapsed and discovery.isAvailable()
     then
+        -- Build name-keyed lookup to avoid O(collapsed x total) linear scan
+        local windowsByName = {}
+        for _, w in ipairs(windows) do
+            windowsByName[w.name] = w
+        end
+
         local windowStates = core.getWindowStates()
         for windowName, state in pairs(windowStates) do
             if state.wasCollapsed then
-                -- Look up real position from RedCetWM discovery
-                local realPosX, realPosY
-                for _, w in ipairs(windows) do
-                    if w.name == windowName then
-                        realPosX = w.posX
-                        realPosY = w.posY
-                        break
-                    end
-                end
+                local w = windowsByName[windowName]
+                local realPosX = w and w.posX
+                local realPosY = w and w.posY
 
                 if realPosX then
                     local currentSizeX = state.expandedSizeX or 200

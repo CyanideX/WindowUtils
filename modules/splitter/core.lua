@@ -638,6 +638,7 @@ local function getMultiState(id, n, opts, panels)
             isVertical = isVertical,
             effectiveBps = {},  -- reused per-frame for clamping
             minFracs = {},      -- reused per-frame for min fraction cache
+            sizes = {},         -- reused per-frame for computed panel sizes
             dirty = true,       -- skip enforcement pass when nothing changed
             lastTotalAvail = nil -- track available space for resize detection
         }
