@@ -131,8 +131,8 @@ Styled button with automatic push/pop.
 |-----------|------|---------|-------------|
 | label | string |  - | Button label |
 | styleName | string | "inactive" | Style name (see Styles module) |
-| width | number | 0 | Width (0 = auto, negative = fill available) |
-| height | number | 0 | Height |
+| width | number | 0 | Width (0 = auto, negative = fill available width) |
+| height | number | 0 | Height (0 = auto, negative = fill available height) |
 
 **Returns:** `boolean`  - true if clicked
 
@@ -721,7 +721,7 @@ Row of buttons with automatic width distribution. Icon-only buttons auto-size; t
 | weight | number | Flex weight for text buttons (default 1) |
 | width | number\|nil | Fixed width override |
 | height | number\|nil | Button height |
-| disabled | boolean | Disable the button |
+| disabled | boolean\|string\|nil | Disable the button. `true` = soft disable (uses "disabled" style, suppresses clicks, keeps hover for tooltips). `"hard"` = hard disable (uses `ImGui.BeginDisabled`, blocks all interaction including tooltips). |
 | tooltip | string\|nil | Tooltip text |
 | onClick | function\|nil | Click callback |
 | onHold | function\|nil | Hold callback (turns button into HoldButton) |

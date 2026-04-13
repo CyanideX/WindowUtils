@@ -25,14 +25,15 @@ local M = {}
 --- Create a styled button with automatic push/pop
 ---@param label string Button label text
 ---@param styleName? string Style name from styles module (default "inactive")
----@param width? number Button width in pixels (0=auto, negative=fill available)
----@param height? number Button height in pixels (default 0)
+---@param width? number Button width in pixels (0=auto, negative=fill available width)
+---@param height? number Button height in pixels (0=auto, negative=fill available height)
 ---@return boolean clicked True if the button was clicked
 function M.Button(label, styleName, width, height)
     styleName = styleName or "inactive"
     width = width or 0
     height = height or 0
     if width < 0 then width = ImGui.GetContentRegionAvail() end
+    if height < 0 then height = select(2, ImGui.GetContentRegionAvail()) end
 
     styles.PushButton(styleName)
     local clicked = ImGui.Button(label, width, height)
@@ -217,7 +218,16 @@ function M.ButtonRow(defs, opts)
         local displayLabel = icon or def.label or def[1]
         local style = def.style or def[2] or "inactive"
 
-        if def.disabled then ImGui.BeginDisabled(true) end
+        -- Soft disable: override style to "disabled" but keep hover for tooltips.
+        -- Hard disable (disabled = "hard"): uses BeginDisabled for full ImGui blocking.
+        local effectiveStyle = style
+        local suppressClick = false
+        if def.disabled == "hard" then
+            ImGui.BeginDisabled(true)
+        elseif def.disabled then
+            effectiveStyle = "disabled"
+            suppressClick = true
+        end
 
         -- Cross-element progress: show progress bar instead of button when source is held
         local showedProgress = false
@@ -230,22 +240,22 @@ function M.ButtonRow(defs, opts)
         end
 
         if not showedProgress then
-            if def.onHold then
+            if def.onHold and not suppressClick then
                 local held, clicked = hb.HoldButton(def.id or ("btnrow_" .. i), displayLabel, {
-                    duration = def.holdDuration or 2.0, style = style, width = w,
+                    duration = def.holdDuration or 2.0, style = effectiveStyle, width = w,
                     warningMessage = def.warningMessage,
                     progressDisplay = def.progressDisplay,
                 })
                 if held and def.onHold then def.onHold() end
                 if clicked and def.onClick then def.onClick() end
             else
-                local clicked = M.Button(displayLabel, style, w, def.height or 0)
-                if clicked and def.onClick then def.onClick() end
+                local clicked = M.Button(displayLabel, effectiveStyle, w, def.height or 0)
+                if clicked and not suppressClick and def.onClick then def.onClick() end
             end
         end
 
         if def.tooltip then tooltips.Show(def.tooltip) end
-        if def.disabled then ImGui.EndDisabled() end
+        if def.disabled == "hard" then ImGui.EndDisabled() end
         if i < #defs then ImGui.SameLine() end
     end
 end
