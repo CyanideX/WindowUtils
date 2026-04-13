@@ -3,11 +3,12 @@
 -- Browsable, searchable icon picker for CET mods
 ------------------------------------------------------
 
-local settings = require("core/settings")
-local controls = require("modules/controls")
-local styles   = require("modules/styles")
-local tooltips = require("modules/tooltips")
-local search   = require("modules/search")
+local settings      = require("core/settings")
+local controls      = require("modules/controls")
+local styles        = require("modules/styles")
+local tooltips      = require("modules/tooltips")
+local search        = require("modules/search")
+local notifications = require("modules/notifications")
 
 local iconbrowser = {}
 
@@ -878,6 +879,21 @@ local function renderGrid(state, cellSize)
 end
 
 --------------------------------------------------------------------------------
+-- Copy-on-Click Helper
+--------------------------------------------------------------------------------
+
+--- Show a "click to copy" tooltip on the previous item and copy text on click.
+--- Call immediately after the ImGui widget that should be clickable.
+---@param text string Value to copy to clipboard
+local function copyOnClick(text)
+    if ImGui.IsItemClicked(0) or ImGui.IsItemClicked(2) then
+        ImGui.SetClipboardText(text)
+        notifications.info("Copied to clipboard")
+    end
+    tooltips.ShowAlways("Click to copy to clipboard")
+end
+
+--------------------------------------------------------------------------------
 -- Public Draw API
 --------------------------------------------------------------------------------
 
@@ -1009,23 +1025,14 @@ function iconbrowser.draw(id, selected, onSelect, opts)
                 local iconW = iconH
 
                 controls.Button(glyph .. "##preview_" .. id, "label", iconW, iconH)
-
-                if ImGui.IsItemClicked(2) then
-                    ImGui.SetClipboardText(code)
-                end
-
-                if ImGui.BeginPopupContextItem("##iconpreview_ctx_" .. id) then
-                    if ImGui.MenuItem("Copy code to clipboard") then
-                        ImGui.SetClipboardText(code)
-                    end
-                    ImGui.EndPopup()
-                end
+                copyOnClick(code)
 
                 ImGui.SameLine()
 
                 ImGui.BeginGroup()
                 controls.Button(state.selected .. "##name_" .. id, "label", -1)
                 controls.Button(code .. "##code_" .. id, "label", -1)
+                copyOnClick(code)
                 controls.Button("Category: " .. cat .. "##cat_" .. id, "label", -1)
                 ImGui.EndGroup()
             else
