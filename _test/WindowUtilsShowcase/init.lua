@@ -83,6 +83,15 @@ local disabledRowState = { x = 0, y = 0, z = 0 }
 local dimmedRowState = { x = 0, y = 0, z = 0 }
 local dimmedColorRowState = { x = 0, y = 0, z = 0 }
 
+-- Demo state for time-of-day controls
+local todSliderValue = 43200       -- noon (12:00 PM)
+local todSliderIconValue = 25200   -- 7:00 AM
+local todDragValue = 75600         -- 9:00 PM
+local todDragIconValue = 32400     -- 9:00 AM
+local todDragRowState = {}         -- Persistent state for unbound TOD drag row
+local todDragStart = 21600         -- 6:00 AM
+local todDragEnd = 64800           -- 6:00 PM
+
 -- Delta mode accumulated values
 local dragRowDeltaState = { dx = 0, dy = 0, dz = 0 }
 local dragRowDeltaRowState = {} -- Persistent state for unbound delta row (hover/delta accum)
@@ -617,6 +626,46 @@ local function drawControlsDemo()
                         { color = styles.dragColors.z },
                     },
                 })
+
+                controls.Separator(8, 8)
+
+                -- Time-of-Day Controls
+                controls.TextMuted("TimeSlider: value in seconds (0-86399), displays as h:MM AM/PM")
+                ImGui.Dummy(0, 2)
+
+                local newTod, todChanged = controls.TimeSlider(nil, "tod_basic", todSliderValue)
+                if todChanged then todSliderValue = newTod end
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("TimeSlider with icon:")
+                local newTodIcon, todIconChanged = controls.TimeSlider("WeatherSunny", "tod_icon", todSliderIconValue, {
+                    tooltip = "Time of day with icon prefix",
+                })
+                if todIconChanged then todSliderIconValue = newTodIcon end
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("TimeDrag: drag-based TOD (wraps at midnight, minute steps):")
+                local newTodDrag, todDragChanged = controls.TimeDrag(nil, "tod_drag", todDragValue)
+                if todDragChanged then todDragValue = newTodDrag end
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("TimeDrag with icon:")
+                local newTodDragIcon, todDragIconChanged = controls.TimeDrag("WeatherNight", "tod_drag_icon", todDragIconValue, {
+                    tooltip = "Drag-based time of day with icon prefix",
+                    default = 32400,
+                })
+                if todDragIconChanged then todDragIconValue = newTodDragIcon end
+
+                ImGui.Dummy(0, 4)
+                controls.TextMuted("DragFloatRow with type=\"time\" elements (drag TOD):")
+                local todValues, todRowChanged = controls.DragFloatRow("ClockOutline", "tod_row", {
+                    { type = "time", value = todDragStart, label = "Start", default = 21600 },
+                    { type = "time", value = todDragEnd,   label = "End",   default = 64800 },
+                }, { state = todDragRowState, tooltip = "Start/end time range using drag row" })
+                if todRowChanged then
+                    todDragStart = todValues[1]
+                    todDragEnd   = todValues[2]
+                end
 
             elseif controlsPage == 2 then
                 -- Buttons: HoldButton variants + ActionButton

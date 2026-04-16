@@ -23,6 +23,7 @@ All controls are accessed via `controls.*` (or `wu.Controls.*` from external mod
 | `controls.DragInt(icon, id, value, min, max, opts?)` | Integer drag with Shift precision |
 | `controls.DragFloatRow(icon, id, drags, opts?)` | Multi-drag float row with theming |
 | `controls.DragIntRow(icon, id, drags, opts?)` | Multi-drag integer row with theming |
+| `controls.TimeDrag(icon, id, value, opts?)` | Time-of-day drag (AM/PM format) |
 | `controls.InputText(icon, id, text, opts?)` | Text input with icon |
 | `controls.InputFloat(icon, id, value, opts?)` | Float input with step buttons |
 | `controls.InputInt(icon, id, value, opts?)` | Integer input with step buttons |
@@ -454,6 +455,30 @@ local values, changed = c.DragIntRow("TuneVariant", "stats", {
     { value = stats.priority, label = "Priority", width = 60 },
     { value = stats.count, label = "Count", width = 60 },
 }, { min = 0, max = 100 })
+```
+
+### `TimeDrag(icon, id, value, opts?)`
+
+Standalone time-of-day drag control. Value is seconds since midnight (0-86399). Displays as "h:MM AM/PM". Drag adjusts in minute increments with wrapping. Double-click to type a time string.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| icon | string\|nil |  - | IconGlyph (nil = no icon) |
+| id | string |  - | Unique drag ID |
+| value | number |  - | Seconds since midnight (0-86399) |
+| opts.cols | number\|nil | nil | Grid columns (nil = fill remaining) |
+| opts.default | number\|nil | nil | Right-click reset value (seconds) |
+| opts.tooltip | string\|nil | nil | Always-visible icon tooltip |
+
+**Returns:** `number, boolean` - new value in seconds, whether changed
+
+Text input accepts: "1:45 PM", "13:45", "1345", "945", "9:45", or raw seconds. Minutes wrap at 0 and 1439.
+
+```lua
+local tod, changed = c.TimeDrag(
+    IconGlyphs.ClockOutline, "gameTime", settings.timeOfDay,
+    { default = 43200, tooltip = "Game time" }
+)
 ```
 
 ### Preset Colors: `styles.dragColors`
