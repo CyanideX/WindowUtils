@@ -633,19 +633,24 @@ local function drawControlsDemo()
                 controls.TextMuted("TimeSlider: value in seconds (0-86399), displays as h:MM AM/PM")
                 ImGui.Dummy(0, 2)
 
-                local newTod, todChanged = controls.TimeSlider(nil, "tod_basic", todSliderValue)
+                local newTod, todChanged = controls.TimeSlider(nil, "tod_basic", todSliderValue, {
+                    default = 43200,
+                })
                 if todChanged then todSliderValue = newTod end
 
                 ImGui.Dummy(0, 4)
                 controls.TextMuted("TimeSlider with icon:")
                 local newTodIcon, todIconChanged = controls.TimeSlider("WeatherSunny", "tod_icon", todSliderIconValue, {
                     tooltip = "Time of day with icon prefix",
+                    default = 25200,
                 })
                 if todIconChanged then todSliderIconValue = newTodIcon end
 
                 ImGui.Dummy(0, 4)
                 controls.TextMuted("TimeDrag: drag-based TOD (wraps at midnight, minute steps):")
-                local newTodDrag, todDragChanged = controls.TimeDrag(nil, "tod_drag", todDragValue)
+                local newTodDrag, todDragChanged = controls.TimeDrag(nil, "tod_drag", todDragValue, {
+                    default = 75600,
+                })
                 if todDragChanged then todDragValue = newTodDrag end
 
                 ImGui.Dummy(0, 4)
