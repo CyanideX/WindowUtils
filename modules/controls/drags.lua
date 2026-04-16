@@ -591,73 +591,15 @@ end
 ---@return number newValue Updated value in seconds since midnight
 ---@return boolean changed True if the value was modified
 function M.TimeDrag(icon, id, value, opts)
-    opts = opts or {}
-    value = math.floor(value or 0) % 86400
-
-    local alwaysShow = opts.alwaysShowTooltip ~= false
-    local hasIcon = core.iconPrefix(icon, opts.tooltip, alwaysShow)
-    local controlWidth = core.calcControlWidth(opts.cols, hasIcon)
-
-    local dragId = "##" .. id
-    local state = _timeEditState[dragId]
-
-    -- Text input mode (activated by double-click)
-    if state and state.editing then
-        ImGui.SetNextItemWidth(controlWidth)
-        styles.PushOutlined()
-        local newText, committed = ImGui.InputText(dragId, state.buffer, 32,
-            ImGuiInputTextFlags.EnterReturnsTrue + ImGuiInputTextFlags.AutoSelectAll)
-        styles.PopOutlined()
-        if state.focusNext then
-            ImGui.SetKeyboardFocusHere(-1)
-            state.focusNext = false
-        end
-        if committed then
-            local parsed = parseTimeInput(newText)
-            if parsed then
-                state.editing = false
-                return parsed, true
-            end
-        end
-        if ImGui.IsKeyPressed(ImGuiKey.Escape) or
-           (not ImGui.IsItemActive() and not state.focusNext) then
-            state.editing = false
-        end
-        return value, false
-    end
-
-    -- Drag mode: DragInt with minutes, wrapping, higher precision
-    local minutes = math.floor(value / 60)
-    local displayFmt = formatTimeOfDay(value)
-
-    ImGui.SetNextItemWidth(controlWidth)
-    styles.PushOutlined()
-    -- Large range allows free dragging; we wrap the result
-    local speed = utils.getDragSpeed(3, 0.02)
-    local newMinutes, changed = ImGui.DragInt(dragId, minutes, speed, -99999, 99999, displayFmt)
-    styles.PopOutlined()
-
-    -- Double-click to enter text input mode
-    if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
-        _timeEditState[dragId] = {
-            editing = true,
-            buffer = formatTimeOfDay(value),
-            focusNext = true,
-        }
-        return value, false
-    end
-
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        return opts.default, true
-    end
-
-    if changed then
-        newMinutes = newMinutes % 1440
-        if newMinutes < 0 then newMinutes = newMinutes + 1440 end
-        return newMinutes * 60, true
-    end
-
-    return value, false
+    return core.renderTimeControl(icon, id, value, opts, _timeEditState,
+        function(controlWidth, dragId, minutes, displayFmt)
+            ImGui.SetNextItemWidth(controlWidth)
+            styles.PushOutlined()
+            local speed = utils.getDragSpeed(3, 0.02)
+            local newMin, changed = ImGui.DragInt(dragId, minutes, speed, -99999, 99999, displayFmt)
+            styles.PopOutlined()
+            return newMin, changed
+        end)
 end
 
 return M

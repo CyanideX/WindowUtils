@@ -69,9 +69,6 @@ end
 -- Persistent state for time input text editing (keyed by slider id)
 local _timeInputState = {}
 
-local formatTimeOfDay = core.formatTimeOfDay
-local parseTimeInput = core.parseTimeInput
-
 --- Create a time-of-day slider.
 --- Value is seconds since midnight (0-86399). Displays as "h:MM AM/PM".
 --- Drag adjusts in minute increments. Double-click to type a time string.
@@ -82,77 +79,14 @@ local parseTimeInput = core.parseTimeInput
 ---@return number newValue Updated value in seconds since midnight
 ---@return boolean changed True if the value was modified
 function M.TimeSlider(icon, id, value, opts)
-    opts = opts or {}
-    value = math.floor(value or 0) % 86400
-
-    local alwaysShow = opts.alwaysShowTooltip ~= false
-    local hasIcon = core.iconPrefix(icon, opts.tooltip, alwaysShow)
-    local controlWidth = core.calcControlWidth(opts.cols, hasIcon)
-
-    local state = _timeInputState[id]
-
-    -- Text input mode (activated by double-click)
-    if state and state.editing then
-        ImGui.SetNextItemWidth(controlWidth)
-        styles.PushOutlined()
-        local newText, textChanged = ImGui.InputText("##" .. id, state.buffer, 32,
-            ImGuiInputTextFlags.EnterReturnsTrue + ImGuiInputTextFlags.AutoSelectAll)
-        styles.PopOutlined()
-
-        -- Auto-focus on first frame
-        if state.focusNext then
-            ImGui.SetKeyboardFocusHere(-1)
-            state.focusNext = false
-        end
-
-        -- Commit on Enter
-        if textChanged then
-            local parsed = parseTimeInput(newText)
-            if parsed then
-                state.editing = false
-                return parsed, true
-            end
-            -- Invalid input: stay in edit mode, let user fix it
-        end
-
-        -- Cancel on Escape or click away
-        if ImGui.IsKeyPressed(ImGuiKey.Escape) or
-           (not ImGui.IsItemActive() and not state.focusNext) then
-            state.editing = false
-        end
-
-        return value, false
-    end
-
-    -- Slider mode: use SliderInt with minutes for clean stepping
-    local minutes = math.floor(value / 60)
-    local displayFmt = formatTimeOfDay(value)
-
-    ImGui.SetNextItemWidth(controlWidth)
-    styles.PushOutlined()
-    local newMinutes, changed = ImGui.SliderInt("##" .. id, minutes, 0, 1439, displayFmt)
-    styles.PopOutlined()
-
-    -- Double-click to enter text input mode
-    if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
-        _timeInputState[id] = {
-            editing = true,
-            buffer = formatTimeOfDay(value),
-            focusNext = true,
-        }
-        return value, false
-    end
-
-    -- Right-click reset
-    if opts.default ~= nil and ImGui.IsItemClicked(1) then
-        return opts.default, true
-    end
-
-    if changed then
-        return newMinutes * 60, true
-    end
-
-    return value, false
+    return core.renderTimeControl(icon, id, value, opts, _timeInputState,
+        function(controlWidth, dragId, minutes, displayFmt)
+            ImGui.SetNextItemWidth(controlWidth)
+            styles.PushOutlined()
+            local newMin, changed = ImGui.SliderInt(dragId, minutes, 0, 1439, displayFmt)
+            styles.PopOutlined()
+            return newMin, changed
+        end)
 end
 
 return M

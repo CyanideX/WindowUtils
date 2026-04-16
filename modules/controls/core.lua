@@ -258,4 +258,80 @@ function core.parseTimeInput(text)
     return nil
 end
 
+--- Shared time-of-day control renderer. Used by TimeSlider and TimeDrag.
+--- Handles text input mode, double-click switching, right-click reset.
+--- The caller provides the ImGui control function for the normal mode.
+---@param icon string|nil Icon glyph
+---@param id string Unique ImGui ID suffix
+---@param value number Seconds since midnight (0-86399)
+---@param opts table {tooltip?, cols?, default?}
+---@param stateTable table Module-level persistent state table for text editing
+---@param renderControl function(controlWidth, dragId, minutes, displayFmt) -> newMinutes, changed
+---@return number newValue Seconds since midnight
+---@return boolean changed
+function core.renderTimeControl(icon, id, value, opts, stateTable, renderControl)
+    opts = opts or {}
+    value = math.floor(value or 0) % 86400
+
+    local alwaysShow = opts.alwaysShowTooltip ~= false
+    local hasIcon = iconPrefix(icon, opts.tooltip, alwaysShow)
+    local controlWidth = calcControlWidth(opts.cols, hasIcon)
+
+    local dragId = "##" .. id
+    local state = stateTable[dragId]
+
+    -- Text input mode (activated by double-click)
+    if state and state.editing then
+        ImGui.SetNextItemWidth(controlWidth)
+        styles.PushOutlined()
+        local newText, committed = ImGui.InputText(dragId, state.buffer, 32,
+            ImGuiInputTextFlags.EnterReturnsTrue + ImGuiInputTextFlags.AutoSelectAll)
+        styles.PopOutlined()
+        if state.focusNext then
+            ImGui.SetKeyboardFocusHere(-1)
+            state.focusNext = false
+        end
+        if committed then
+            local parsed = core.parseTimeInput(newText)
+            if parsed then
+                state.editing = false
+                return parsed, true
+            end
+        end
+        if ImGui.IsKeyPressed(ImGuiKey.Escape) or
+           (not ImGui.IsItemActive() and not state.focusNext) then
+            state.editing = false
+        end
+        return value, false
+    end
+
+    -- Normal mode: delegate to caller's control renderer
+    local minutes = math.floor(value / 60)
+    local displayFmt = core.formatTimeOfDay(value)
+    local newMinutes, changed = renderControl(controlWidth, dragId, minutes, displayFmt)
+
+    -- Double-click to enter text input mode
+    if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
+        stateTable[dragId] = {
+            editing = true,
+            buffer = core.formatTimeOfDay(value),
+            focusNext = true,
+        }
+        return value, false
+    end
+
+    -- Right-click reset
+    if opts.default ~= nil and ImGui.IsItemClicked(1) then
+        return opts.default, true
+    end
+
+    if changed then
+        newMinutes = newMinutes % 1440
+        if newMinutes < 0 then newMinutes = newMinutes + 1440 end
+        return newMinutes * 60, true
+    end
+
+    return value, false
+end
+
 return core
