@@ -13,6 +13,11 @@ local holdbuttons = require("modules/controls/holdbuttons")
 local display = require("modules/controls/display")
 
 local frameCache = core.frameCache
+local formatTimeOfDay = core.formatTimeOfDay
+local parseTimeInput = core.parseTimeInput
+
+-- Persistent state for time text input mode (keyed by ImGui id)
+local _timeEditState = {}
 local iconPrefix = core.iconPrefix
 local cachedCalcTextSize = core.cachedCalcTextSize
 local resolveIcon = core.resolveIcon
@@ -269,6 +274,85 @@ local function renderDragRow(icon, id, drags, opts, dragFn, defaultFormat, defau
 
             if btnDisabled then
                 styles.PopDragDisabled()
+            end
+
+            if el.tooltip then tooltips.Show(el.tooltip) end
+        elseif el.type == "time" then
+            -- Time-of-day element: value in seconds (0-86399), displayed as "h:MM AM/PM"
+            dragIndex = dragIndex + 1
+            local todSeconds = el.value or 0
+            local todMinutes = math.floor(todSeconds / 60) % 1440
+            local dim = el.disabled or opts.disabled
+            local wasHovered = hovered and hovered[i]
+            local dragId = imguiIds and imguiIds[i] or ("##" .. id .. "_" .. i)
+            local timeState = _timeEditState[dragId]
+
+            -- Text input mode (double-click to activate)
+            if timeState and timeState.editing then
+                local styleType = styles.PushDragStyle(el, dim, true)
+                ImGui.SetNextItemWidth(widths[i])
+                local newText, committed = ImGui.InputText(dragId, timeState.buffer, 32,
+                    ImGuiInputTextFlags.EnterReturnsTrue + ImGuiInputTextFlags.AutoSelectAll)
+                if timeState.focusNext then
+                    ImGui.SetKeyboardFocusHere(-1)
+                    timeState.focusNext = false
+                end
+                styles.PopDragStyle(styleType, false)
+                if hovered then hovered[i] = ImGui.IsItemHovered() or ImGui.IsItemActive() end
+
+                if committed then
+                    local parsed = parseTimeInput(newText)
+                    if parsed then
+                        timeState.editing = false
+                        anyChanged = true
+                        values[dragIndex] = parsed
+                        if el.onChange then el.onChange(parsed, el.key)
+                        elseif opts.onChange then opts.onChange(dragIndex, parsed, el.key) end
+                    end
+                elseif ImGui.IsKeyPressed(ImGuiKey.Escape) or
+                       (not ImGui.IsItemActive() and not timeState.focusNext) then
+                    timeState.editing = false
+                    values[dragIndex] = todSeconds
+                else
+                    values[dragIndex] = todSeconds
+                end
+            else
+                -- Slider mode: SliderInt with minutes, AM/PM display
+                local displayFmt = formatTimeOfDay(todSeconds)
+                local styleType = styles.PushDragStyle(el, dim, wasHovered)
+                ImGui.SetNextItemWidth(widths[i])
+                local newMin, changed = ImGui.SliderInt(dragId, todMinutes, 0, 1439, displayFmt)
+                local isActive = ImGui.IsItemActive()
+                if hovered then hovered[i] = ImGui.IsItemHovered() or isActive end
+                styles.PopDragStyle(styleType, dim == true)
+
+                -- Double-click to enter text input
+                if ImGui.IsItemHovered() and ImGui.IsMouseDoubleClicked(0) then
+                    _timeEditState[dragId] = {
+                        editing = true,
+                        buffer = formatTimeOfDay(todSeconds),
+                        focusNext = true,
+                    }
+                    values[dragIndex] = todSeconds
+                elseif el.default ~= nil and ImGui.IsItemClicked(1) then
+                    -- Right-click reset
+                    anyChanged = true
+                    values[dragIndex] = el.default
+                    if el.onChange then el.onChange(el.default, el.key)
+                    elseif opts.onChange then opts.onChange(dragIndex, el.default, el.key) end
+                elseif changed then
+                    local newSeconds = newMin * 60
+                    anyChanged = true
+                    values[dragIndex] = newSeconds
+                    if el.onChange then el.onChange(newSeconds, el.key)
+                    elseif opts.onChange then opts.onChange(dragIndex, newSeconds, el.key) end
+                else
+                    values[dragIndex] = todSeconds
+                end
+
+                if el.onRelease and not isActive and wasHovered then
+                    el.onRelease(values[dragIndex])
+                end
             end
 
             if el.tooltip then tooltips.Show(el.tooltip) end

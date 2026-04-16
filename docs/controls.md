@@ -18,6 +18,7 @@ All controls are accessed via `controls.*` (or `wu.Controls.*` from external mod
 | `controls.SliderFloat(icon, id, value, min, max, opts?)` | Float slider with icon |
 | `controls.SliderInt(icon, id, value, min, max, opts?)` | Integer slider with icon |
 | `controls.SliderDisabled(icon?, label)` | Greyed-out slider placeholder |
+| `controls.TimeSlider(icon, id, value, opts?)` | Time-of-day slider (AM/PM format) |
 | `controls.DragFloat(icon, id, value, min, max, opts?)` | Float drag with Shift precision |
 | `controls.DragInt(icon, id, value, min, max, opts?)` | Integer drag with Shift precision |
 | `controls.DragFloatRow(icon, id, drags, opts?)` | Multi-drag float row with theming |
@@ -60,10 +61,10 @@ The controls module is split into focused sub-modules under `modules/controls/`:
 
 | Sub-Module | Contents |
 |------------|----------|
-| `core.lua` | Shared foundation: frameCache, Scaled, ColWidth, IconButton, helpers |
+| `core.lua` | Shared foundation: frameCache, Scaled, ColWidth, IconButton, time helpers |
 | `display.lua` | ProgressBar, ColorEdit4, SwatchGrid, Text*, Separator, SectionHeader |
 | `buttons.lua` | Button, ToggleButton, FullWidthButton, DisabledButton, StatusBar, DynamicButton, ButtonRow |
-| `sliders.lua` | SliderFloat, SliderInt, SliderDisabled |
+| `sliders.lua` | SliderFloat, SliderInt, SliderDisabled, TimeSlider |
 | `holdbuttons.lua` | HoldButton, ActionButton, hold progress helpers |
 | `inputs.lua` | InputText, InputFloat, InputInt, Checkbox, Combo, SearchBar, SearchBarPlain |
 | `drags.lua` | DragFloat, DragInt, DragFloatRow, DragIntRow |
@@ -228,6 +229,32 @@ Same as SliderFloat but for integers. Default format: `"%d"`.
 
 Greyed-out non-interactive slider placeholder.
 
+### `TimeSlider(icon, id, value, opts?)`
+
+Time-of-day slider. Value is seconds since midnight (0-86399). Displays as "h:MM AM/PM". Drag adjusts in minute increments. Double-click to type a time string.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| icon | string\|nil |  - | IconGlyph (nil = no icon) |
+| id | string |  - | Unique slider ID |
+| value | number |  - | Seconds since midnight (0-86399) |
+| opts.cols | number\|nil | nil | Grid columns (nil = fill remaining) |
+| opts.default | number\|nil | nil | Right-click reset value (seconds) |
+| opts.tooltip | string\|nil | nil | Always-visible icon tooltip |
+
+**Returns:** `number, boolean` - new value in seconds, whether changed
+
+Text input accepts: "1:45 PM", "13:45", "1345", "945", "9:45", or raw seconds.
+
+```lua
+local tod, changed = c.TimeSlider(
+    IconGlyphs.ClockOutline, "gameTime", settings.timeOfDay,
+    { default = 43200, tooltip = "Game time" }
+)
+```
+
+Also available as `type = "time"` in DragFloatRow/DragIntRow entries (see Drag Controls).
+
 ## Drag Controls
 
 Drag controls use `ImGui.DragFloat`/`ImGui.DragInt` instead of sliders. The value changes by dragging left/right with configurable speed. Hold Shift for precision mode (reduced drag speed).
@@ -350,7 +377,23 @@ Compound control that renders multiple float drag inputs (and optionally buttons
 | disabled | boolean\|nil | nil | Disable the button |
 | id | string\|nil | nil | Custom button ID (for hold buttons) |
 
-Elements without `type` (or `type = "drag"`) are treated as drags. Elements with `type = "button"` render as buttons. All elements are laid out left-to-right with `SameLine()`. Fixed-width elements (`width`, `widthPercent`, `fitLabel`) and buttons are subtracted from available space first; remaining space is divided proportionally by `weight` among weighted drags.
+Elements without `type` (or `type = "drag"`) are treated as drags. Elements with `type = "button"` render as buttons. Elements with `type = "int"` render as integer drags. Elements with `type = "time"` render as time-of-day sliders. All elements are laid out left-to-right with `SameLine()`. Fixed-width elements (`width`, `widthPercent`, `fitLabel`) and buttons are subtracted from available space first; remaining space is divided proportionally by `weight` among weighted drags.
+
+**Time_Definition fields** (`type = "time"`):
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| type | string | required | Must be `"time"` |
+| value | number | 0 | Seconds since midnight (0-86399) |
+| default | number\|nil | nil | Right-click reset value (seconds) |
+| tooltip | string\|nil | nil | Hover tooltip |
+| onChange | function\|nil | nil | `(newSeconds, key)` callback |
+| onRelease | function\|nil | nil | Called when slider is released after dragging |
+| disabled | boolean\|nil | nil | Disable the control |
+| weight | number\|nil | 1 | Flex weight for width distribution |
+| width | number\|nil | nil | Fixed pixel width |
+
+Displays "h:MM AM/PM" format. Drag adjusts in minute increments. Double-click to type a time string ("1:45 PM", "13:45", "1345").
 
 Color theming: a single `{r, g, b, a}` base color derives four ImGui style colors with a shared faded blue FrameBg background and axis-colored hover, active, and border. Drags without a color use the default outlined style.
 

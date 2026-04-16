@@ -202,4 +202,60 @@ function core.renderIconControl(icon, id, opts, imguiFn, ...)
     return newValue, changed
 end
 
+--------------------------------------------------------------------------------
+-- Time-of-Day helpers (shared by sliders.TimeSlider and drags type="time")
+--------------------------------------------------------------------------------
+
+--- Format seconds since midnight as "h:MM AM/PM"
+---@param seconds number Seconds since midnight (0-86399)
+---@return string Formatted time string
+function core.formatTimeOfDay(seconds)
+    seconds = math.floor(seconds) % 86400
+    local h24 = math.floor(seconds / 3600)
+    local m = math.floor((seconds % 3600) / 60)
+    local period = h24 >= 12 and "PM" or "AM"
+    local h12 = h24 % 12
+    if h12 == 0 then h12 = 12 end
+    return string.format("%d:%02d %s", h12, m, period)
+end
+
+--- Parse a time string into seconds since midnight.
+--- Accepts: "1:45 PM", "13:45", "1345", "1:45pm", "945", "9:45"
+---@param text string Time string to parse
+---@return number|nil seconds Seconds since midnight, or nil if unparseable
+function core.parseTimeInput(text)
+    if not text or text == "" then return nil end
+    text = text:match("^%s*(.-)%s*$")
+    local h, m, period = text:match("^(%d+):(%d+)%s*([AaPp][Mm]?)$")
+    if h then
+        h, m = tonumber(h), tonumber(m)
+        if not h or not m then return nil end
+        if period and period ~= "" then
+            period = period:upper()
+            if period == "PM" and h < 12 then h = h + 12 end
+            if period == "AM" and h == 12 then h = 0 end
+        end
+        if h >= 0 and h < 24 and m >= 0 and m < 60 then return h * 3600 + m * 60 end
+        return nil
+    end
+    h, m = text:match("^(%d+):(%d+)$")
+    if h then
+        h, m = tonumber(h), tonumber(m)
+        if h and m and h >= 0 and h < 24 and m >= 0 and m < 60 then return h * 3600 + m * 60 end
+        return nil
+    end
+    if text:match("^%d+$") then
+        local n = tonumber(text)
+        if not n then return nil end
+        if #text >= 3 then
+            h = math.floor(n / 100)
+            m = n % 100
+        else
+            h, m = n, 0
+        end
+        if h >= 0 and h < 24 and m >= 0 and m < 60 then return h * 3600 + m * 60 end
+    end
+    return nil
+end
+
 return core
